@@ -228,6 +228,22 @@ export function zombieDied(z: Zombie): void {
   spawnBlood(z.x, z.y, z.radius);
   awardPoints(POINTS_BY_TYPE[z.type] || 10);
   maybeDropPowerup(z.x, z.y, z.type === 'boss');
+
+  // Gold drops on all zombie kills (by player or towers!)
+  let goldDrop = 0;
+  if (z.type === 'boss') {
+    goldDrop = 4 + Math.floor(Math.random() * 4); // 4-7 Gold
+  } else if (z.type === 'brute' || z.type === 'witch' || z.type === 'exploder' || z.type === 'spitter') {
+    if (Math.random() < 0.45) goldDrop = 1 + (Math.random() < 0.3 ? 1 : 0); // 45% chance for 1-2 Gold
+  } else {
+    if (Math.random() < 0.20) goldDrop = 1; // 20% chance for 1 Gold
+  }
+
+  if (goldDrop > 0) {
+    player.gold += goldDrop;
+    spawnParticle(z.x, z.y - 25, '+' + goldDrop + ' gold', '#ffd76a');
+  }
+
   if (z.type === 'boss') {
     gainXp(200 + wave * 10);
     setActiveBoss(null);
