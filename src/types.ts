@@ -81,6 +81,10 @@ export interface Structure {
   level?: number;
   consecutiveHits?: number;
   lastTargetId?: number;
+
+  // present only for server-synced structures (net/matchSync.ts) — lets an
+  // upgrade request reference which server-side structure to bump.
+  id?: string;
 }
 
 export interface Crate { x: number; y: number; radius: number; dead?: boolean; }

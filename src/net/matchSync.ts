@@ -10,13 +10,17 @@
 // spider, witch, ranged/explode behavior) — that's flagged as follow-up
 // work, not forgotten.
 
-import { net, sendMove, sendShoot, getMyId, NetZombieSnapshot, NetBulletSnapshot } from './socket';
+import {
+  net, sendMove, sendShoot, sendBuild, sendUpgrade, getMyId,
+  NetZombieSnapshot, NetBulletSnapshot, NetStructureSnapshot,
+} from './socket';
 import {
   setInNetMatch, setRemotePlayers, RemotePlayer,
-  setZombies, setBullets, player,
+  setZombies, setBullets, setStructures, player,
+  inspectedStructure, setInspectedStructure,
 } from '../state';
-import { Zombie, Bullet, HairKind, MouthKind } from '../types';
-import { SKIN_VARIANTS } from '../constants';
+import { Zombie, Bullet, Structure, HairKind, MouthKind } from '../types';
+import { SKIN_VARIANTS, BUILD_DEFS } from '../constants';
 
 /** Small deterministic hash so a given entity id always gets the same
  *  cosmetic look across snapshots, instead of re-randomizing every update. */
@@ -59,6 +63,20 @@ function toClientBullet(snap: NetBulletSnapshot): Bullet {
   };
 }
 
+/** Unlike zombies/bullets, structures need no cosmetic derivation — every
+ *  field drawStructure() reads (type/x/y/angle/aimAngle/tier/level/hp/maxHp)
+ *  comes straight off the snapshot; `radius` is a pure per-type constant
+ *  lookup (never varies by level, confirmed against BUILD_DEFS/TOWER_LEVELS). */
+function toClientStructure(snap: NetStructureSnapshot): Structure {
+  return {
+    id: snap.id,
+    type: snap.type, x: snap.x, y: snap.y, angle: snap.angle, aimAngle: snap.aimAngle,
+    radius: BUILD_DEFS[snap.type].radius,
+    hp: snap.hp, maxHp: snap.maxHp,
+    tier: snap.tier, level: snap.level,
+  };
+}
+
 let wired = false;
 
 /** Registers the server -> game-state callbacks. Safe to call once at startup;
@@ -96,6 +114,19 @@ export function initMatchSync(): void {
     setBullets(msg.bullets.map(toClientBullet));
   };
 
+  net.onStructures = (msg) => {
+    const next = msg.structures.map(toClientStructure);
+    setStructures(next);
+    // setStructures swaps in fresh object references every sync, so a
+    // previously-inspected structure (held by reference, not id, in
+    // state.ts) would otherwise go stale after this tick — frozen HP/level
+    // in the inspector panel, and its selection ring (drawWorld.ts's
+    // `st === inspectedStructure` check) would stop matching anything.
+    if (inspectedStructure) {
+      setInspectedStructure(next.find(s => s.id === inspectedStructure!.id) ?? null);
+    }
+  };
+
   net.onDisconnected = () => {
     setInNetMatch(false);
   };
@@ -124,4 +155,4 @@ export function maybeSendMove(now: number): void {
   sendMove(player.x, player.y, player.angle);
 }
 
-export { sendShoot as sendNetShoot };
+export { sendShoot as sendNetShoot, sendBuild as sendNetBuild, sendUpgrade as sendNetUpgrade };

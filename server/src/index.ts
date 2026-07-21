@@ -1,6 +1,6 @@
 import uWS from 'uWebSockets.js';
 import crypto from 'node:crypto';
-import { PROTOCOL_VERSION, SESSION_GRACE_MS, isMovePacket, isShootPacket, isReadyPacket } from './protocol.js';
+import { PROTOCOL_VERSION, SESSION_GRACE_MS, isMovePacket, isShootPacket, isReadyPacket, isBuildPacket, isUpgradePacket } from './protocol.js';
 import { ConnectionData, PlayerState } from './Room.js';
 import { RoomManager, SessionStore } from './RoomManager.js';
 
@@ -128,6 +128,14 @@ app.ws<ConnectionData>('/ws', {
     }
     if (isReadyPacket(parsed)) {
       room.handleReady(data.id, parsed.ready);
+      return;
+    }
+    if (isBuildPacket(parsed)) {
+      room.handleBuild(data.id, parsed.kind, parsed.x, parsed.y, parsed.angle);
+      return;
+    }
+    if (isUpgradePacket(parsed)) {
+      room.handleUpgrade(data.id, parsed.structureId);
       return;
     }
   },

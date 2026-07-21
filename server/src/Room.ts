@@ -4,7 +4,10 @@ import {
   ZOMBIE_MAX, ZOMBIE_SPAWN_INTERVAL_MS, ZOMBIE_RADIUS, ZOMBIE_DAMAGE, ZOMBIE_HIT_COOLDOWN_MS, ZOMBIE_KILL_XP,
   BULLET_SPEED, BULLET_LIFE_TICKS, BULLET_RADIUS, BULLET_DAMAGE,
   PLAYER_RADIUS, PLAYER_MAX_HP, MAX_PLAYER_SPEED_PER_MS, MIN_SHOT_INTERVAL_MS,
-  RoomPhase,
+  BUILD_REACH, STRUCTURE_MAX, STRUCTURE_DEFS, TOWER_LEVELS, towerMaxHp,
+  WALL_HP_BY_TIER, SPIKE_HP_BY_TIER, SPIKE_DAMAGE_BY_TIER, SPIKE_HIT_COOLDOWN_MS,
+  CAMPFIRE_HEAL_RADIUS, CAMPFIRE_HEAL_RATE,
+  RoomPhase, StructureKind, TowerKind,
   clamp, dist,
 } from './protocol.js';
 
@@ -45,6 +48,7 @@ export interface ZombieState {
   hp: number;
   maxHp: number;
   lastHitPlayerAt: number;
+  lastSpikeHitAt: number;
 }
 
 export interface BulletState {
@@ -57,6 +61,23 @@ export interface BulletState {
   life: number;
 }
 
+/** Phase 1: existence/position/combat sync only, no ownership tracking —
+ *  any player can upgrade any structure (matches campfire's heal-anyone
+ *  design), and tower/spike kills grant no XP (no owner to grant it to). */
+export interface StructureState {
+  id: string;
+  type: StructureKind;
+  x: number;
+  y: number;
+  angle: number;
+  aimAngle: number;
+  tier: number;  // wall/spike only, 0-2
+  level: number; // towers only, 1-5
+  hp: number;
+  maxHp: number;
+  lastShot: number;
+}
+
 let nextZombieId = 1;
 function generateZombieId(): string {
   return 'zombie_' + (nextZombieId++);
@@ -65,6 +86,15 @@ function generateZombieId(): string {
 let nextBulletId = 1;
 function generateBulletId(): string {
   return 'bullet_' + (nextBulletId++);
+}
+
+let nextStructureId = 1;
+function generateStructureId(): string {
+  return 'structure_' + (nextStructureId++);
+}
+
+function isTowerKind(type: StructureKind): type is TowerKind {
+  return type in TOWER_LEVELS;
 }
 
 /**
@@ -78,6 +108,7 @@ export class Room {
   readonly players = new Map<string, PlayerState>();
   readonly zombies = new Map<string, ZombieState>();
   readonly bullets = new Map<string, BulletState>();
+  readonly structures = new Map<string, StructureState>();
 
   private phase: RoomPhase = 'waiting';
   private countdownEndsAt: number | null = null;
@@ -154,6 +185,16 @@ export class Room {
     }));
   }
 
+  private broadcastStructures(): void {
+    this.broadcast(JSON.stringify({
+      type: 'structures',
+      structures: Array.from(this.structures.values()).map(s => ({
+        id: s.id, type: s.type, x: s.x, y: s.y, angle: s.angle, aimAngle: s.aimAngle,
+        tier: s.tier, level: s.level, hp: s.hp, maxHp: s.maxHp,
+      })),
+    }));
+  }
+
   /** Adds a live connection. `restored` carries prior state on a reconnect. */
   addConnection(ws: uWS.WebSocket<ConnectionData>, id: string, name: string, restored?: PlayerState): void {
     this.sockets.set(id, ws);
@@ -170,6 +211,7 @@ export class Room {
     ws.send(JSON.stringify({ type: 'players', players: Array.from(this.players.values()) }));
     ws.send(JSON.stringify({ type: 'zombies', zombies: Array.from(this.zombies.values()) }));
     ws.send(JSON.stringify({ type: 'bullets', bullets: Array.from(this.bullets.values()) }));
+    ws.send(JSON.stringify({ type: 'structures', structures: Array.from(this.structures.values()) }));
 
     this.broadcastPlayers();
     // A new (unready) joiner invalidates any countdown already in progress.
@@ -245,6 +287,62 @@ export class Room {
     this.reevaluateLobby();
   }
 
+  /** Validated build: rejects if not in-reach, room is at the structure cap
+   *  (DoS safety net — resource cost isn't server-validated yet, see
+   *  protocol.ts), or the player doesn't exist/isn't alive. */
+  handleBuild(id: string, kind: StructureKind, x: number, y: number, angle: number): void {
+    if (this.phase !== 'active') return;
+    const p = this.players.get(id);
+    if (!p || !p.alive) return;
+    if (this.structures.size >= STRUCTURE_MAX) return;
+    if (dist(p.x, p.y, x, y) > BUILD_REACH) return;
+
+    const def = STRUCTURE_DEFS[kind];
+    const isWall = kind === 'wall';
+    const isSpike = kind === 'spike';
+    const hp = isWall ? WALL_HP_BY_TIER[0] : isSpike ? SPIKE_HP_BY_TIER[0] : def.hp;
+
+    const sid = generateStructureId();
+    this.structures.set(sid, {
+      id: sid, type: kind,
+      x: clamp(x, 0, WORLD_W), y: clamp(y, 0, WORLD_H), angle, aimAngle: angle,
+      tier: 0, level: isTowerKind(kind) ? 1 : 0,
+      hp, maxHp: hp, lastShot: 0,
+    });
+    this.broadcastStructures();
+  }
+
+  /** Validated upgrade: wall/spike bump tier (max 2), towers bump level (max
+   *  5); either way, fully heals to the new maxHp, matching the client's
+   *  upgradeInspectedStructure() behavior exactly. campfire/shop/factory
+   *  have no upgrade path (silently ignored, matching the client). */
+  handleUpgrade(id: string, structureId: string): void {
+    if (this.phase !== 'active') return;
+    const p = this.players.get(id);
+    if (!p || !p.alive) return;
+    const s = this.structures.get(structureId);
+    if (!s) return;
+    if (dist(p.x, p.y, s.x, s.y) > BUILD_REACH) return;
+
+    if (s.type === 'wall') {
+      if (s.tier >= WALL_HP_BY_TIER.length - 1) return;
+      s.tier += 1;
+      s.maxHp = WALL_HP_BY_TIER[s.tier];
+    } else if (s.type === 'spike') {
+      if (s.tier >= SPIKE_HP_BY_TIER.length - 1) return;
+      s.tier += 1;
+      s.maxHp = SPIKE_HP_BY_TIER[s.tier];
+    } else if (isTowerKind(s.type)) {
+      if (s.level >= 5) return;
+      s.level += 1;
+      s.maxHp = towerMaxHp(s.type, s.level);
+    } else {
+      return;
+    }
+    s.hp = s.maxHp;
+    this.broadcastStructures();
+  }
+
   /**
    * Any membership or ready-state change lands here. Any in-progress countdown
    * is always cancelled first, then a fresh one starts if the room currently
@@ -307,6 +405,7 @@ export class Room {
       y: Math.random() * WORLD_H,
       hp: 30, maxHp: 30,
       lastHitPlayerAt: 0,
+      lastSpikeHitAt: 0,
     });
   }
 
@@ -374,14 +473,78 @@ export class Room {
     }
   }
 
+  /**
+   * Phase 1 structure combat: flat per-level/tier damage against the
+   * nearest zombie in range, no special mechanics (splash, chain lightning,
+   * slow, toxic clouds, crit/execute thresholds, ramp-up — all deliberately
+   * deferred, see protocol.ts's Structure stats section header). No
+   * traveling bullet entities either — damage applies directly on cooldown,
+   * same as how `sniper` already conceptually works client-side.
+   */
+  private tickStructures(): void {
+    const now = Date.now();
+
+    for (const s of this.structures.values()) {
+      if (s.type === 'campfire') {
+        for (const p of this.players.values()) {
+          if (!p.alive) continue;
+          if (dist(s.x, s.y, p.x, p.y) <= CAMPFIRE_HEAL_RADIUS) {
+            p.hp = Math.min(p.maxHp, p.hp + CAMPFIRE_HEAL_RATE * (TICK_MS / 1000));
+          }
+        }
+        continue;
+      }
+
+      if (s.type === 'spike') {
+        const dmg = SPIKE_DAMAGE_BY_TIER[s.tier];
+        const reach = STRUCTURE_DEFS.spike.radius + ZOMBIE_RADIUS;
+        for (const z of this.zombies.values()) {
+          if (dist(s.x, s.y, z.x, z.y) > reach) continue;
+          if (now - z.lastSpikeHitAt < SPIKE_HIT_COOLDOWN_MS) continue;
+          z.hp -= dmg;
+          z.lastSpikeHitAt = now;
+          if (z.hp <= 0) this.zombies.delete(z.id);
+        }
+        continue;
+      }
+
+      if (isTowerKind(s.type)) {
+        const spec = TOWER_LEVELS[s.type][s.level - 1];
+        const cooldownMs = 1000 / spec.fireRate;
+        if (now - s.lastShot < cooldownMs) continue;
+
+        let target: ZombieState | null = null;
+        let bestDist = Infinity;
+        for (const z of this.zombies.values()) {
+          const d = dist(s.x, s.y, z.x, z.y);
+          if (d <= spec.range && d < bestDist) { bestDist = d; target = z; }
+        }
+        if (!target) continue;
+
+        s.lastShot = now;
+        s.aimAngle = Math.atan2(target.y - s.y, target.x - s.x);
+        target.hp -= spec.damage;
+        if (target.hp <= 0) this.zombies.delete(target.id);
+        // No XP granted for structure kills — structures have no owner in
+        // Phase 1 (see StructureState's doc comment).
+      }
+    }
+
+    for (const s of this.structures.values()) {
+      if (s.hp <= 0) this.structures.delete(s.id);
+    }
+  }
+
   private tick(): void {
     if (this.zombies.size > 0) this.tickZombiesMovement();
     if (this.bullets.size > 0) this.tickBulletsMovement();
     this.resolveCollisions();
+    if (this.structures.size > 0) this.tickStructures();
 
     if (this.sockets.size === 0) return;
     this.broadcastPlayers();
     if (this.zombies.size > 0) this.broadcastZombies();
     this.broadcastBullets();
+    this.broadcastStructures();
   }
 }

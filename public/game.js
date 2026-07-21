@@ -839,6 +839,7 @@
     onPlayers: null,
     onZombies: null,
     onBullets: null,
+    onStructures: null,
     onDisconnected: null
   };
   function isConnected() {
@@ -894,6 +895,9 @@
         case "bullets":
           net.onBullets?.(msg);
           break;
+        case "structures":
+          net.onStructures?.(msg);
+          break;
       }
     };
     socket.onclose = () => {
@@ -925,6 +929,12 @@
   }
   function sendShoot(angle) {
     send({ type: "shoot", angle });
+  }
+  function sendBuild(kind, x, y, angle) {
+    send({ type: "build", kind, x, y, angle });
+  }
+  function sendUpgrade(structureId) {
+    send({ type: "upgrade", structureId });
   }
 
   // src/net/matchSync.ts
@@ -981,6 +991,21 @@
       owner: "player"
     };
   }
+  function toClientStructure(snap) {
+    return {
+      id: snap.id,
+      type: snap.type,
+      x: snap.x,
+      y: snap.y,
+      angle: snap.angle,
+      aimAngle: snap.aimAngle,
+      radius: BUILD_DEFS[snap.type].radius,
+      hp: snap.hp,
+      maxHp: snap.maxHp,
+      tier: snap.tier,
+      level: snap.level
+    };
+  }
   var wired = false;
   function initMatchSync() {
     if (wired) return;
@@ -1005,6 +1030,13 @@
         if (!activeIds.has(id)) lastBulletPos.delete(id);
       }
       setBullets(msg.bullets.map(toClientBullet));
+    };
+    net.onStructures = (msg) => {
+      const next = msg.structures.map(toClientStructure);
+      setStructures(next);
+      if (inspectedStructure) {
+        setInspectedStructure(next.find((s) => s.id === inspectedStructure.id) ?? null);
+      }
     };
     net.onDisconnected = () => {
       setInNetMatch(false);
@@ -5751,11 +5783,15 @@
         if (next) {
           if (player.points >= next.pointsCost) {
             player.points -= next.pointsCost;
-            occupant.tier = curTier + 1;
-            occupant.maxHp = next.hpMax;
-            occupant.hp = next.hpMax;
-            if (occupant.type === "spike") {
-              occupant.damage = next.damage;
+            if (inNetMatch && occupant.id) {
+              sendUpgrade(occupant.id);
+            } else {
+              occupant.tier = curTier + 1;
+              occupant.maxHp = next.hpMax;
+              occupant.hp = next.hpMax;
+              if (occupant.type === "spike") {
+                occupant.damage = next.damage;
+              }
             }
             spawnParticle(occupant.x, occupant.y - 30, next.name.toUpperCase() + " " + occupant.type.toUpperCase(), "#c7cfd2");
           } else {
@@ -5780,12 +5816,16 @@
           const amt = costInfo.amount;
           if (player[res] >= amt) {
             player[res] -= amt;
-            occupant.level = curLvl + 1;
-            const hpFactor = 1 + (occupant.level - 1) * 0.5;
-            const baseHp = BUILD_DEFS[occupant.type].hp;
-            occupant.maxHp = Math.round(baseHp * hpFactor);
-            occupant.hp = occupant.maxHp;
-            spawnParticle(occupant.x, occupant.y - 30, "Lv." + occupant.level + " " + occupant.type.toUpperCase() + "!", "#ffd76a");
+            if (inNetMatch && occupant.id) {
+              sendUpgrade(occupant.id);
+            } else {
+              occupant.level = curLvl + 1;
+              const hpFactor = 1 + (occupant.level - 1) * 0.5;
+              const baseHp = BUILD_DEFS[occupant.type].hp;
+              occupant.maxHp = Math.round(baseHp * hpFactor);
+              occupant.hp = occupant.maxHp;
+            }
+            spawnParticle(occupant.x, occupant.y - 30, "Lv." + (curLvl + 1) + " " + occupant.type.toUpperCase() + "!", "#ffd76a");
             spawnBurst(occupant.x, occupant.y, "#ffd76a", 12);
           } else {
             spawnParticle(player.x, player.y - 30, "need " + amt + " " + res, "#ff8080");
@@ -5812,6 +5852,10 @@
     player.wood -= wCost;
     player.stone -= sCost;
     const placedAngle = getPlacementAngle();
+    if (inNetMatch) {
+      sendBuild(selectedBuild, target.cx, target.cy, placedAngle);
+      return;
+    }
     const s = { type: selectedBuild, x: target.cx, y: target.cy, radius: def.radius, hp: def.hp, maxHp: def.hp, angle: placedAngle };
     if (selectedBuild === "wall") s.tier = 0;
     if (selectedBuild === "spike") {
@@ -6124,12 +6168,16 @@
         const amt = costInfo.amount;
         if (player[res] >= amt) {
           player[res] -= amt;
-          st.level = curLvl + 1;
-          const hpFactor = 1 + (st.level - 1) * 0.5;
-          const baseHp = BUILD_DEFS[st.type].hp;
-          st.maxHp = Math.round(baseHp * hpFactor);
-          st.hp = st.maxHp;
-          spawnParticle(st.x, st.y - 30, "Lv." + st.level + " " + st.type.toUpperCase() + "!", "#ffd76a");
+          if (inNetMatch && st.id) {
+            sendUpgrade(st.id);
+          } else {
+            st.level = curLvl + 1;
+            const hpFactor = 1 + (st.level - 1) * 0.5;
+            const baseHp = BUILD_DEFS[st.type].hp;
+            st.maxHp = Math.round(baseHp * hpFactor);
+            st.hp = st.maxHp;
+          }
+          spawnParticle(st.x, st.y - 30, "Lv." + (curLvl + 1) + " " + st.type.toUpperCase() + "!", "#ffd76a");
           spawnBurst(st.x, st.y, "#ffd76a", 12);
           renderStructureInspector();
         } else {
@@ -6143,10 +6191,14 @@
       if (next) {
         if (player.points >= next.pointsCost) {
           player.points -= next.pointsCost;
-          st.tier = curTier + 1;
-          st.maxHp = next.hpMax;
-          st.hp = next.hpMax;
-          if (st.type === "spike") st.damage = next.damage;
+          if (inNetMatch && st.id) {
+            sendUpgrade(st.id);
+          } else {
+            st.tier = curTier + 1;
+            st.maxHp = next.hpMax;
+            st.hp = next.hpMax;
+            if (st.type === "spike") st.damage = next.damage;
+          }
           spawnParticle(st.x, st.y - 30, next.name.toUpperCase() + " " + st.type.toUpperCase(), "#c7cfd2");
           renderStructureInspector();
         } else {

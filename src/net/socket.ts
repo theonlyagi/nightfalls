@@ -8,6 +8,7 @@
 // `lobby.onMatchStart` hooks in state.ts.
 
 import { WS_URL } from '../constants';
+import { StructureKind } from '../types';
 
 const SESSION_TOKEN_KEY = 'nightfall_session_token';
 
@@ -35,6 +36,11 @@ export interface NetZombieSnapshot { id: string; x: number; y: number; hp: numbe
 export interface NetZombiesMessage { type: 'zombies'; zombies: NetZombieSnapshot[]; }
 export interface NetBulletSnapshot { id: string; ownerId: string; x: number; y: number; }
 export interface NetBulletsMessage { type: 'bullets'; bullets: NetBulletSnapshot[]; }
+export interface NetStructureSnapshot {
+  id: string; type: StructureKind; x: number; y: number; angle: number; aimAngle: number;
+  tier: number; level: number; hp: number; maxHp: number;
+}
+export interface NetStructuresMessage { type: 'structures'; structures: NetStructureSnapshot[]; }
 
 let socket: WebSocket | null = null;
 let myId: string | null = null;
@@ -46,6 +52,7 @@ export const net = {
   onPlayers: null as ((msg: NetPlayersMessage) => void) | null,
   onZombies: null as ((msg: NetZombiesMessage) => void) | null,
   onBullets: null as ((msg: NetBulletsMessage) => void) | null,
+  onStructures: null as ((msg: NetStructuresMessage) => void) | null,
   onDisconnected: null as (() => void) | null,
 };
 
@@ -100,6 +107,9 @@ export function connect(name: string): void {
       case 'bullets':
         net.onBullets?.(msg);
         break;
+      case 'structures':
+        net.onStructures?.(msg);
+        break;
     }
   };
 
@@ -132,3 +142,7 @@ function send(payload: object): void {
 export function sendReady(ready: boolean): void { send({ type: 'ready', ready }); }
 export function sendMove(x: number, y: number, angle: number): void { send({ type: 'move', x, y, angle }); }
 export function sendShoot(angle: number): void { send({ type: 'shoot', angle }); }
+export function sendBuild(kind: StructureKind, x: number, y: number, angle: number): void {
+  send({ type: 'build', kind, x, y, angle });
+}
+export function sendUpgrade(structureId: string): void { send({ type: 'upgrade', structureId }); }
