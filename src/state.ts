@@ -169,3 +169,6 @@ export function setDebugOpen(val: boolean): void { debugOpen = val; }
 
 export let godMode = false;
 export function setGodMode(val: boolean): void { godMode = val; }
+
+export let debugSpeedMultiplier = 1;
+export function setDebugSpeedMultiplier(val: number): void { debugSpeedMultiplier = val; }

@@ -4,7 +4,7 @@ export interface Vec2 { x: number; y: number; }
 
 export type WeaponKind = 'pistol' | 'dualguns' | 'machinegun' | 'shotgun' | 'grenadelauncher';
 export type MutationKind = 'vampire' | 'overclocked' | 'titan' | 'pyromaniac';
-export type ZombieKind = 'normal' | 'scout' | 'brute' | 'spitter' | 'exploder' | 'wolf' | 'boss';
+export type ZombieKind = 'normal' | 'scout' | 'brute' | 'spitter' | 'exploder' | 'wolf' | 'boss' | 'spider' | 'witch';
 export type HairKind = 'bald' | 'hood' | 'tuft' | null;
 export type MouthKind = 'open' | 'frown' | 'grimace';
 export type StructureKind = 'wall' | 'spike' | 'turret' | 'campfire' | 'shop';
@@ -24,6 +24,7 @@ export interface PlayerState {
   weapon: WeaponKind; weaponChosen: boolean;
   mutation: MutationKind | null; mutationChosen: boolean;
   heat: number; overheatedUntil: number;
+  slowedUntil?: number;
 }
 
 export interface Zombie {
@@ -34,12 +35,14 @@ export interface Zombie {
   skinColor: string; skinColor2: string; skinDark: string; clothColor: string | null;
   spikeCd?: number; projDamage?: number; explodeDamage?: number; dead?: boolean;
   burnUntil?: number; burnDamagePerSec?: number;
+  lastSummon?: number;
 }
 
 export interface Bullet {
   x: number; y: number; vx: number; vy: number; radius: number; damage: number; life: number;
   owner: 'player' | 'turret' | 'zombie'; insta?: boolean; dead?: boolean;
   explosive?: boolean; explodeRadius?: number; burn?: boolean;
+  slowProj?: boolean;
 }
 
 export interface Resource {

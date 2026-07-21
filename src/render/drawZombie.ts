@@ -282,6 +282,22 @@ export function drawZombie(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElem
     return;
   }
 
+  if (z.type === 'spider') {
+    drawSpiderZombie(ctx, z, s, angle, flashing, OUTLINE);
+    const barW = z.radius * 2;
+    ctx.fillStyle = '#00000088'; ctx.fillRect(s.x - barW / 2, s.y - z.radius - 12, barW, 5);
+    ctx.fillStyle = '#ff5c5c'; ctx.fillRect(s.x - barW / 2, s.y - z.radius - 12, barW * (z.hp / z.maxHp), 5);
+    return;
+  }
+
+  if (z.type === 'witch') {
+    drawWitchZombie(ctx, z, s, angle, flashing, OUTLINE);
+    const barW = z.radius * 2;
+    ctx.fillStyle = '#00000088'; ctx.fillRect(s.x - barW / 2, s.y - z.radius - 12, barW, 5);
+    ctx.fillStyle = '#ff5c5c'; ctx.fillRect(s.x - barW / 2, s.y - z.radius - 12, barW * (z.hp / z.maxHp), 5);
+    return;
+  }
+
   if (z.type === 'brute') {
     ctx.fillStyle = z.skinDark;
     ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2;
@@ -417,4 +433,148 @@ export function drawZombie(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElem
   ctx.fillStyle = '#00000088'; ctx.fillRect(s.x - barW / 2, s.y - z.radius - 12, barW, 5);
   ctx.fillStyle = '#ff5c5c';
   ctx.fillRect(s.x - barW / 2, s.y - z.radius - 12, barW * (z.hp / z.maxHp), 5);
+}
+
+export function drawSpiderZombie(
+  ctx: CanvasRenderingContext2D, z: Zombie, s: Vec2, angle: number, flashing: boolean, OUTLINE: string
+): void {
+  const r = z.radius;
+  const bodyCol = flashing ? '#ffffff' : z.skinColor;
+  const bodyCol2 = flashing ? '#ffffff' : z.skinColor2;
+  const legCol = flashing ? '#ffffff' : z.skinDark;
+  const fx = Math.cos(angle), fy = Math.sin(angle);
+  const px = Math.cos(angle + Math.PI / 2), py = Math.sin(angle + Math.PI / 2);
+
+  // Draw 8 legs
+  const legAngles = [-1.3, -0.9, -0.5, -0.1, 0.1, 0.5, 0.9, 1.3];
+  legAngles.forEach((legOffset, idx) => {
+    const side = idx < 4 ? -1 : 1;
+    const a = angle + legOffset + (side * Math.PI / 4);
+    const hipX = s.x + Math.cos(angle + legOffset) * r * 0.45;
+    const hipY = s.y + Math.sin(angle + legOffset) * r * 0.45;
+    const jointX = hipX + Math.cos(a) * r * 0.8;
+    const jointY = hipY + Math.sin(a) * r * 0.8;
+    const tipAngle = a + side * 0.6;
+    const tipX = jointX + Math.cos(tipAngle) * r * 0.7;
+    const tipY = jointY + Math.sin(tipAngle) * r * 0.7;
+
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = OUTLINE; ctx.lineWidth = r * 0.22 + 4;
+    ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(jointX, jointY); ctx.lineTo(tipX, tipY); ctx.stroke();
+    ctx.strokeStyle = legCol; ctx.lineWidth = r * 0.22;
+    ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(jointX, jointY); ctx.lineTo(tipX, tipY); ctx.stroke();
+    ctx.lineCap = 'butt';
+  });
+
+  // Abdomen (large oval behind)
+  const abdX = s.x - fx * r * 0.45, abdY = s.y - fy * r * 0.45;
+  ctx.fillStyle = radialFill(ctx, abdX, abdY, r * 1.0, bodyCol, '#000000');
+  ctx.beginPath(); ctx.ellipse(abdX, abdY, r * 1.0, r * 0.82, angle, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.stroke();
+
+  // Head (smaller round in front)
+  const headX = s.x + fx * r * 0.45, headY = s.y + fy * r * 0.45;
+  ctx.fillStyle = radialFill(ctx, headX, headY, r * 0.65, bodyCol, bodyCol2);
+  ctx.beginPath(); ctx.ellipse(headX, headY, r * 0.65, r * 0.55, angle, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2.5; ctx.stroke();
+
+  // Glowing spider eyes (multiple red dots on the head)
+  ctx.fillStyle = '#ff1e1e';
+  [-0.3, -0.1, 0.1, 0.3].forEach(off => {
+    const ex1 = headX + fx * r * 0.32 + px * r * off * 0.7;
+    const ey1 = headY + fy * r * 0.32 + py * r * off * 0.7;
+    ctx.beginPath(); ctx.arc(ex1, ey1, r * 0.08, 0, Math.PI * 2); ctx.fill();
+    const ex2 = headX + fx * r * 0.15 + px * r * off * 0.8;
+    const ey2 = headY + fy * r * 0.15 + py * r * off * 0.8;
+    ctx.beginPath(); ctx.arc(ex2, ey2, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  });
+}
+
+export function drawWitchZombie(
+  ctx: CanvasRenderingContext2D, z: Zombie, s: Vec2, angle: number, flashing: boolean, OUTLINE: string
+): void {
+  const r = z.radius;
+  const bodyCol = flashing ? '#ffffff' : z.skinColor;
+  const bodyCol2 = flashing ? '#ffffff' : z.skinColor2;
+  const fx = Math.cos(angle), fy = Math.sin(angle);
+  const px = Math.cos(angle + Math.PI / 2), py = Math.sin(angle + Math.PI / 2);
+
+  // Buffing Aura (pink magic circle below her)
+  ctx.save();
+  ctx.strokeStyle = 'rgba(192, 132, 252, 0.4)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(s.x, s.y, 160, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(192, 132, 252, 0.04)';
+  ctx.fill();
+  ctx.restore();
+
+  // Hands holding magic orbs
+  const armSpread = 0.8;
+  const armReach = 0.85;
+  drawZombieArmBlobs(ctx, s.x, s.y, r, angle, armSpread, armReach, bodyCol, bodyCol2, OUTLINE, flashing);
+
+  // Magic particles near hands
+  if (!flashing) {
+    ctx.fillStyle = '#c084fc';
+    [-1, 1].forEach(side => {
+      const hAngle = angle + side * armSpread;
+      const hx = s.x + Math.cos(hAngle) * r * armReach;
+      const hy = s.y + Math.sin(hAngle) * r * armReach;
+      ctx.beginPath(); ctx.arc(hx + Math.random() * 6 - 3, hy + Math.random() * 6 - 3, 2.5 + Math.random() * 3, 0, Math.PI * 2); ctx.fill();
+    });
+  }
+
+  // Witch dress (flowing purple cape/skirt)
+  ctx.fillStyle = '#4a235a';
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(s.x, s.y + r * 0.45, r * 0.8, 0, Math.PI);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  // Body
+  const rx = r * z.squishX, ry = r * z.squishY;
+  ctx.fillStyle = radialFill(ctx, s.x, s.y, r, bodyCol, bodyCol2);
+  ctx.beginPath(); ctx.ellipse(s.x, s.y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3.5; ctx.stroke();
+
+  // Eyes (creepy green glowing eyes!)
+  ctx.fillStyle = '#2ecc71';
+  [-1, 1].forEach(side => {
+    const ex = s.x + fx * r * 0.22 + px * r * 0.3 * side;
+    const ey = s.y + fy * r * 0.22 + py * r * 0.3 * side;
+    ctx.beginPath(); ctx.arc(ex, ey, r * 0.16, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#0e1c0e';
+    ctx.beginPath(); ctx.arc(ex, ey, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // Witch Hat (Brim: wide ellipse, Cone: triangle offset backwards)
+  ctx.fillStyle = '#1a052e';
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3;
+  const brimW = r * 1.5, brimH = r * 0.95;
+  ctx.beginPath();
+  ctx.ellipse(s.x, s.y, brimW, brimH, angle, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  
+  const coneBaseL = s.x - px * r * 0.4 - fx * r * 0.1;
+  const coneBaseR = s.x + px * r * 0.4 - fx * r * 0.1;
+  const coneTip = s.x - fx * r * 1.4;
+  const coneBaseLy = s.y - py * r * 0.4 - fy * r * 0.1;
+  const coneBaseRy = s.y + py * r * 0.4 - fy * r * 0.1;
+  const coneTipy = s.y - fy * r * 1.4;
+  ctx.beginPath();
+  ctx.moveTo(coneBaseL, coneBaseLy);
+  ctx.lineTo(coneBaseR, coneBaseRy);
+  ctx.lineTo(coneTip, coneTipy);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // Hat band (purple)
+  ctx.fillStyle = '#8e44ad';
+  ctx.beginPath();
+  ctx.moveTo(coneBaseL, coneBaseLy);
+  ctx.lineTo(coneBaseR, coneBaseRy);
+  ctx.lineTo(s.x - fx * r * 0.35, s.y - fy * r * 0.35);
+  ctx.closePath(); ctx.fill();
 }

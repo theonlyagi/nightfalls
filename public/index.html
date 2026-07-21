@@ -71,7 +71,10 @@
       <div class="help-row"><span>Cancel Selection</span><b>ESC</b></div>
       <div class="help-note">Zombies hit harder and move faster during the night.</div>
     </div>
-    <button id="helpBtn">? How to Play</button>
+    <div class="help-buttons-row">
+      <button id="codexBtn" title="Bestiary & Codex">📖 Codex</button>
+      <button id="helpBtn">? How to Play</button>
+    </div>
   </div>
 
   <div id="touchOverlay" class="hidden">
@@ -110,6 +113,29 @@
   </div>
 </div>
 
+<div id="codexModal" class="overlay-anim hidden">
+  <div id="codexBox">
+    <div class="codex-header">
+      <h3>SURVIVOR'S BESTIARY</h3>
+      <button id="codexCloseBtn">✕</button>
+    </div>
+    <div class="codex-content">
+      <div id="codexList" class="codex-list"></div>
+      <div class="codex-detail">
+        <div id="codexDetailEmpty">Select a specimen to view records.</div>
+        <div id="codexDetailContent" class="hidden">
+          <h4 id="codexMonsterName">Name</h4>
+          <canvas id="codexPreviewCanvas" width="240" height="240"></canvas>
+          <div id="codexHistory" class="codex-history"></div>
+          <div id="codexStats" class="codex-stats"></div>
+          <div class="codex-lore-title">FIELD NOTES</div>
+          <div id="codexLore" class="codex-lore"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="debugPanel" class="overlay-anim hidden">
   <div id="debugBox">
     <h3>DEBUG CONSOLE</h3>
@@ -144,6 +170,18 @@
       <div class="debug-row">
         <button id="debugFullHealBtn">FULL HEAL</button>
         <button id="debugGodBtn">GOD MODE: OFF</button>
+      </div>
+      <div class="debug-row">
+        <button id="debugKillAllBtn" style="background:#e74c3c;color:#fff;">KILL ALL ZOMBIES</button>
+      </div>
+      <div class="debug-row">
+        <label>Game Speed</label>
+        <select id="debugSpeedSelect" style="background:#0d1a14;color:#fff;border:1px solid var(--line);border-radius:6px;padding:6px;font-family:'Ubuntu',sans-serif;font-size:12px;flex:1;">
+          <option value="1">1x (Normal)</option>
+          <option value="2">2x (Fast)</option>
+          <option value="5">5x (Turbo)</option>
+          <option value="10">10x (Ludicrous)</option>
+        </select>
       </div>
       <div class="debug-row">
         <button id="debugBloodMoonBtn">TRIGGER BLOOD MOON</button>

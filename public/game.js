@@ -29,7 +29,9 @@
     spitter: 16,
     exploder: 16,
     wolf: 12,
-    boss: 600
+    boss: 600,
+    spider: 15,
+    witch: 25
   };
   var POWERUP_LIFETIME_MS = 2e4;
   var WEAPON_DEFS = {
@@ -133,6 +135,8 @@
     spitter: { radiusR: [15, 18], hpMul: 0.7, speedMul: 0.55, dmgMul: 0, color: "#5a9151", color2: "#437040", dark: "#2b4526", ranged: true, range: 340, fireRate: 0.8 },
     exploder: { radiusR: [19, 24], hpMul: 0.6, speedMul: 1.5, dmgMul: 0, color: "#c07a2e", color2: "#9c5c1e", dark: "#5c2e0d", explode: true, explodeRadius: 95 },
     wolf: { radiusR: [16, 20], hpMul: 0.5, speedMul: 1.85, dmgMul: 1.1, color: "#7a8a95", color2: "#5c6b75", dark: "#3a444c" },
+    spider: { radiusR: [14, 17], hpMul: 0.8, speedMul: 1.35, dmgMul: 0.8, color: "#2c3e50", color2: "#1a252f", dark: "#0e141a", ranged: true, range: 300, fireRate: 0.4 },
+    witch: { radiusR: [16, 19], hpMul: 1.4, speedMul: 0.8, dmgMul: 0.9, color: "#8e44ad", color2: "#7d3c98", dark: "#4a235a", ranged: true, range: 380, fireRate: 0.5 },
     boss: { radiusR: [54, 54], hpMul: 1, speedMul: 1, dmgMul: 1, color: "#4b2a63", color2: "#3a1f4d", dark: "#241333" }
   };
   var SKIN_VARIANTS = [
@@ -384,6 +388,10 @@
   var godMode = false;
   function setGodMode(val) {
     godMode = val;
+  }
+  var debugSpeedMultiplier = 1;
+  function setDebugSpeedMultiplier(val) {
+    debugSpeedMultiplier = val;
   }
 
   // src/utils.ts
@@ -712,6 +720,74 @@
     window.addEventListener("gestureend", preventZoom, { passive: false });
   }
 
+  // src/systems/codex.ts
+  var CODEX_KEY = "nightfalls_codex_data_v1";
+  var codex = {
+    encountered: {
+      normal: false,
+      scout: false,
+      brute: false,
+      spitter: false,
+      exploder: false,
+      wolf: false,
+      boss: false,
+      spider: false,
+      witch: false
+    },
+    firstKilled: {
+      normal: "",
+      scout: "",
+      brute: "",
+      spitter: "",
+      exploder: "",
+      wolf: "",
+      boss: "",
+      spider: "",
+      witch: ""
+    }
+  };
+  function loadCodex() {
+    try {
+      const raw = localStorage.getItem(CODEX_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.encountered) Object.assign(codex.encountered, parsed.encountered);
+        if (parsed.firstKilled) Object.assign(codex.firstKilled, parsed.firstKilled);
+      }
+    } catch (err) {
+      console.error("Failed to load bestiary codex data:", err);
+    }
+  }
+  function saveCodex() {
+    try {
+      localStorage.setItem(CODEX_KEY, JSON.stringify(codex));
+    } catch (err) {
+      console.error("Failed to save bestiary codex data:", err);
+    }
+  }
+  function registerEncounter(type) {
+    if (codex.encountered[type] === void 0) return;
+    if (!codex.encountered[type]) {
+      codex.encountered[type] = true;
+      saveCodex();
+    }
+  }
+  function registerKill(type) {
+    if (codex.firstKilled[type] === void 0) return;
+    registerEncounter(type);
+    if (!codex.firstKilled[type]) {
+      const dateStr = (/* @__PURE__ */ new Date()).toLocaleDateString(void 0, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+      codex.firstKilled[type] = dateStr;
+      saveCodex();
+    }
+  }
+
   // src/systems/combat.ts
   var bannerTimeout;
   function showBanner(title, sub, mode) {
@@ -933,6 +1009,7 @@
     if (z.dead) return;
     z.dead = true;
     player.kills++;
+    registerKill(z.type);
     spawnBurst(z.x, z.y, ZTYPE[z.type].color, z.type === "boss" ? 40 : 10);
     spawnBlood(z.x, z.y, z.radius);
     awardPoints(POINTS_BY_TYPE[z.type] || 10);
@@ -946,6 +1023,255 @@
       triggerShake(14, 300);
     } else {
       gainXp(10 + wave * 2);
+    }
+  }
+
+  // src/systems/wave.ts
+  function generateWorld() {
+    const newResources = [];
+    const newDecor = [];
+    const newTerrainPatches = [];
+    const newFireflies = [];
+    const safeZone = 260;
+    for (let i = 0; i < 140; i++) {
+      let x, y;
+      do {
+        x = rand(80, WORLD_W - 80);
+        y = rand(80, WORLD_H - 80);
+      } while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
+      newResources.push({ type: "tree", x, y, radius: 19, hp: 30, maxHp: 30 });
+    }
+    for (let i = 0; i < 70; i++) {
+      let x, y;
+      do {
+        x = rand(80, WORLD_W - 80);
+        y = rand(80, WORLD_H - 80);
+      } while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
+      newResources.push({ type: "rock", x, y, radius: 21, hp: 50, maxHp: 50 });
+    }
+    for (let i = 0; i < 260; i++) {
+      newDecor.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), a: rand(0, Math.PI * 2), s: rand(0.7, 1.3) });
+    }
+    for (let i = 0; i < 55; i++) {
+      newTerrainPatches.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), r: rand(60, 160), dark: Math.random() < 0.6 });
+    }
+    for (let i = 0; i < 50; i++) {
+      newFireflies.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), phase: rand(0, Math.PI * 2), speed: rand(8e-4, 16e-4) });
+    }
+    setResources(newResources);
+    setDecor(newDecor);
+    setTerrainPatches(newTerrainPatches);
+    setFireflies(newFireflies);
+  }
+  function maybeSpawnCrate() {
+    if (Math.random() > 0.55) return;
+    const angle = rand(0, Math.PI * 2), d = rand(300, 1e3);
+    const x = clamp(player.x + Math.cos(angle) * d, 60, WORLD_W - 60);
+    const y = clamp(player.y + Math.sin(angle) * d, 60, WORLD_H - 60);
+    crates.push({ x, y, radius: 16 });
+  }
+  function startWave(n) {
+    setWave(n);
+    setIsBossWave(n % 10 === 0);
+    setSpawnTimer(0);
+    setActiveBoss(null);
+    if (n % 10 === 0) {
+      setZombiesToSpawn(6);
+      setWaveState("spawning-boss");
+      showBanner(`BOSS WAVE ${n}`, "Something big is coming...", "boss");
+    } else {
+      setZombiesToSpawn(4 + n * 3);
+      setWaveState("spawning");
+      showBanner(`WAVE ${n}`, "Zombies incoming");
+    }
+    maybeSpawnCrate();
+  }
+  function pickZombieType() {
+    if (wave < 3) return "normal";
+    if (wave < 5) return Math.random() < 0.3 ? "scout" : "normal";
+    if (wave < 7) {
+      const r = Math.random();
+      if (r < 0.38) return "normal";
+      if (r < 0.62) return "scout";
+      if (r < 0.8) return "brute";
+      if (r < 0.92) return "spitter";
+      return "wolf";
+    }
+    const pool = [
+      { type: "normal", weight: 100 }
+    ];
+    if (wave >= 2) pool.push({ type: "scout", weight: 65 });
+    if (wave >= 3) pool.push({ type: "brute", weight: 40 });
+    if (wave >= 4) pool.push({ type: "wolf", weight: 45 });
+    if (wave >= 5) pool.push({ type: "spitter", weight: 35 });
+    if (wave >= 6) pool.push({ type: "exploder", weight: 30 });
+    if (wave >= 8) pool.push({ type: "spider", weight: 25 });
+    if (wave >= 10) pool.push({ type: "witch", weight: 15 });
+    const totalWeight = pool.reduce((sum, item) => sum + item.weight, 0);
+    let roll = Math.random() * totalWeight;
+    for (const item of pool) {
+      if (roll < item.weight) return item.type;
+      roll -= item.weight;
+    }
+    return "normal";
+  }
+  function spawnZombie(forceType, atX, atY) {
+    const type = forceType || pickZombieType();
+    let x, y;
+    if (atX !== void 0 && atY !== void 0) {
+      x = atX;
+      y = atY;
+    } else {
+      const angle = rand(0, Math.PI * 2);
+      const d = rand(900, 1300);
+      x = clamp(player.x + Math.cos(angle) * d, 40, WORLD_W - 40);
+      y = clamp(player.y + Math.sin(angle) * d, 40, WORLD_H - 40);
+    }
+    const def = ZTYPE[type];
+    const hpScale = 1 + (wave - 1) * 0.32;
+    const speedScale = Math.min(1 + (wave - 1) * 0.045, 1.9);
+    const bloodMul = bloodMoon.active ? 1.3 : 1;
+    const hp0 = Math.round(24 * hpScale * def.hpMul * bloodMul);
+    const usesVariant = type === "normal" || type === "scout";
+    const variant = usesVariant ? SKIN_VARIANTS[Math.floor(rand(0, SKIN_VARIANTS.length))] : [def.color, def.color2, def.dark];
+    const cloth = type === "boss" || type === "wolf" ? null : CLOTH_COLORS[Math.floor(rand(0, CLOTH_COLORS.length))];
+    const z = {
+      type,
+      x,
+      y,
+      radius: rand(def.radiusR[0], def.radiusR[1]),
+      hp: hp0,
+      maxHp: hp0,
+      speed: 1.15 * speedScale * def.speedMul,
+      damage: (7 + wave * 0.6) * def.dmgMul * bloodMul,
+      hitCooldown: 0,
+      wobble: rand(0, Math.PI * 2),
+      flash: 0,
+      lastShot: 0,
+      fuseStart: null,
+      hairKind: type === "boss" || type === "exploder" || type === "wolf" ? null : ["bald", "hood", "tuft"][Math.floor(rand(0, 3))],
+      mouthKind: ["open", "frown", "grimace"][Math.floor(rand(0, 3))],
+      squishX: rand(0.92, 1.08),
+      squishY: rand(0.92, 1.08),
+      skinColor: variant[0],
+      skinColor2: variant[1],
+      skinDark: variant[2],
+      clothColor: cloth
+    };
+    z.maxHp = z.hp;
+    if (type === "spitter") {
+      z.projDamage = (6 + wave * 0.7) * bloodMul;
+    }
+    if (type === "exploder") {
+      z.explodeDamage = (16 + wave * 1.4) * bloodMul;
+    }
+    if (type === "boss") {
+      z.radius = 92;
+      z.hp = Math.round((420 + wave / 10 * 260) * bloodMul);
+      z.maxHp = z.hp;
+      z.speed = 0.95;
+      z.damage = (22 + wave * 1.1) * bloodMul;
+      setActiveBoss(z);
+      byId("bossBar").classList.add("show");
+      byId("bossName").textContent = "BOSS \xB7 WAVE " + wave;
+    }
+    zombies.push(z);
+    registerEncounter(type);
+    if (type === "wolf" && atX === void 0) {
+      const packSize = Math.floor(rand(1, 3));
+      for (let i = 0; i < packSize; i++) {
+        const offAngle = rand(0, Math.PI * 2), offD = rand(35, 80);
+        spawnZombie("wolf", clamp(x + Math.cos(offAngle) * offD, 40, WORLD_W - 40), clamp(y + Math.sin(offAngle) * offD, 40, WORLD_H - 40));
+      }
+    }
+  }
+  function updateBloodMoon() {
+    const now = performance.now();
+    if (bloodMoon.active) {
+      if (now >= bloodMoon.endsAt) {
+        bloodMoon.active = false;
+        bloodMoon.nextAt = now + rand(BLOOD_MOON_MIN_GAP_MS, BLOOD_MOON_MAX_GAP_MS);
+        showBanner("BLOOD MOON FADES", "The red sky clears...", "blood");
+      }
+    } else if (now >= bloodMoon.nextAt) {
+      bloodMoon.active = true;
+      bloodMoon.endsAt = now + BLOOD_MOON_DURATION_MS;
+      showBanner("BLOOD MOON RISING", "Zombies spawn faster and hit harder...", "blood");
+    }
+  }
+  function updateDayNight(dt) {
+    dayNight.time = (dayNight.time + dt) % dayNight.total;
+    const frac = dayNight.time / dayNight.total;
+    dayNight.factor = (1 - Math.cos(frac * Math.PI * 2)) / 2;
+    const wasNight = dayNight.isNight;
+    dayNight.isNight = dayNight.factor > 0.5;
+    if (dayNight.isNight !== wasNight) {
+      if (dayNight.isNight) showBanner("NIGHTFALL", "Zombies grow bolder and faster...", "night");
+      else showBanner("DAYBREAK", "A short reprieve...");
+    }
+    let timeLeftSec = 0;
+    if (dayNight.isNight) {
+      timeLeftSec = Math.max(0, Math.ceil((82500 - dayNight.time) / 1e3));
+    } else {
+      if (dayNight.time < 27500) {
+        timeLeftSec = Math.max(0, Math.ceil((27500 - dayNight.time) / 1e3));
+      } else {
+        timeLeftSec = Math.max(0, Math.ceil((dayNight.total - dayNight.time + 27500) / 1e3));
+      }
+    }
+    const label = byId("phaseLabel");
+    if (bloodMoon.active) {
+      const bmRemaining = Math.max(0, Math.ceil((bloodMoon.endsAt - performance.now()) / 1e3));
+      label.textContent = `BLOOD MOON | ${bmRemaining}s`;
+      label.className = "pill hud-font blood";
+    } else if (dayNight.isNight) {
+      label.textContent = `NIGHT | ${timeLeftSec}s`;
+      label.className = "pill hud-font night";
+    } else {
+      label.textContent = `DAY | ${timeLeftSec}s`;
+      label.className = "pill hud-font day";
+    }
+    if (dayNight.factor > 0.55) {
+      dayNight.nightSpawnTimer -= dt;
+      if (dayNight.nightSpawnTimer <= 0 && zombies.length < 45) {
+        spawnZombie(Math.random() < 0.7 ? "normal" : "scout");
+        dayNight.nightSpawnTimer = rand(4500, 8e3);
+      }
+    } else {
+      dayNight.nightSpawnTimer = rand(4500, 8e3);
+    }
+  }
+  function updateWaves(dt) {
+    if (waveState === "idle") {
+      startWave(1);
+    } else if (waveState === "spawning" || waveState === "spawning-boss") {
+      setSpawnTimer(spawnTimer - dt);
+      if (spawnTimer <= 0 && zombiesToSpawn > 0) {
+        if (waveState === "spawning-boss" && zombiesToSpawn === 1) {
+          spawnZombie("boss");
+        } else {
+          spawnZombie();
+        }
+        setZombiesToSpawn(zombiesToSpawn - 1);
+        setSpawnTimer((isBossWave ? 500 : 650) / (bloodMoon.active ? 5 : 1));
+      }
+      if (zombiesToSpawn <= 0) setWaveState("active");
+    } else if (waveState === "active") {
+      if (activeBoss) {
+        byId("bossFill").style.width = Math.max(0, activeBoss.hp / activeBoss.maxHp * 100) + "%";
+      }
+      if (zombies.length === 0) {
+        setWaveState("cleared");
+        setWaveClearedAt(performance.now());
+        const bonus = isBossWave ? 150 : 40;
+        gainXp(bonus);
+        byId("bossBar").classList.remove("show");
+        showBanner(`WAVE ${wave} CLEARED`, "+" + bonus + " bonus xp \xB7 next wave incoming...");
+      }
+    } else if (waveState === "cleared") {
+      if (performance.now() - waveClearedAt > nextWaveDelay) {
+        startWave(wave + 1);
+      }
     }
   }
 
@@ -1022,7 +1348,8 @@
         ay /= len;
       }
     }
-    const maxSpd = player.maxSpeed * speedBoostMul() * weaponSpeedMul(mouse.down) * mutationSpeedMul();
+    const slowMul = player.slowedUntil && performance.now() < player.slowedUntil ? 0.55 : 1;
+    const maxSpd = player.maxSpeed * speedBoostMul() * weaponSpeedMul(mouse.down) * mutationSpeedMul() * slowMul;
     const accel = maxSpd * (1 - player.friction) / player.friction * (player.accel / BASE_STATS.accel);
     player.vx += ax * accel;
     player.vy += ay * accel;
@@ -1135,7 +1462,11 @@
         if (b.dead) continue;
         if (player.alive && dist(b.x, b.y, player.x, player.y) < b.radius + player.radius) {
           if (!godMode) player.hp -= b.damage;
-          spawnDamageNumber(player.x, player.y - 30, b.damage, "#8be36b");
+          spawnDamageNumber(player.x, player.y - 30, b.damage, b.slowProj ? "#bbd8f2" : "#8be36b");
+          if (b.slowProj) {
+            player.slowedUntil = performance.now() + 3e3;
+            spawnParticle(player.x, player.y - 45, "SLOWED", "#5b9ad6");
+          }
           triggerShake(4, 100);
           b.dead = true;
           checkDeath(killPlayer);
@@ -1280,27 +1611,97 @@
       }
       if (def.ranged) {
         const d = dist(z.x, z.y, player.x, player.y);
-        if (d > (def.range || 340)) {
-          const a = Math.atan2(player.y - z.y, player.x - z.x);
-          z.x += Math.cos(a) * z.speed * speedM;
-          z.y += Math.sin(a) * z.speed * speedM;
-        } else if (d < (def.range || 340) * 0.55) {
-          const a = Math.atan2(z.y - player.y, z.x - player.x);
-          z.x += Math.cos(a) * z.speed * speedM;
-          z.y += Math.sin(a) * z.speed * speedM;
+        let speedFactor = 1;
+        let overlappingStructure = false;
+        if (z.type === "spider") {
+          for (const s of structures) {
+            if (dist(z.x, z.y, s.x, s.y) < s.radius + z.radius) {
+              overlappingStructure = true;
+              break;
+            }
+          }
+        }
+        if (overlappingStructure) {
+          speedFactor = 0.45;
+        } else if (z.type !== "spider") {
+          let hitStr = null;
+          for (const s of structures) {
+            if (dist(z.x, z.y, s.x, s.y) < s.radius + z.radius + 6) {
+              hitStr = s;
+              break;
+            }
+          }
+          if (hitStr) {
+            hitStr.hp -= (z.type === "brute" ? 24 : 14) * dt / 1e3;
+            const sd = dist(z.x, z.y, hitStr.x, hitStr.y) || 1;
+            z.x += (z.x - hitStr.x) / sd * 0.6;
+            z.y += (z.y - hitStr.y) / sd * 0.6;
+            speedFactor = 0;
+          }
+        }
+        if (speedFactor > 0) {
+          let dx2 = 0, dy2 = 0;
+          if (d > (def.range || 340)) {
+            const a = Math.atan2(player.y - z.y, player.x - z.x);
+            dx2 = Math.cos(a);
+            dy2 = Math.sin(a);
+          } else if (d < (def.range || 340) * 0.55) {
+            const a = Math.atan2(z.y - player.y, z.x - player.x);
+            dx2 = Math.cos(a);
+            dy2 = Math.sin(a);
+          }
+          let witchBuff = 1;
+          if (z.type !== "witch" && z.type !== "boss") {
+            const witchNearby = zombies.some((other) => other.type === "witch" && !other.dead && dist(z.x, z.y, other.x, other.y) < 160);
+            if (witchNearby) witchBuff = 1.35;
+          }
+          z.wobble += dt * 4e-3;
+          const wob = Math.sin(z.wobble) * 0.25;
+          z.x += (dx2 + -dy2 * wob) * z.speed * speedM * speedFactor * witchBuff;
+          z.y += (dy2 + dx2 * wob) * z.speed * speedM * speedFactor * witchBuff;
+        }
+        if (z.type === "witch") {
+          if (!z.lastSummon) z.lastSummon = 0;
+          if (now - z.lastSummon > 6e3) {
+            z.lastSummon = now;
+            const typeToSummon = Math.random() < 0.65 ? "normal" : "scout";
+            const offAngle = Math.random() * Math.PI * 2;
+            const offD = rand(40, 90);
+            const sx = clamp(z.x + Math.cos(offAngle) * offD, 40, WORLD_W - 40);
+            const sy = clamp(z.y + Math.sin(offAngle) * offD, 40, WORLD_H - 40);
+            spawnZombie(typeToSummon, sx, sy);
+            spawnBurst(sx, sy, "#8e44ad", 8);
+            spawnParticle(z.x, z.y - 30, "SUMMON", "#bdc3c7");
+          }
         }
         if (now - z.lastShot > 1e3 / (def.fireRate || 0.8)) {
           z.lastShot = now;
           const a = Math.atan2(player.y - z.y, player.x - z.x);
+          const isSpider = z.type === "spider";
+          const isWitch = z.type === "witch";
+          let bRad = 5, bDmg = (z.projDamage || 6) * dmgM, bSpeed = 5.5, bLife = 2200, slowProj = false;
+          if (isSpider) {
+            bRad = 6;
+            bDmg = 2 * dmgM;
+            bSpeed = 6.5;
+            bLife = 1500;
+            slowProj = true;
+          } else if (isWitch) {
+            bRad = 8;
+            bDmg = 10 * dmgM;
+            bSpeed = 4;
+            bLife = 2500;
+          }
           bullets.push({
             x: z.x + Math.cos(a) * (z.radius + 6),
             y: z.y + Math.sin(a) * (z.radius + 6),
-            vx: Math.cos(a) * 5.5,
-            vy: Math.sin(a) * 5.5,
-            radius: 5,
-            damage: (z.projDamage || 6) * dmgM,
-            life: 2200,
-            owner: "zombie"
+            vx: Math.cos(a) * bSpeed,
+            vy: Math.sin(a) * bSpeed,
+            radius: bRad,
+            damage: bDmg,
+            life: bLife,
+            owner: "zombie",
+            slowProj
           });
         }
         z.x = clamp(z.x, z.radius, WORLD_W - z.radius);
@@ -1328,8 +1729,13 @@
         dy = (player.y - z.y) / d;
         z.wobble += dt * 4e-3;
         const wob = z.type === "boss" ? 0 : Math.sin(z.wobble) * 0.25;
-        z.x += (dx + -dy * wob) * z.speed * speedM;
-        z.y += (dy + dx * wob) * z.speed * speedM;
+        let witchBuff = 1;
+        if (z.type !== "witch" && z.type !== "boss") {
+          const witchNearby = zombies.some((other) => other.type === "witch" && !other.dead && dist(z.x, z.y, other.x, other.y) < 160);
+          if (witchNearby) witchBuff = 1.35;
+        }
+        z.x += (dx + -dy * wob) * z.speed * speedM * witchBuff;
+        z.y += (dy + dx * wob) * z.speed * speedM * witchBuff;
       }
       z.x = clamp(z.x, z.radius, WORLD_W - z.radius);
       z.y = clamp(z.y, z.radius, WORLD_H - z.radius);
@@ -1398,253 +1804,6 @@
     setBursts(bursts.filter((p) => p.life > 0));
     if (shake.time > 0) shake.time -= dt;
     else shake.mag = 0;
-  }
-
-  // src/systems/wave.ts
-  function generateWorld() {
-    const newResources = [];
-    const newDecor = [];
-    const newTerrainPatches = [];
-    const newFireflies = [];
-    const safeZone = 260;
-    for (let i = 0; i < 140; i++) {
-      let x, y;
-      do {
-        x = rand(80, WORLD_W - 80);
-        y = rand(80, WORLD_H - 80);
-      } while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
-      newResources.push({ type: "tree", x, y, radius: 19, hp: 30, maxHp: 30 });
-    }
-    for (let i = 0; i < 70; i++) {
-      let x, y;
-      do {
-        x = rand(80, WORLD_W - 80);
-        y = rand(80, WORLD_H - 80);
-      } while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
-      newResources.push({ type: "rock", x, y, radius: 21, hp: 50, maxHp: 50 });
-    }
-    for (let i = 0; i < 260; i++) {
-      newDecor.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), a: rand(0, Math.PI * 2), s: rand(0.7, 1.3) });
-    }
-    for (let i = 0; i < 55; i++) {
-      newTerrainPatches.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), r: rand(60, 160), dark: Math.random() < 0.6 });
-    }
-    for (let i = 0; i < 50; i++) {
-      newFireflies.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), phase: rand(0, Math.PI * 2), speed: rand(8e-4, 16e-4) });
-    }
-    setResources(newResources);
-    setDecor(newDecor);
-    setTerrainPatches(newTerrainPatches);
-    setFireflies(newFireflies);
-  }
-  function maybeSpawnCrate() {
-    if (Math.random() > 0.55) return;
-    const angle = rand(0, Math.PI * 2), d = rand(300, 1e3);
-    const x = clamp(player.x + Math.cos(angle) * d, 60, WORLD_W - 60);
-    const y = clamp(player.y + Math.sin(angle) * d, 60, WORLD_H - 60);
-    crates.push({ x, y, radius: 16 });
-  }
-  function startWave(n) {
-    setWave(n);
-    setIsBossWave(n % 10 === 0);
-    setSpawnTimer(0);
-    setActiveBoss(null);
-    if (n % 10 === 0) {
-      setZombiesToSpawn(6);
-      setWaveState("spawning-boss");
-      showBanner(`BOSS WAVE ${n}`, "Something big is coming...", "boss");
-    } else {
-      setZombiesToSpawn(4 + n * 3);
-      setWaveState("spawning");
-      showBanner(`WAVE ${n}`, "Zombies incoming");
-    }
-    maybeSpawnCrate();
-  }
-  function pickZombieType() {
-    if (wave < 3) return "normal";
-    if (wave < 5) return Math.random() < 0.3 ? "scout" : "normal";
-    if (wave < 7) {
-      const r2 = Math.random();
-      if (r2 < 0.38) return "normal";
-      if (r2 < 0.62) return "scout";
-      if (r2 < 0.8) return "brute";
-      if (r2 < 0.92) return "spitter";
-      return "wolf";
-    }
-    if (wave < 8) {
-      const r2 = Math.random();
-      if (r2 < 0.24) return "normal";
-      if (r2 < 0.44) return "scout";
-      if (r2 < 0.6) return "brute";
-      if (r2 < 0.76) return "spitter";
-      if (r2 < 0.9) return "exploder";
-      return "wolf";
-    }
-    const r = Math.random();
-    if (r < 0.2) return "normal";
-    if (r < 0.36) return "scout";
-    if (r < 0.52) return "brute";
-    if (r < 0.68) return "spitter";
-    if (r < 0.8) return "exploder";
-    return "wolf";
-  }
-  function spawnZombie(forceType, atX, atY) {
-    const type = forceType || pickZombieType();
-    let x, y;
-    if (atX !== void 0 && atY !== void 0) {
-      x = atX;
-      y = atY;
-    } else {
-      const angle = rand(0, Math.PI * 2);
-      const d = rand(900, 1300);
-      x = clamp(player.x + Math.cos(angle) * d, 40, WORLD_W - 40);
-      y = clamp(player.y + Math.sin(angle) * d, 40, WORLD_H - 40);
-    }
-    const def = ZTYPE[type];
-    const hpScale = 1 + (wave - 1) * 0.32;
-    const speedScale = Math.min(1 + (wave - 1) * 0.045, 1.9);
-    const bloodMul = bloodMoon.active ? 1.3 : 1;
-    const hp0 = Math.round(24 * hpScale * def.hpMul * bloodMul);
-    const usesVariant = type === "normal" || type === "scout";
-    const variant = usesVariant ? SKIN_VARIANTS[Math.floor(rand(0, SKIN_VARIANTS.length))] : [def.color, def.color2, def.dark];
-    const cloth = type === "boss" || type === "wolf" ? null : CLOTH_COLORS[Math.floor(rand(0, CLOTH_COLORS.length))];
-    const z = {
-      type,
-      x,
-      y,
-      radius: rand(def.radiusR[0], def.radiusR[1]),
-      hp: hp0,
-      maxHp: hp0,
-      speed: 1.15 * speedScale * def.speedMul,
-      damage: (7 + wave * 0.6) * def.dmgMul * bloodMul,
-      hitCooldown: 0,
-      wobble: rand(0, Math.PI * 2),
-      flash: 0,
-      lastShot: 0,
-      fuseStart: null,
-      hairKind: type === "boss" || type === "exploder" || type === "wolf" ? null : ["bald", "hood", "tuft"][Math.floor(rand(0, 3))],
-      mouthKind: ["open", "frown", "grimace"][Math.floor(rand(0, 3))],
-      squishX: rand(0.92, 1.08),
-      squishY: rand(0.92, 1.08),
-      skinColor: variant[0],
-      skinColor2: variant[1],
-      skinDark: variant[2],
-      clothColor: cloth
-    };
-    z.maxHp = z.hp;
-    if (type === "spitter") {
-      z.projDamage = (6 + wave * 0.7) * bloodMul;
-    }
-    if (type === "exploder") {
-      z.explodeDamage = (16 + wave * 1.4) * bloodMul;
-    }
-    if (type === "boss") {
-      z.radius = 92;
-      z.hp = Math.round((420 + wave / 10 * 260) * bloodMul);
-      z.maxHp = z.hp;
-      z.speed = 0.95;
-      z.damage = (22 + wave * 1.1) * bloodMul;
-      setActiveBoss(z);
-      byId("bossBar").classList.add("show");
-      byId("bossName").textContent = "BOSS \xB7 WAVE " + wave;
-    }
-    zombies.push(z);
-    if (type === "wolf" && atX === void 0) {
-      const packSize = Math.floor(rand(1, 3));
-      for (let i = 0; i < packSize; i++) {
-        const offAngle = rand(0, Math.PI * 2), offD = rand(35, 80);
-        spawnZombie("wolf", clamp(x + Math.cos(offAngle) * offD, 40, WORLD_W - 40), clamp(y + Math.sin(offAngle) * offD, 40, WORLD_H - 40));
-      }
-    }
-  }
-  function updateBloodMoon() {
-    const now = performance.now();
-    if (bloodMoon.active) {
-      if (now >= bloodMoon.endsAt) {
-        bloodMoon.active = false;
-        bloodMoon.nextAt = now + rand(BLOOD_MOON_MIN_GAP_MS, BLOOD_MOON_MAX_GAP_MS);
-        showBanner("BLOOD MOON FADES", "The red sky clears...", "blood");
-      }
-    } else if (now >= bloodMoon.nextAt) {
-      bloodMoon.active = true;
-      bloodMoon.endsAt = now + BLOOD_MOON_DURATION_MS;
-      showBanner("BLOOD MOON RISING", "Zombies spawn faster and hit harder...", "blood");
-    }
-  }
-  function updateDayNight(dt) {
-    dayNight.time = (dayNight.time + dt) % dayNight.total;
-    const frac = dayNight.time / dayNight.total;
-    dayNight.factor = (1 - Math.cos(frac * Math.PI * 2)) / 2;
-    const wasNight = dayNight.isNight;
-    dayNight.isNight = dayNight.factor > 0.5;
-    if (dayNight.isNight !== wasNight) {
-      if (dayNight.isNight) showBanner("NIGHTFALL", "Zombies grow bolder and faster...", "night");
-      else showBanner("DAYBREAK", "A short reprieve...");
-    }
-    let timeLeftSec = 0;
-    if (dayNight.isNight) {
-      timeLeftSec = Math.max(0, Math.ceil((82500 - dayNight.time) / 1e3));
-    } else {
-      if (dayNight.time < 27500) {
-        timeLeftSec = Math.max(0, Math.ceil((27500 - dayNight.time) / 1e3));
-      } else {
-        timeLeftSec = Math.max(0, Math.ceil((dayNight.total - dayNight.time + 27500) / 1e3));
-      }
-    }
-    const label = byId("phaseLabel");
-    if (bloodMoon.active) {
-      const bmRemaining = Math.max(0, Math.ceil((bloodMoon.endsAt - performance.now()) / 1e3));
-      label.textContent = `BLOOD MOON | ${bmRemaining}s`;
-      label.className = "pill hud-font blood";
-    } else if (dayNight.isNight) {
-      label.textContent = `NIGHT | ${timeLeftSec}s`;
-      label.className = "pill hud-font night";
-    } else {
-      label.textContent = `DAY | ${timeLeftSec}s`;
-      label.className = "pill hud-font day";
-    }
-    if (dayNight.factor > 0.55) {
-      dayNight.nightSpawnTimer -= dt;
-      if (dayNight.nightSpawnTimer <= 0 && zombies.length < 45) {
-        spawnZombie(Math.random() < 0.7 ? "normal" : "scout");
-        dayNight.nightSpawnTimer = rand(4500, 8e3);
-      }
-    } else {
-      dayNight.nightSpawnTimer = rand(4500, 8e3);
-    }
-  }
-  function updateWaves(dt) {
-    if (waveState === "idle") {
-      startWave(1);
-    } else if (waveState === "spawning" || waveState === "spawning-boss") {
-      setSpawnTimer(spawnTimer - dt);
-      if (spawnTimer <= 0 && zombiesToSpawn > 0) {
-        if (waveState === "spawning-boss" && zombiesToSpawn === 1) {
-          spawnZombie("boss");
-        } else {
-          spawnZombie();
-        }
-        setZombiesToSpawn(zombiesToSpawn - 1);
-        setSpawnTimer((isBossWave ? 500 : 650) / (bloodMoon.active ? 5 : 1));
-      }
-      if (zombiesToSpawn <= 0) setWaveState("active");
-    } else if (waveState === "active") {
-      if (activeBoss) {
-        byId("bossFill").style.width = Math.max(0, activeBoss.hp / activeBoss.maxHp * 100) + "%";
-      }
-      if (zombies.length === 0) {
-        setWaveState("cleared");
-        setWaveClearedAt(performance.now());
-        const bonus = isBossWave ? 150 : 40;
-        gainXp(bonus);
-        byId("bossBar").classList.remove("show");
-        showBanner(`WAVE ${wave} CLEARED`, "+" + bonus + " bonus xp \xB7 next wave incoming...");
-      }
-    } else if (waveState === "cleared") {
-      if (performance.now() - waveClearedAt > nextWaveDelay) {
-        startWave(wave + 1);
-      }
-    }
   }
 
   // src/render/drawWorld.ts
@@ -2530,6 +2689,24 @@
       ctx2.fillRect(s.x - barW3 / 2, s.y - z.radius - 12, barW3 * (z.hp / z.maxHp), 5);
       return;
     }
+    if (z.type === "spider") {
+      drawSpiderZombie(ctx2, z, s, angle, flashing, OUTLINE);
+      const barW2 = z.radius * 2;
+      ctx2.fillStyle = "#00000088";
+      ctx2.fillRect(s.x - barW2 / 2, s.y - z.radius - 12, barW2, 5);
+      ctx2.fillStyle = "#ff5c5c";
+      ctx2.fillRect(s.x - barW2 / 2, s.y - z.radius - 12, barW2 * (z.hp / z.maxHp), 5);
+      return;
+    }
+    if (z.type === "witch") {
+      drawWitchZombie(ctx2, z, s, angle, flashing, OUTLINE);
+      const barW2 = z.radius * 2;
+      ctx2.fillStyle = "#00000088";
+      ctx2.fillRect(s.x - barW2 / 2, s.y - z.radius - 12, barW2, 5);
+      ctx2.fillStyle = "#ff5c5c";
+      ctx2.fillRect(s.x - barW2 / 2, s.y - z.radius - 12, barW2 * (z.hp / z.maxHp), 5);
+      return;
+    }
     if (z.type === "brute") {
       ctx2.fillStyle = z.skinDark;
       ctx2.strokeStyle = OUTLINE;
@@ -2696,6 +2873,157 @@
     ctx2.fillRect(s.x - barW / 2, s.y - z.radius - 12, barW, 5);
     ctx2.fillStyle = "#ff5c5c";
     ctx2.fillRect(s.x - barW / 2, s.y - z.radius - 12, barW * (z.hp / z.maxHp), 5);
+  }
+  function drawSpiderZombie(ctx2, z, s, angle, flashing, OUTLINE) {
+    const r = z.radius;
+    const bodyCol = flashing ? "#ffffff" : z.skinColor;
+    const bodyCol2 = flashing ? "#ffffff" : z.skinColor2;
+    const legCol = flashing ? "#ffffff" : z.skinDark;
+    const fx = Math.cos(angle), fy = Math.sin(angle);
+    const px = Math.cos(angle + Math.PI / 2), py = Math.sin(angle + Math.PI / 2);
+    const legAngles = [-1.3, -0.9, -0.5, -0.1, 0.1, 0.5, 0.9, 1.3];
+    legAngles.forEach((legOffset, idx) => {
+      const side = idx < 4 ? -1 : 1;
+      const a = angle + legOffset + side * Math.PI / 4;
+      const hipX = s.x + Math.cos(angle + legOffset) * r * 0.45;
+      const hipY = s.y + Math.sin(angle + legOffset) * r * 0.45;
+      const jointX = hipX + Math.cos(a) * r * 0.8;
+      const jointY = hipY + Math.sin(a) * r * 0.8;
+      const tipAngle = a + side * 0.6;
+      const tipX = jointX + Math.cos(tipAngle) * r * 0.7;
+      const tipY = jointY + Math.sin(tipAngle) * r * 0.7;
+      ctx2.lineCap = "round";
+      ctx2.strokeStyle = OUTLINE;
+      ctx2.lineWidth = r * 0.22 + 4;
+      ctx2.beginPath();
+      ctx2.moveTo(hipX, hipY);
+      ctx2.lineTo(jointX, jointY);
+      ctx2.lineTo(tipX, tipY);
+      ctx2.stroke();
+      ctx2.strokeStyle = legCol;
+      ctx2.lineWidth = r * 0.22;
+      ctx2.beginPath();
+      ctx2.moveTo(hipX, hipY);
+      ctx2.lineTo(jointX, jointY);
+      ctx2.lineTo(tipX, tipY);
+      ctx2.stroke();
+      ctx2.lineCap = "butt";
+    });
+    const abdX = s.x - fx * r * 0.45, abdY = s.y - fy * r * 0.45;
+    ctx2.fillStyle = radialFill(ctx2, abdX, abdY, r * 1, bodyCol, "#000000");
+    ctx2.beginPath();
+    ctx2.ellipse(abdX, abdY, r * 1, r * 0.82, angle, 0, Math.PI * 2);
+    ctx2.fill();
+    ctx2.strokeStyle = OUTLINE;
+    ctx2.lineWidth = 3;
+    ctx2.stroke();
+    const headX = s.x + fx * r * 0.45, headY = s.y + fy * r * 0.45;
+    ctx2.fillStyle = radialFill(ctx2, headX, headY, r * 0.65, bodyCol, bodyCol2);
+    ctx2.beginPath();
+    ctx2.ellipse(headX, headY, r * 0.65, r * 0.55, angle, 0, Math.PI * 2);
+    ctx2.fill();
+    ctx2.strokeStyle = OUTLINE;
+    ctx2.lineWidth = 2.5;
+    ctx2.stroke();
+    ctx2.fillStyle = "#ff1e1e";
+    [-0.3, -0.1, 0.1, 0.3].forEach((off) => {
+      const ex1 = headX + fx * r * 0.32 + px * r * off * 0.7;
+      const ey1 = headY + fy * r * 0.32 + py * r * off * 0.7;
+      ctx2.beginPath();
+      ctx2.arc(ex1, ey1, r * 0.08, 0, Math.PI * 2);
+      ctx2.fill();
+      const ex2 = headX + fx * r * 0.15 + px * r * off * 0.8;
+      const ey2 = headY + fy * r * 0.15 + py * r * off * 0.8;
+      ctx2.beginPath();
+      ctx2.arc(ex2, ey2, r * 0.06, 0, Math.PI * 2);
+      ctx2.fill();
+    });
+  }
+  function drawWitchZombie(ctx2, z, s, angle, flashing, OUTLINE) {
+    const r = z.radius;
+    const bodyCol = flashing ? "#ffffff" : z.skinColor;
+    const bodyCol2 = flashing ? "#ffffff" : z.skinColor2;
+    const fx = Math.cos(angle), fy = Math.sin(angle);
+    const px = Math.cos(angle + Math.PI / 2), py = Math.sin(angle + Math.PI / 2);
+    ctx2.save();
+    ctx2.strokeStyle = "rgba(192, 132, 252, 0.4)";
+    ctx2.lineWidth = 3;
+    ctx2.beginPath();
+    ctx2.arc(s.x, s.y, 160, 0, Math.PI * 2);
+    ctx2.stroke();
+    ctx2.fillStyle = "rgba(192, 132, 252, 0.04)";
+    ctx2.fill();
+    ctx2.restore();
+    const armSpread = 0.8;
+    const armReach = 0.85;
+    drawZombieArmBlobs(ctx2, s.x, s.y, r, angle, armSpread, armReach, bodyCol, bodyCol2, OUTLINE, flashing);
+    if (!flashing) {
+      ctx2.fillStyle = "#c084fc";
+      [-1, 1].forEach((side) => {
+        const hAngle = angle + side * armSpread;
+        const hx = s.x + Math.cos(hAngle) * r * armReach;
+        const hy = s.y + Math.sin(hAngle) * r * armReach;
+        ctx2.beginPath();
+        ctx2.arc(hx + Math.random() * 6 - 3, hy + Math.random() * 6 - 3, 2.5 + Math.random() * 3, 0, Math.PI * 2);
+        ctx2.fill();
+      });
+    }
+    ctx2.fillStyle = "#4a235a";
+    ctx2.strokeStyle = OUTLINE;
+    ctx2.lineWidth = 2.5;
+    ctx2.beginPath();
+    ctx2.arc(s.x, s.y + r * 0.45, r * 0.8, 0, Math.PI);
+    ctx2.closePath();
+    ctx2.fill();
+    ctx2.stroke();
+    const rx = r * z.squishX, ry = r * z.squishY;
+    ctx2.fillStyle = radialFill(ctx2, s.x, s.y, r, bodyCol, bodyCol2);
+    ctx2.beginPath();
+    ctx2.ellipse(s.x, s.y, rx, ry, 0, 0, Math.PI * 2);
+    ctx2.fill();
+    ctx2.strokeStyle = OUTLINE;
+    ctx2.lineWidth = 3.5;
+    ctx2.stroke();
+    ctx2.fillStyle = "#2ecc71";
+    [-1, 1].forEach((side) => {
+      const ex = s.x + fx * r * 0.22 + px * r * 0.3 * side;
+      const ey = s.y + fy * r * 0.22 + py * r * 0.3 * side;
+      ctx2.beginPath();
+      ctx2.arc(ex, ey, r * 0.16, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.fillStyle = "#0e1c0e";
+      ctx2.beginPath();
+      ctx2.arc(ex, ey, r * 0.06, 0, Math.PI * 2);
+      ctx2.fill();
+    });
+    ctx2.fillStyle = "#1a052e";
+    ctx2.strokeStyle = OUTLINE;
+    ctx2.lineWidth = 3;
+    const brimW = r * 1.5, brimH = r * 0.95;
+    ctx2.beginPath();
+    ctx2.ellipse(s.x, s.y, brimW, brimH, angle, 0, Math.PI * 2);
+    ctx2.fill();
+    ctx2.stroke();
+    const coneBaseL = s.x - px * r * 0.4 - fx * r * 0.1;
+    const coneBaseR = s.x + px * r * 0.4 - fx * r * 0.1;
+    const coneTip = s.x - fx * r * 1.4;
+    const coneBaseLy = s.y - py * r * 0.4 - fy * r * 0.1;
+    const coneBaseRy = s.y + py * r * 0.4 - fy * r * 0.1;
+    const coneTipy = s.y - fy * r * 1.4;
+    ctx2.beginPath();
+    ctx2.moveTo(coneBaseL, coneBaseLy);
+    ctx2.lineTo(coneBaseR, coneBaseRy);
+    ctx2.lineTo(coneTip, coneTipy);
+    ctx2.closePath();
+    ctx2.fill();
+    ctx2.stroke();
+    ctx2.fillStyle = "#8e44ad";
+    ctx2.beginPath();
+    ctx2.moveTo(coneBaseL, coneBaseLy);
+    ctx2.lineTo(coneBaseR, coneBaseRy);
+    ctx2.lineTo(s.x - fx * r * 0.35, s.y - fy * r * 0.35);
+    ctx2.closePath();
+    ctx2.fill();
   }
 
   // src/render/drawPlayer.ts
@@ -4025,6 +4353,13 @@
     setZombies([]);
     startWave(target);
   }
+  function cheatKillAll() {
+    const activeZombies = [...zombies];
+    for (const z of activeZombies) {
+      zombieDied(z);
+    }
+    setZombies([]);
+  }
   function setupDebugUI() {
     const debugBox = byId("debugBox");
     if (!debugBox) return;
@@ -4056,6 +4391,16 @@
     byId("debugFullHealBtn").onclick = () => {
       player.hp = player.maxHp;
     };
+    byId("debugKillAllBtn").onclick = () => {
+      cheatKillAll();
+    };
+    const speedSelect = byId("debugSpeedSelect");
+    if (speedSelect) {
+      speedSelect.onchange = (e) => {
+        const val = Number(e.target.value) || 1;
+        setDebugSpeedMultiplier(val);
+      };
+    }
     byId("debugGodBtn").onclick = () => {
       setGodMode(!godMode);
       byId("debugGodBtn").textContent = "GOD MODE: " + (godMode ? "ON" : "OFF");
@@ -4068,6 +4413,541 @@
     byId("debugAddFakePlayerBtn").onclick = () => {
       lobbySimulateJoin();
     };
+  }
+
+  // src/ui/codexUI.ts
+  var SPECIMENS = [
+    {
+      id: "normal",
+      name: "Normal Zombie",
+      hp: "Medium (80)",
+      speed: "Normal (100%)",
+      danger: "Low",
+      lore: "The most common manifestation of the pathogen. While individually slow and clumsy, they rely on swarm tactics to overwhelm survivors. Always maintain distance to prevent being surrounded.",
+      draw: (ctx2, cx, cy, time) => {
+        const bounce = Math.sin(time * 5e-3) * 2;
+        const armAnim = Math.sin(time * 7e-3) * 0.15;
+        drawDummyZombie(ctx2, cx, cy + bounce, 18, "#4c8a52", "#3a6b40", "#274d2b", armAnim, false);
+      }
+    },
+    {
+      id: "scout",
+      name: "Scout Zombie",
+      hp: "Low (44)",
+      speed: "Fast (170%)",
+      danger: "Medium",
+      lore: "Distinguished by their sickly yellow skin and smaller frame. They possess heightened awareness and move with alarming speed. Prioritize shooting scouts before they sprint into your position.",
+      draw: (ctx2, cx, cy, time) => {
+        const bounce = Math.sin(time * 8e-3) * 3;
+        const armAnim = Math.sin(time * 0.01) * 0.25;
+        drawDummyZombie(ctx2, cx, cy + bounce, 14, "#c9c24e", "#a8a13c", "#7a742a", armAnim, false);
+      }
+    },
+    {
+      id: "brute",
+      name: "Brute Zombie",
+      hp: "High (192)",
+      speed: "Slow (65%)",
+      danger: "High",
+      lore: "A massive mutated specimen with thick blood-red skin and protruding bone spurs on its shoulders. It moves slowly but can endure extreme firepower and deliver crushing melee blows to fortifications.",
+      draw: (ctx2, cx, cy, time) => {
+        const bounce = Math.sin(time * 3e-3) * 1.5;
+        const armAnim = Math.sin(time * 4e-3) * 0.08;
+        ctx2.save();
+        ctx2.translate(cx, cy + bounce);
+        ctx2.fillStyle = "#4d2020";
+        ctx2.strokeStyle = "#141f18";
+        ctx2.lineWidth = 2;
+        [-0.7, 0.7].forEach((off) => {
+          ctx2.beginPath();
+          ctx2.arc(Math.cos(off + Math.PI / 2) * 22, Math.sin(off + Math.PI / 2) * 22, 6, 0, Math.PI * 2);
+          ctx2.fill();
+          ctx2.stroke();
+        });
+        ctx2.restore();
+        drawDummyZombie(ctx2, cx, cy + bounce, 24, "#8a3d3d", "#6e2f2f", "#4d2020", armAnim, false);
+      }
+    },
+    {
+      id: "spitter",
+      name: "Spitter Zombie",
+      hp: "Low (56)",
+      speed: "Slow (55%)",
+      danger: "Medium",
+      lore: "Carries a swollen, translucent acidic sac on its back. It spits high-velocity corrosive bile from long range. Keep moving to dodge its projectiles and protect your defensive walls.",
+      draw: (ctx2, cx, cy, time) => {
+        const bounce = Math.sin(time * 4e-3) * 1.8;
+        ctx2.fillStyle = "#437040";
+        ctx2.strokeStyle = "#141f18";
+        ctx2.lineWidth = 2.5;
+        ctx2.beginPath();
+        ctx2.arc(cx, cy + bounce + 10, 10, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.stroke();
+        drawDummyZombie(ctx2, cx, cy + bounce, 15, "#5a9151", "#437040", "#2b4526", 0, true);
+      }
+    },
+    {
+      id: "exploder",
+      name: "Exploder Zombie",
+      hp: "Medium (48)",
+      speed: "Fast (150%)",
+      danger: "High",
+      lore: "Swollen with highly unstable volatile gases. When triggered or killed, they combust in a massive explosion. Extremely dangerous to defensive lines \u2014 destroy them before they breach your walls.",
+      draw: (ctx2, cx, cy, time) => {
+        const bounce = Math.sin(time * 6e-3) * 2.2;
+        const pulse = 20 + Math.sin(time * 0.01) * 2;
+        drawDummyZombie(ctx2, cx, cy + bounce, pulse, "#c07a2e", "#9c5c1e", "#5c2e0d", 0, false, true);
+      }
+    },
+    {
+      id: "wolf",
+      name: "Zombie Wolf",
+      hp: "Low (40)",
+      speed: "Very Fast (185%)",
+      danger: "High",
+      lore: "Plague-infected feral beast that retains its pack hunting instinct. Possesses relentless attack speed and can quickly slip past defenses. Keep your shotguns ready for close encounters.",
+      draw: (ctx2, cx, cy, time) => {
+        const bounce = Math.sin(time * 8e-3) * 3;
+        const legOffset = Math.sin(time * 0.015) * 8;
+        ctx2.save();
+        ctx2.translate(cx, cy + bounce);
+        ctx2.fillStyle = "rgba(0,0,0,0.18)";
+        ctx2.beginPath();
+        ctx2.ellipse(0, 15, 24, 7, 0, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.strokeStyle = "#3a444c";
+        ctx2.lineWidth = 6;
+        ctx2.beginPath();
+        ctx2.moveTo(-18, 0);
+        ctx2.quadraticCurveTo(-28, -8 + bounce, -32, 2);
+        ctx2.stroke();
+        ctx2.strokeStyle = "#3a444c";
+        ctx2.lineWidth = 4;
+        ctx2.beginPath();
+        ctx2.moveTo(-10, 5);
+        ctx2.lineTo(-10 + legOffset, 15);
+        ctx2.stroke();
+        ctx2.beginPath();
+        ctx2.moveTo(-6, 5);
+        ctx2.lineTo(-6 - legOffset, 15);
+        ctx2.stroke();
+        ctx2.beginPath();
+        ctx2.moveTo(10, 5);
+        ctx2.lineTo(10 - legOffset, 15);
+        ctx2.stroke();
+        ctx2.beginPath();
+        ctx2.moveTo(14, 5);
+        ctx2.lineTo(14 + legOffset, 15);
+        ctx2.stroke();
+        ctx2.fillStyle = "#7a8a95";
+        ctx2.strokeStyle = "#141f18";
+        ctx2.lineWidth = 2.5;
+        ctx2.beginPath();
+        ctx2.ellipse(0, 0, 20, 11, 0, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.stroke();
+        ctx2.fillStyle = "#5c6b75";
+        ctx2.beginPath();
+        ctx2.arc(14, -8, 8, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.stroke();
+        ctx2.fillStyle = "#3a444c";
+        ctx2.fillRect(18, -10, 8, 4);
+        ctx2.strokeRect(18, -10, 8, 4);
+        ctx2.fillStyle = "#7a8a95";
+        ctx2.beginPath();
+        ctx2.moveTo(10, -14);
+        ctx2.lineTo(14, -20);
+        ctx2.lineTo(16, -14);
+        ctx2.closePath();
+        ctx2.fill();
+        ctx2.stroke();
+        ctx2.fillStyle = "#ff3b3b";
+        ctx2.beginPath();
+        ctx2.arc(16, -10, 2, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.restore();
+      }
+    },
+    {
+      id: "boss",
+      name: "Megazombie Boss",
+      hp: "Massive (Boss)",
+      speed: "Normal (100%)",
+      danger: "Extreme",
+      lore: "A colossal, highly unstable mutated titan representing the apex of the infection. It commands other zombies and strikes with planet-shaking force. Aim for its glowing red eyes and keep structures repaired.",
+      draw: (ctx2, cx, cy, time) => {
+        const bounce = Math.sin(time * 3e-3) * 1;
+        const armAnim = Math.sin(time * 4e-3) * 0.05;
+        ctx2.save();
+        ctx2.translate(cx, cy + bounce);
+        for (let i = 0; i < 7; i++) {
+          const a = i / 7 * Math.PI * 2 + time * 1e-3;
+          ctx2.fillStyle = "#7c3aed";
+          ctx2.strokeStyle = "#141f18";
+          ctx2.lineWidth = 2;
+          ctx2.beginPath();
+          ctx2.moveTo(Math.cos(a) * 35, Math.sin(a) * 35);
+          ctx2.lineTo(Math.cos(a + 0.1) * 48, Math.sin(a + 0.1) * 48);
+          ctx2.lineTo(Math.cos(a - 0.1) * 48, Math.sin(a - 0.1) * 48);
+          ctx2.closePath();
+          ctx2.fill();
+          ctx2.stroke();
+        }
+        ctx2.restore();
+        drawDummyZombie(ctx2, cx, cy + bounce, 36, "#4b2a63", "#3a1f4d", "#241333", armAnim, false, false, true);
+      }
+    },
+    {
+      id: "spider",
+      name: "Zombie Spider",
+      hp: "Medium (64)",
+      speed: "Fast (135%)",
+      danger: "High",
+      lore: "A mutated arachnid specimen carrying the pathogen. It can easily crawl through/over defensive barricades and structures, making wall blocking less effective. Its long-range web attack slows you down significantly.",
+      draw: (ctx2, cx, cy, time) => {
+        const bounce = Math.sin(time * 5e-3) * 1.5;
+        ctx2.save();
+        ctx2.translate(cx, cy + bounce);
+        const r = 16;
+        const OUTLINE = "#141f18";
+        const bodyCol = "#2c3e50";
+        const bodyCol2 = "#1a252f";
+        const legCol = "#0e141a";
+        const legAngles = [-1.3, -0.9, -0.5, -0.1, 0.1, 0.5, 0.9, 1.3];
+        legAngles.forEach((legOffset, idx) => {
+          const side = idx < 4 ? -1 : 1;
+          const legSweep = Math.sin(time * 8e-3 + idx * 0.5) * 0.18;
+          const a = legOffset + side * Math.PI / 4 + legSweep;
+          const hipX = Math.cos(legOffset) * r * 0.45;
+          const hipY = Math.sin(legOffset) * r * 0.45;
+          const jointX = hipX + Math.cos(a) * r * 0.8;
+          const jointY = hipY + Math.sin(a) * r * 0.8;
+          const tipAngle = a + side * 0.6;
+          const tipX = jointX + Math.cos(tipAngle) * r * 0.7;
+          const tipY = jointY + Math.sin(tipAngle) * r * 0.7;
+          ctx2.lineCap = "round";
+          ctx2.strokeStyle = OUTLINE;
+          ctx2.lineWidth = r * 0.22 + 4;
+          ctx2.beginPath();
+          ctx2.moveTo(hipX, hipY);
+          ctx2.lineTo(jointX, jointY);
+          ctx2.lineTo(tipX, tipY);
+          ctx2.stroke();
+          ctx2.strokeStyle = legCol;
+          ctx2.lineWidth = r * 0.22;
+          ctx2.beginPath();
+          ctx2.moveTo(hipX, hipY);
+          ctx2.lineTo(jointX, jointY);
+          ctx2.lineTo(tipX, tipY);
+          ctx2.stroke();
+        });
+        ctx2.fillStyle = bodyCol;
+        ctx2.beginPath();
+        ctx2.ellipse(-r * 0.4, 0, r * 1, r * 0.8, 0, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.strokeStyle = OUTLINE;
+        ctx2.lineWidth = 2.5;
+        ctx2.stroke();
+        ctx2.fillStyle = bodyCol2;
+        ctx2.beginPath();
+        ctx2.ellipse(r * 0.4, 0, r * 0.65, r * 0.55, 0, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.strokeStyle = OUTLINE;
+        ctx2.lineWidth = 2;
+        ctx2.stroke();
+        ctx2.fillStyle = "#ff1e1e";
+        [-0.2, 0, 0.2].forEach((off) => {
+          ctx2.beginPath();
+          ctx2.arc(r * 0.65, r * off * 0.35, r * 0.08, 0, Math.PI * 2);
+          ctx2.fill();
+        });
+        ctx2.restore();
+      }
+    },
+    {
+      id: "witch",
+      name: "Zombie Witch",
+      hp: "High (112)",
+      speed: "Slow (80%)",
+      danger: "Extreme",
+      lore: "A dangerous sorceress of the plague. She throws high-damage magic orbs from a distance and summons lesser zombies to screen her. She casts a permanent speed-boosting aura for all nearby zombies.",
+      draw: (ctx2, cx, cy, time) => {
+        const bounce = Math.sin(time * 4e-3) * 2;
+        ctx2.save();
+        ctx2.translate(cx, cy + bounce);
+        const r = 18;
+        const OUTLINE = "#141f18";
+        const bodyCol = "#8e44ad";
+        const bodyCol2 = "#7d3c98";
+        ctx2.fillStyle = "#4a235a";
+        ctx2.strokeStyle = OUTLINE;
+        ctx2.lineWidth = 2.5;
+        ctx2.beginPath();
+        ctx2.arc(0, r * 0.45, r * 0.8, 0, Math.PI);
+        ctx2.closePath();
+        ctx2.fill();
+        ctx2.stroke();
+        const armAnim = Math.sin(time * 7e-3) * 0.15;
+        drawDummyZombie(ctx2, 0, 0, r, bodyCol, bodyCol2, "#4a235a", armAnim, true);
+        ctx2.fillStyle = "#1a052e";
+        ctx2.strokeStyle = OUTLINE;
+        ctx2.lineWidth = 2.5;
+        ctx2.beginPath();
+        ctx2.ellipse(0, 0, r * 1.5, r * 0.95, 0, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.stroke();
+        ctx2.beginPath();
+        ctx2.moveTo(-r * 0.4, -r * 0.1);
+        ctx2.lineTo(r * 0.4, -r * 0.1);
+        ctx2.lineTo(-r * 0.6, -r * 1.3);
+        ctx2.closePath();
+        ctx2.fill();
+        ctx2.stroke();
+        ctx2.restore();
+      }
+    }
+  ];
+  function drawDummyZombie(ctx2, cx, cy, r, bodyCol, bodyCol2, darkCol, armAngle, ranged, exploderGlow = false, isBoss = false) {
+    ctx2.save();
+    ctx2.fillStyle = "rgba(0,0,0,0.18)";
+    ctx2.beginPath();
+    ctx2.ellipse(cx, cy + r * 0.65, r * 0.85, r * 0.38, 0, 0, Math.PI * 2);
+    ctx2.fill();
+    const OUTLINE = "#141f18";
+    const spread = ranged ? 0.62 : 0.48;
+    const reach = ranged ? 0.8 : 0.88;
+    [-1, 1].forEach((side) => {
+      const angle = -Math.PI / 2 + side * spread + armAngle;
+      const bx = cx + Math.cos(angle) * r * reach;
+      const by = cy + Math.sin(angle) * r * reach;
+      const blobR = r * 0.52;
+      ctx2.strokeStyle = OUTLINE;
+      ctx2.lineCap = "round";
+      ctx2.lineWidth = r * 0.6 + 5;
+      ctx2.beginPath();
+      ctx2.moveTo(cx, cy);
+      ctx2.lineTo(bx, by);
+      ctx2.stroke();
+      ctx2.strokeStyle = "rgba(20, 20, 20, 0.45)";
+      ctx2.lineWidth = r * 0.6;
+      ctx2.beginPath();
+      ctx2.moveTo(cx, cy);
+      ctx2.lineTo(bx, by);
+      ctx2.stroke();
+      ctx2.fillStyle = radialFillDummy(ctx2, bx, by, blobR, bodyCol, bodyCol2);
+      ctx2.beginPath();
+      ctx2.arc(bx, by, blobR, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.strokeStyle = OUTLINE;
+      ctx2.lineWidth = 2.5;
+      ctx2.stroke();
+    });
+    ctx2.fillStyle = radialFillDummy(ctx2, cx, cy, r, bodyCol, bodyCol2);
+    ctx2.beginPath();
+    ctx2.ellipse(cx, cy, r, r * 0.98, 0, 0, Math.PI * 2);
+    ctx2.fill();
+    ctx2.strokeStyle = OUTLINE;
+    ctx2.lineWidth = 3.5;
+    ctx2.stroke();
+    const eyeSep = r * 0.3;
+    const eyeFwd = -r * 0.22;
+    [-1, 1].forEach((side) => {
+      const ex = cx + eyeSep * side;
+      const ey = cy + eyeFwd;
+      ctx2.fillStyle = isBoss ? "#ff3b3b" : "#f4f4ec";
+      ctx2.strokeStyle = OUTLINE;
+      ctx2.lineWidth = 1.4;
+      ctx2.beginPath();
+      ctx2.arc(ex, ey, r * 0.16, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.fillStyle = "#1c1c1c";
+      ctx2.beginPath();
+      ctx2.arc(ex, ey, r * 0.075, 0, Math.PI * 2);
+      ctx2.fill();
+    });
+    const mx = cx;
+    const my = cy + r * 0.3;
+    ctx2.fillStyle = "#1c1c1c";
+    ctx2.beginPath();
+    ctx2.ellipse(mx, my, r * 0.22, r * 0.14, 0, 0, Math.PI * 2);
+    ctx2.fill();
+    ctx2.fillStyle = "#e8e2d0";
+    for (let i = -1; i <= 1; i += 2) {
+      ctx2.fillRect(mx + i * r * 0.12 - 1.5, my - r * 0.08, 3, r * 0.1);
+    }
+    if (exploderGlow) {
+      const pulse = 0.4 + 0.3 * Math.sin(performance.now() * 8e-3);
+      ctx2.fillStyle = `rgba(255, 120, 60, ${pulse})`;
+      ctx2.beginPath();
+      ctx2.ellipse(cx, cy, r - 2, r - 2, 0, 0, Math.PI * 2);
+      ctx2.fill();
+    }
+    ctx2.restore();
+  }
+  function radialFillDummy(ctx2, sx, sy, radius, cLight, cDark) {
+    const g = ctx2.createRadialGradient(sx - radius * 0.3, sy - radius * 0.3, radius * 0.1, sx, sy, radius);
+    g.addColorStop(0, cLight);
+    g.addColorStop(1, cDark);
+    return g;
+  }
+  var activeSpecimenId = null;
+  var animationFrameId = null;
+  function openCodex() {
+    loadCodex();
+    const modal = byId("codexModal");
+    if (modal) {
+      modal.classList.remove("hidden");
+      renderCodexList();
+      const firstEncountered = SPECIMENS.find((s) => codex.encountered[s.id]);
+      if (firstEncountered) {
+        selectSpecimen(firstEncountered.id);
+      } else {
+        selectSpecimen(null);
+      }
+      startAnimationLoop();
+    }
+  }
+  function closeCodex() {
+    const modal = byId("codexModal");
+    if (modal) {
+      modal.classList.add("hidden");
+      stopAnimationLoop();
+    }
+  }
+  function startAnimationLoop() {
+    stopAnimationLoop();
+    const canvas2 = byId("codexPreviewCanvas");
+    const ctx2 = canvas2?.getContext("2d");
+    if (!canvas2 || !ctx2) return;
+    function loop2() {
+      if (activeSpecimenId) {
+        const specimen = SPECIMENS.find((s) => s.id === activeSpecimenId);
+        const isEncountered = codex.encountered[activeSpecimenId];
+        ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
+        if (specimen && isEncountered) {
+          specimen.draw(ctx2, canvas2.width / 2, canvas2.height / 2 + 5, performance.now());
+        } else {
+          ctx2.save();
+          ctx2.fillStyle = "#6d9080";
+          ctx2.textAlign = "center";
+          ctx2.textBaseline = "middle";
+          ctx2.font = "700 32px Ubuntu";
+          ctx2.fillText("LOCKED", canvas2.width / 2, canvas2.height / 2);
+          ctx2.restore();
+        }
+      }
+      animationFrameId = requestAnimationFrame(loop2);
+    }
+    animationFrameId = requestAnimationFrame(loop2);
+  }
+  function stopAnimationLoop() {
+    if (animationFrameId !== null) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
+  }
+  function selectSpecimen(id) {
+    activeSpecimenId = id;
+    const detailEmpty = byId("codexDetailEmpty");
+    const detailContent = byId("codexDetailContent");
+    if (!id) {
+      if (detailEmpty) detailEmpty.classList.remove("hidden");
+      if (detailContent) detailContent.classList.add("hidden");
+      return;
+    }
+    if (detailEmpty) detailEmpty.classList.add("hidden");
+    if (detailContent) detailContent.classList.remove("hidden");
+    const specimen = SPECIMENS.find((s) => s.id === id);
+    const isEncountered = codex.encountered[id];
+    const nameEl = byId("codexMonsterName");
+    const historyEl = byId("codexHistory");
+    const statsEl = byId("codexStats");
+    const loreEl = byId("codexLore");
+    if (!specimen || !nameEl || !historyEl || !statsEl || !loreEl) return;
+    if (isEncountered) {
+      nameEl.textContent = specimen.name;
+      const firstKillDate = codex.firstKilled[id];
+      historyEl.innerHTML = `First Encountered: <span class="codex-highlight">Yes</span><br>First Defeated: <span class="codex-highlight">${firstKillDate || "Not defeated yet"}</span>`;
+      const dangerClass = specimen.danger.toLowerCase();
+      statsEl.innerHTML = `
+      <div class="codex-stat-row"><span>HEALTH</span><b>${specimen.hp}</b></div>
+      <div class="codex-stat-row"><span>MOVEMENT SPEED</span><b>${specimen.speed}</b></div>
+      <div class="codex-stat-row"><span>DANGER CLASS</span><b class="danger-tag ${dangerClass}">${specimen.danger}</b></div>
+    `;
+      loreEl.textContent = specimen.lore;
+    } else {
+      nameEl.textContent = "??? Locked Specimen";
+      historyEl.innerHTML = `First Encountered: <span class="codex-locked">No</span>`;
+      statsEl.innerHTML = `
+      <div class="codex-stat-row"><span>HEALTH</span><b class="codex-locked">Unknown</b></div>
+      <div class="codex-stat-row"><span>MOVEMENT SPEED</span><b class="codex-locked">Unknown</b></div>
+      <div class="codex-stat-row"><span>DANGER CLASS</span><b class="codex-locked">Unknown</b></div>
+    `;
+      loreEl.textContent = "Tactical data locked. Encounter this mutation during survival waves to unlock bestiary records.";
+    }
+  }
+  function renderCodexList() {
+    const listEl = byId("codexList");
+    if (!listEl) return;
+    listEl.innerHTML = "";
+    SPECIMENS.forEach((specimen) => {
+      const isEncountered = codex.encountered[specimen.id];
+      const row = document.createElement("div");
+      row.className = "codex-row" + (activeSpecimenId === specimen.id ? " active" : "");
+      const thumb = document.createElement("canvas");
+      thumb.width = 30;
+      thumb.height = 30;
+      thumb.className = "codex-thumb";
+      const tctx = thumb.getContext("2d");
+      if (tctx) {
+        if (isEncountered) {
+          specimen.draw(tctx, 15, 17, 0);
+        } else {
+          tctx.fillStyle = "#6d9080";
+          tctx.textAlign = "center";
+          tctx.textBaseline = "middle";
+          tctx.font = "700 14px Ubuntu";
+          tctx.fillText("?", 15, 15);
+        }
+      }
+      row.appendChild(thumb);
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = isEncountered ? specimen.name : "??? Unknown";
+      row.appendChild(nameSpan);
+      row.onclick = () => {
+        const activeRows = listEl.querySelectorAll(".codex-row.active");
+        activeRows.forEach((r) => r.classList.remove("active"));
+        row.classList.add("active");
+        selectSpecimen(specimen.id);
+      };
+      listEl.appendChild(row);
+    });
+  }
+  function initCodexUI() {
+    const codexBtn = byId("codexBtn");
+    const closeBtn = byId("codexCloseBtn");
+    if (codexBtn) {
+      codexBtn.onclick = (e) => {
+        e.stopPropagation();
+        openCodex();
+      };
+    }
+    if (closeBtn) {
+      closeBtn.onclick = () => {
+        closeCodex();
+      };
+    }
+    const modal = byId("codexModal");
+    if (modal) {
+      modal.onclick = (e) => {
+        if (e.target === modal) {
+          closeCodex();
+        }
+      };
+    }
   }
 
   // src/game.ts
@@ -4108,8 +4988,8 @@
       return;
     }
     try {
-      let dt = t - lastTime;
-      if (dt > 100) dt = 100;
+      let dt = (t - lastTime) * debugSpeedMultiplier;
+      if (dt > 100 * debugSpeedMultiplier) dt = 100 * debugSpeedMultiplier;
       setLastTime(t);
       updatePlayer(dt, camera);
       updateBullets(dt);
@@ -4350,6 +5230,7 @@
   setupInputListeners(canvas, tryBuildOrUpgrade, selectBuild, renderBuildBar, toggleDebugPanel);
   setupTouchListeners(canvas, tryBuildOrUpgrade, selectBuild, renderBuildBar);
   setupDebugUI();
+  initCodexUI();
   loadSettings();
   var helpBtn = byId("helpBtn");
   var hintBox = byId("hint");

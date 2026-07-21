@@ -10,13 +10,14 @@ import {
   OVERHEAT_DECAY_PER_SEC, ZTYPE, STRUCTURE_TIERS, BUILD_DEFS,
   BASE_STATS, WORLD_W, WORLD_H
 } from '../constants';
-import { clamp, dist, mouseWorldPos, byId } from '../utils';
+import { clamp, dist, mouseWorldPos, byId, rand } from '../utils';
 import {
   speedBoostMul, weaponSpeedMul, mutationSpeedMul, regenBoostMul,
   damageBoostMul, tryShoot, spawnDamageNumber, triggerShake, zombieDied,
   spawnBurst, spawnBlood, applyPowerup, showBanner, spawnParticle, gainXp
 } from './combat';
 import { saveMeta, submitScore } from './storage';
+import { spawnZombie } from './wave';
 
 export function nightMul(dayNightFactor: number): number { return 1 + dayNightFactor * 0.3; }
 export function nightDmgMul(dayNightFactor: number): number { return 1 + dayNightFactor * 0.2; }
@@ -84,7 +85,8 @@ export function updatePlayer(dt: number, camera: { x: number; y: number }): void
     const len = Math.hypot(ax, ay);
     if (len > 0) { ax /= len; ay /= len; }
   }
-  const maxSpd = player.maxSpeed * speedBoostMul() * weaponSpeedMul(mouse.down) * mutationSpeedMul();
+  const slowMul = (player.slowedUntil && performance.now() < player.slowedUntil) ? 0.55 : 1.0;
+  const maxSpd = player.maxSpeed * speedBoostMul() * weaponSpeedMul(mouse.down) * mutationSpeedMul() * slowMul;
   const accel = maxSpd * (1 - player.friction) / player.friction * (player.accel / BASE_STATS.accel);
   player.vx += ax * accel;
   player.vy += ay * accel;
@@ -198,7 +200,11 @@ export function updateBullets(dt: number): void {
       if (b.dead) continue;
       if (player.alive && dist(b.x, b.y, player.x, player.y) < b.radius + player.radius) {
         if (!godMode) player.hp -= b.damage;
-        spawnDamageNumber(player.x, player.y - 30, b.damage, '#8be36b');
+        spawnDamageNumber(player.x, player.y - 30, b.damage, b.slowProj ? '#bbd8f2' : '#8be36b');
+        if (b.slowProj) {
+          player.slowedUntil = performance.now() + 3000;
+          spawnParticle(player.x, player.y - 45, 'SLOWED', '#5b9ad6');
+        }
         triggerShake(4, 100);
         b.dead = true;
         checkDeath(killPlayer);
@@ -330,22 +336,96 @@ export function updateZombies(dt: number, dayNightFactor: number): void {
 
     if (def.ranged) {
       const d = dist(z.x, z.y, player.x, player.y);
-      if (d > (def.range || 340)) {
-        const a = Math.atan2(player.y - z.y, player.x - z.x);
-        z.x += Math.cos(a) * z.speed * speedM;
-        z.y += Math.sin(a) * z.speed * speedM;
-      } else if (d < (def.range || 340) * 0.55) {
-        const a = Math.atan2(z.y - player.y, z.x - player.x);
-        z.x += Math.cos(a) * z.speed * speedM;
-        z.y += Math.sin(a) * z.speed * speedM;
+      let speedFactor = 1.0;
+      
+      let overlappingStructure = false;
+      if (z.type === 'spider') {
+        for (const s of structures) {
+          if (dist(z.x, z.y, s.x, s.y) < s.radius + z.radius) {
+            overlappingStructure = true;
+            break;
+          }
+        }
       }
+      if (overlappingStructure) {
+        speedFactor = 0.45;
+      } else if (z.type !== 'spider') {
+        let hitStr = null;
+        for (const s of structures) {
+          if (dist(z.x, z.y, s.x, s.y) < s.radius + z.radius + 6) { hitStr = s; break; }
+        }
+        if (hitStr) {
+          hitStr.hp -= (z.type === 'brute' ? 24 : 14) * dt / 1000;
+          const sd = dist(z.x, z.y, hitStr.x, hitStr.y) || 1;
+          z.x += (z.x - hitStr.x) / sd * 0.6;
+          z.y += (z.y - hitStr.y) / sd * 0.6;
+          speedFactor = 0;
+        }
+      }
+      
+      if (speedFactor > 0) {
+        let dx = 0, dy = 0;
+        if (d > (def.range || 340)) {
+          const a = Math.atan2(player.y - z.y, player.x - z.x);
+          dx = Math.cos(a);
+          dy = Math.sin(a);
+        } else if (d < (def.range || 340) * 0.55) {
+          const a = Math.atan2(z.y - player.y, z.x - player.x);
+          dx = Math.cos(a);
+          dy = Math.sin(a);
+        }
+        
+        let witchBuff = 1.0;
+        if (z.type !== 'witch' && z.type !== 'boss') {
+          const witchNearby = zombies.some(other => other.type === 'witch' && !other.dead && dist(z.x, z.y, other.x, other.y) < 160);
+          if (witchNearby) witchBuff = 1.35;
+        }
+
+        z.wobble += dt * 0.004;
+        const wob = Math.sin(z.wobble) * 0.25;
+        z.x += (dx + -dy * wob) * z.speed * speedM * speedFactor * witchBuff;
+        z.y += (dy + dx * wob) * z.speed * speedM * speedFactor * witchBuff;
+      }
+      
+      if (z.type === 'witch') {
+        if (!z.lastSummon) z.lastSummon = 0;
+        if (now - z.lastSummon > 6000) {
+          z.lastSummon = now;
+          const typeToSummon = Math.random() < 0.65 ? 'normal' : 'scout';
+          const offAngle = Math.random() * Math.PI * 2;
+          const offD = rand(40, 90);
+          const sx = clamp(z.x + Math.cos(offAngle) * offD, 40, WORLD_W - 40);
+          const sy = clamp(z.y + Math.sin(offAngle) * offD, 40, WORLD_H - 40);
+          spawnZombie(typeToSummon, sx, sy);
+          spawnBurst(sx, sy, '#8e44ad', 8);
+          spawnParticle(z.x, z.y - 30, 'SUMMON', '#bdc3c7');
+        }
+      }
+
       if (now - z.lastShot > 1000 / (def.fireRate || 0.8)) {
         z.lastShot = now;
         const a = Math.atan2(player.y - z.y, player.x - z.x);
+        
+        const isSpider = z.type === 'spider';
+        const isWitch = z.type === 'witch';
+        let bRad = 5, bDmg = (z.projDamage || 6) * dmgM, bSpeed = 5.5, bLife = 2200, slowProj = false;
+        if (isSpider) {
+          bRad = 6;
+          bDmg = 2 * dmgM;
+          bSpeed = 6.5;
+          bLife = 1500;
+          slowProj = true;
+        } else if (isWitch) {
+          bRad = 8;
+          bDmg = 10 * dmgM;
+          bSpeed = 4.0;
+          bLife = 2500;
+        }
+        
         bullets.push({
           x: z.x + Math.cos(a) * (z.radius + 6), y: z.y + Math.sin(a) * (z.radius + 6),
-          vx: Math.cos(a) * 5.5, vy: Math.sin(a) * 5.5, radius: 5,
-          damage: (z.projDamage || 6) * dmgM, life: 2200, owner: 'zombie'
+          vx: Math.cos(a) * bSpeed, vy: Math.sin(a) * bSpeed, radius: bRad,
+          damage: bDmg, life: bLife, owner: 'zombie', slowProj
         });
       }
       z.x = clamp(z.x, z.radius, WORLD_W - z.radius);
@@ -368,8 +448,15 @@ export function updateZombies(dt: number, dayNightFactor: number): void {
       dx = (player.x - z.x) / d; dy = (player.y - z.y) / d;
       z.wobble += dt * 0.004;
       const wob = z.type === 'boss' ? 0 : Math.sin(z.wobble) * 0.25;
-      z.x += (dx + -dy * wob) * z.speed * speedM;
-      z.y += (dy + dx * wob) * z.speed * speedM;
+      
+      let witchBuff = 1.0;
+      if (z.type !== 'witch' && z.type !== 'boss') {
+        const witchNearby = zombies.some(other => other.type === 'witch' && !other.dead && dist(z.x, z.y, other.x, other.y) < 160);
+        if (witchNearby) witchBuff = 1.35;
+      }
+
+      z.x += (dx + -dy * wob) * z.speed * speedM * witchBuff;
+      z.y += (dy + dx * wob) * z.speed * speedM * witchBuff;
     }
     z.x = clamp(z.x, z.radius, WORLD_W - z.radius);
     z.y = clamp(z.y, z.radius, WORLD_H - z.radius);

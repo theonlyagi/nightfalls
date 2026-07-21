@@ -11,6 +11,7 @@ import {
   OVERHEAT_MAX, OVERHEAT_LOCKOUT_MS, BURN_CHANCE, ZTYPE
 } from '../constants';
 import { rand, dist } from '../utils';
+import { registerKill } from './codex';
 
 let bannerTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -222,6 +223,7 @@ export function zombieDied(z: Zombie): void {
   if (z.dead) return;
   z.dead = true;
   player.kills++;
+  registerKill(z.type);
   spawnBurst(z.x, z.y, ZTYPE[z.type].color, z.type === 'boss' ? 40 : 10);
   spawnBlood(z.x, z.y, z.radius);
   awardPoints(POINTS_BY_TYPE[z.type] || 10);

@@ -23,7 +23,7 @@ export const POWERUP_DEFS: Record<PowerupKind, PowerUpDef> = {
 };
 
 export const POINTS_BY_TYPE: Record<ZombieKind, number> = {
-  normal: 10, scout: 8, brute: 22, spitter: 16, exploder: 16, wolf: 12, boss: 600
+  normal: 10, scout: 8, brute: 22, spitter: 16, exploder: 16, wolf: 12, boss: 600, spider: 15, witch: 25
 };
 
 export const POWERUP_LIFETIME_MS = 20000;
@@ -126,6 +126,8 @@ export const ZTYPE: Record<ZombieKind, ZombieTypeDef> = {
   spitter:  { radiusR: [15, 18], hpMul: 0.7,  speedMul: 0.55, dmgMul: 0,   color: '#5a9151', color2: '#437040', dark: '#2b4526', ranged: true, range: 340, fireRate: 0.8 },
   exploder: { radiusR: [19, 24], hpMul: 0.6,  speedMul: 1.5,  dmgMul: 0,   color: '#c07a2e', color2: '#9c5c1e', dark: '#5c2e0d', explode: true, explodeRadius: 95 },
   wolf:     { radiusR: [16, 20], hpMul: 0.5,  speedMul: 1.85, dmgMul: 1.1, color: '#7a8a95', color2: '#5c6b75', dark: '#3a444c' },
+  spider:   { radiusR: [14, 17], hpMul: 0.8,  speedMul: 1.35, dmgMul: 0.8, color: '#2c3e50', color2: '#1a252f', dark: '#0e141a', ranged: true, range: 300, fireRate: 0.4 },
+  witch:    { radiusR: [16, 19], hpMul: 1.4,  speedMul: 0.8,  dmgMul: 0.9, color: '#8e44ad', color2: '#7d3c98', dark: '#4a235a', ranged: true, range: 380, fireRate: 0.5 },
   boss:     { radiusR: [54, 54], hpMul: 1,    speedMul: 1,    dmgMul: 1,   color: '#4b2a63', color2: '#3a1f4d', dark: '#241333' }
 };
 

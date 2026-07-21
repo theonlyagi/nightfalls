@@ -10,7 +10,7 @@ import {
   setBursts, setPowerups, setBloodDecals, setWave, setWaveState, setIsBossWave,
   setActiveBoss, setShopOpen, setWeaponChoiceOpen, setMutationChoiceOpen,
   setDebugOpen, setSelectedBuild, setManualBuildAngle, lobby, settings,
-  setSettingsOpenedMidRun
+  setSettingsOpenedMidRun, debugSpeedMultiplier
 } from './state';
 import { byId, rand } from './utils';
 import { loadSettings, saveSettings, applyUiScale } from './systems/storage';
@@ -30,6 +30,7 @@ import {
 } from './ui/shopUI';
 import { openSettings, closeSettings, renderSettingsUI } from './ui/settingsUI';
 import { setupDebugUI, toggleDebugPanel } from './ui/debugUI';
+import { initCodexUI } from './ui/codexUI';
 
 setXpCallbacks({
   onWeaponChoice: openWeaponChoice,
@@ -73,8 +74,8 @@ function loop(t: number): void {
     return;
   }
   try {
-    let dt = t - lastTime;
-    if (dt > 100) dt = 100;
+    let dt = (t - lastTime) * debugSpeedMultiplier;
+    if (dt > 100 * debugSpeedMultiplier) dt = 100 * debugSpeedMultiplier;
     setLastTime(t);
 
     updatePlayer(dt, camera);
@@ -239,6 +240,7 @@ byId('scaleLargeBtn').onclick = () => { settings.uiScale = 'large'; saveSettings
 setupInputListeners(canvas, tryBuildOrUpgrade, selectBuild, renderBuildBar, toggleDebugPanel);
 setupTouchListeners(canvas, tryBuildOrUpgrade, selectBuild, renderBuildBar);
 setupDebugUI();
+initCodexUI();
 loadSettings();
 
 // Toggleable How to Play UI

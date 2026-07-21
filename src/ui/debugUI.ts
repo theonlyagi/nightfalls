@@ -1,12 +1,13 @@
 import {
   debugUnlocked, setDebugUnlocked, debugOpen, setDebugOpen,
-  godMode, setGodMode, running, player, setZombies, bloodMoon
+  godMode, setGodMode, running, player, zombies, setZombies, bloodMoon,
+  setDebugSpeedMultiplier
 } from '../state';
 import { DEBUG_PASSWORD, BLOOD_MOON_DURATION_MS } from '../constants';
 import { byId, clamp } from '../utils';
 import { startWave } from '../systems/wave';
 import { openWeaponChoice, openMutationChoice, renderUpgradePanel } from './shopUI';
-import { showBanner } from '../systems/combat';
+import { showBanner, zombieDied } from '../systems/combat';
 import { lobbySimulateJoin } from './metaUI';
 
 export function toggleDebugPanel(): void {
@@ -62,6 +63,14 @@ export function cheatSetWave(target: number): void {
   startWave(target);
 }
 
+export function cheatKillAll(): void {
+  const activeZombies = [...zombies];
+  for (const z of activeZombies) {
+    zombieDied(z);
+  }
+  setZombies([]);
+}
+
 export function setupDebugUI(): void {
   const debugBox = byId('debugBox');
   if (!debugBox) return;
@@ -92,6 +101,14 @@ export function setupDebugUI(): void {
     player.wood += n; player.stone += n;
   };
   byId('debugFullHealBtn').onclick = () => { player.hp = player.maxHp; };
+  byId('debugKillAllBtn').onclick = () => { cheatKillAll(); };
+  const speedSelect = byId<HTMLSelectElement>('debugSpeedSelect');
+  if (speedSelect) {
+    speedSelect.onchange = (e) => {
+      const val = Number((e.target as HTMLSelectElement).value) || 1;
+      setDebugSpeedMultiplier(val);
+    };
+  }
   byId('debugGodBtn').onclick = () => {
     setGodMode(!godMode);
     byId('debugGodBtn').textContent = 'GOD MODE: ' + (godMode ? 'ON' : 'OFF');

@@ -12,6 +12,7 @@ import {
 } from '../state';
 import { rand, clamp, dist, byId } from '../utils';
 import { showBanner, gainXp } from './combat';
+import { registerEncounter } from './codex';
 
 export function generateWorld(): void {
   const newResources = [];
@@ -86,23 +87,24 @@ export function pickZombieType(): ZombieKind {
     if (r < 0.92) return 'spitter';
     return 'wolf';
   }
-  if (wave < 8) {
-    const r = Math.random();
-    if (r < 0.24) return 'normal';
-    if (r < 0.44) return 'scout';
-    if (r < 0.6) return 'brute';
-    if (r < 0.76) return 'spitter';
-    if (r < 0.9) return 'exploder';
-    return 'wolf';
+  const pool: { type: ZombieKind; weight: number }[] = [
+    { type: 'normal', weight: 100 }
+  ];
+  if (wave >= 2) pool.push({ type: 'scout', weight: 65 });
+  if (wave >= 3) pool.push({ type: 'brute', weight: 40 });
+  if (wave >= 4) pool.push({ type: 'wolf', weight: 45 });
+  if (wave >= 5) pool.push({ type: 'spitter', weight: 35 });
+  if (wave >= 6) pool.push({ type: 'exploder', weight: 30 });
+  if (wave >= 8) pool.push({ type: 'spider', weight: 25 });
+  if (wave >= 10) pool.push({ type: 'witch', weight: 15 });
+
+  const totalWeight = pool.reduce((sum, item) => sum + item.weight, 0);
+  let roll = Math.random() * totalWeight;
+  for (const item of pool) {
+    if (roll < item.weight) return item.type;
+    roll -= item.weight;
   }
-  // Wave 8+: wolves (and their packs) are common from here on.
-  const r = Math.random();
-  if (r < 0.2) return 'normal';
-  if (r < 0.36) return 'scout';
-  if (r < 0.52) return 'brute';
-  if (r < 0.68) return 'spitter';
-  if (r < 0.8) return 'exploder';
-  return 'wolf';
+  return 'normal';
 }
 
 export function spawnZombie(forceType?: ZombieKind, atX?: number, atY?: number): void {
@@ -148,6 +150,7 @@ export function spawnZombie(forceType?: ZombieKind, atX?: number, atY?: number):
     byId('bossName').textContent = 'BOSS · WAVE ' + wave;
   }
   zombies.push(z);
+  registerEncounter(type);
 
   // Wolves hunt in packs — a fresh wolf call (not a pack companion, and not a
   // debug-forced spawn) brings 1-2 more along, placed near it rather than at
