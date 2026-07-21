@@ -7,100 +7,86 @@ still outstanding** — the stuff a new session wouldn't otherwise know.
 
 ## Repo / deployment facts
 
-- GitHub repo: `theonlyagi/nightfalls` (private).
+- GitHub repo: `theonlyagi/nightfalls` (private). **Two developers now push
+  here** — verify with `git fetch origin` before assuming local state is
+  current; don't trust a stale local checkout.
+- `main` is **branch-protected**: PRs required to merge (direct pushes and
+  force-pushes to `main` are rejected). Workflow is: push a feature branch →
+  open a PR → merge on GitHub. Required approving reviews is currently 0
+  (a PR is mandatory, but not a second reviewer).
 - GitHub Pages serves **`docs/index.html`** only (Settings → Pages → Deploy
   from branch → `main` → `/docs`), so the published site is always the
   obfuscated single-file bundle, never source.
 - Live site: `https://theonlyagi.github.io/nightfalls/`
-- **This is not a git repo locally as of last check** (`git` metadata wasn't
-  detected) — verify with `git status` before assuming any prior commits
-  exist locally. If it isn't initialized, the existing GitHub repo still has
-  whatever was last force-pushed; don't `git init` + push without first
-  checking `gh repo view theonlyagi/nightfalls` and reconciling.
+- Client build now uses **esbuild** (`npm run build` → bundles `src/game.ts`
+  into `public/game.js`), not raw `tsc`. `src/` is split into
+  `constants.ts`, `game.ts`, `render/`, `state.ts`, `systems/`, `ui/`,
+  `utils.ts` (a teammate's refactor — the very old monolithic
+  single-file `game.ts` is gone).
 - Debug/cheat console: press **Home** in-game, password **`agi123`**. It's a
   local testing tool, not a real security gate (says so on the panel itself).
 
-## ⚠️ Outstanding: nothing has been pushed to GitHub yet
+## ⚠️ Outstanding: multiplayer is mid-build, NOT connected to the game yet
 
-Four feature batches were built, compiled, and verified locally/in the
-obfuscated build this session, but **never committed or pushed**. The live
-site currently only reflects whatever was in the original force-push
-(grid background, no lobby, no settings, possibly old zombie art). Unlanded
-locally:
+The user wants multiplayer released soon (originally framed as a ~24h
+target, then relaxed once it was clear a VPS/domain weren't even acquired
+yet — **don't assume the deadline is still literal**, confirm with the user).
+Current state, precisely:
 
-1. Grass background (replaced the grid)
-2. Menu background image (main menu screen)
-3. Team Mode / lobby UI (local-only stub, see Roadmap in README)
-4. UI polish + Settings screen (most recent work)
+**What exists (`server/`, a standalone Node/TypeScript/uWebSockets.js
+backend, AGPL-3.0 licensed — see `server/NOTICE.md` for why):**
+- `server/src/protocol.ts` — shared packet types/constants, `PROTOCOL_VERSION`.
+- `server/src/Room.ts` — one isolated match (max 4 players): player state
+  (position/hp/xp/level), zombies (server-spawned wander AI), bullets,
+  bullet-vs-zombie and zombie-vs-player collision, XP/leveling on kill.
+- `server/src/RoomManager.ts` — assigns joins to a room with space or creates
+  one; destroys empty rooms; `SessionStore` holds a disconnected player's
+  state for 30s so a reconnect (via `?token=...` on the WS URL) resumes the
+  *same* player instead of respawning as a stranger.
+- `server/src/index.ts` — uWS app: origin allowlist (`ALLOWED_ORIGINS` env,
+  currently defaults to `http://localhost:8080` only — **must be updated for
+  any real deployment**), move/shoot validation (anti-teleport speed check,
+  fire-rate limit), ties it all together.
+- All of the above verified with real test clients (multi-room isolation,
+  validation rejection, reconnection, collision→XP chain) — see git history
+  on the `multiplayer-server-foundation` branch/PR for the exact test
+  transcripts if you need to re-verify behavior.
 
-**Do not push without asking first** — every push in this project has
-required explicit user confirmation. When the user is ready, the flow is:
-`npm run build && npm run build:share` → commit `docs/` (and source) → push
-→ confirm Pages picks it up.
+**What's explicitly NOT done — this is the real gap, not just polish:**
+1. **The game client has zero networking code.** `public/game.js` /
+   `src/game.ts` never opens a WebSocket. The existing "Team Mode" lobby UI
+   in the client is a **local-only stub** (search `Team lobby (local stub`
+   or similar) — it doesn't talk to `server/` at all. This is the largest
+   remaining piece of work: wiring the client to connect, send its own
+   moves/shots, and render the *other* synced players/zombies/bullets it
+   receives back, while reconciling against the client's existing full
+   local simulation (which currently runs regardless of mode).
+2. **Not deployed anywhere.** `server/` has only run on `localhost:8081` on
+   the dev machine. No VPS, no domain, no TLS/`wss://`, no process manager
+   (pm2/systemd), no production `ALLOWED_ORIGINS`. User plans to get a VPS
+   "tomorrow" (relative to when this was written) — confirm current status
+   before assuming it still hasn't happened.
+3. **Structures, day/night, Blood Moon, shop, and evolutions/mutations are
+   NOT synced.** Only player position, zombies, and bullets are. If two
+   players joined a real session today, they'd see different day/night
+   states and neither would see the other's walls/turrets — this would look
+   broken, not just incomplete, if shipped as-is. Structures + day/night
+   sync should be treated as required-before-real-launch, not optional
+   polish; shop/evolutions can more reasonably wait for a v2 (they also
+   still have open design questions — what's even purchasable/choosable in
+   a synced multiplayer context was never resolved).
 
-## What shipped this session (chronological)
+**Recommended next step for whoever picks this up:** scope a deliberately
+minimal multiplayer v1 (synced position/zombies/bullets/combat only,
+explicitly without structures/shop/evolutions) rather than attempting full
+feature parity — that's what's actually achievable quickly given the gap
+above. Confirm this scoping with the user before assuming it still holds.
 
-1. **Debug console** (Home key, password `agi123`) — set level/wave/points,
-   full heal, god mode, trigger Blood Moon, add fake lobby player.
-2. **Single-file shareable build** — `npm run build:share` bundles
-   `public/` into `docs/index.html`, minified+mangled via `terser`. Also a
-   manually-refreshed desktop copy at
-   `C:\Users\ethan\OneDrive\Desktop\nightfall-io.html`.
-3. **Converted all tooling to TypeScript** — `scripts/build-share.ts` (was
-   hand-written JS), compiled via its own `scripts/tsconfig.json`.
-4. **Speed upgrade fix** — `accel` was a fixed constant instead of being
-   derived from live `maxSpeed`, so speed upgrades were mathematically inert.
-   Now computed fresh each frame from `maxSpd`.
-5. **Powerup lifetime** — powerups expire after 20s (`POWERUP_LIFETIME_MS`)
-   with a flicker warning in the last 3s, so they don't pile up and lag.
-6. **Build-bar no longer auto-selects** the shop on load.
-7. **Blood Moon event** — random 1–30 min interval, 60s duration, 5x zombie
-   spawn rate, zombies 30% stronger, red overlay/flashlight instead of the
-   normal night tint. Debug-triggerable.
-8. **Zombie redesign** — regular zombies (and the general style for other
-   types) now use a body + two arm-blob spheres on a visible rounded
-   connector, matching a user-provided reference image. (First pass was
-   rejected as invisible/subtle — connector color/size were fixed to be
-   clearly visible.)
-9. **Obfuscated publishing pipeline** — `docs/index.html` is the minified,
-   name-mangled, license-commented distributable; `public/` stays readable
-   for dev. Fixed a nasty bug where `String.replace` with a **string**
-   replacement corrupted the bundle whenever the source JS contained a
-   literal `$'`-like sequence — now uses replacer **functions** throughout
-   `scripts/build-share.ts`.
-10. **GitHub Pages setup** — reconciled with the pre-existing
-    `theonlyagi/nightfalls` repo (rescued one unique asset — a reference
-    webp — from the stale remote before force-pushing), set repo
-    public + Pages from `/docs`.
-11. **Grass background** — replaced the grid entirely with a procedural
-    grass texture (base fill + tuft clusters), brightness blended between
-    day/night tones via `mixHex()`.
-12. **Menu background image** — `public/menu-bg.jpg` (dark teal
-    faceted crystal/leaf art) as the literal background for the start
-    screen (and now also the lobby/settings overlays, for visual
-    consistency).
-13. **Game modes: Singleplayer / Team Mode** — mode picker on the start
-    screen; Team Mode opens a **lobby UI** (up to 4 players, ready-up,
-    auto-starts once 2–4 are ready). **This is UI/layout only** — the
-    `lobby` object in `src/game.ts` is a local-only stub (search `Team
-    lobby (local stub`); there's no real server. See README Roadmap for
-    what a real backend integration needs.
-14. **UI polish + Settings screen** (most recent):
-    - Shared design-system pass across every panel/card/button in
-      `public/styles.css`: glass/backdrop-blur, consistent hover
-      lift+glow, smoother fade+scale transitions on all overlays
-      (`.overlay-anim`), animated bar fills.
-    - New **Settings screen** (`#settingsOverlay`): Screen Shake toggle,
-      Damage Numbers toggle, UI Scale (small/medium/large). Persisted via
-      `localStorage` (`nightfall_settings` — first use of `localStorage`
-      in this project; everything else meta-progression-related uses the
-      Claude-Artifacts-only `window.storage`, which doesn't work in a real
-      deploy).
-    - Reachable via gear icon buttons on the start screen and mid-run HUD.
-      Opening it mid-run genuinely **pauses** the game loop (`paused` flag
-      in `loop()`) rather than just overlaying UI on top of a running game.
-    - Audio settings were explicitly **out of scope** (no sound system
-      exists in the game at all yet).
+**Do not push directly to `main`** — branch protection will reject it
+anyway; use a feature branch + PR. **Do not deploy/expose the server
+publicly** without checking `ALLOWED_ORIGINS` is set to the real domain
+first, and without the user's explicit go-ahead (this touches shared/public
+infrastructure once live).
 
 ## Known environment quirks (only relevant if testing in this Browser pane)
 
@@ -117,9 +103,6 @@ behavior in a new session:
   when screenshots are unreliable.
 - Cross-check CSS via `el.matches(selector)` (CSSOM) if `getComputedStyle`
   looks suspicious.
-
-## Plan file
-
-`C:\Users\ethan\.claude\plans\lovely-munching-tide.md` currently holds the
-UI-polish/Settings plan (already implemented — see item 14 above). It gets
-overwritten on the next `EnterPlanMode` use, so don't rely on it persisting.
+- For the `server/` backend specifically, the Browser pane doesn't apply —
+  verify it with real WebSocket test scripts (`node -e "..."` using the
+  built-in `WebSocket` global on Node 24+) instead.
