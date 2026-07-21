@@ -1,11 +1,12 @@
 import { MetaPerm } from '../types';
 import {
   meta, selectedMode, setSelectedMode, selectedClass, setSelectedClass,
-  playerName, lobby, lobbyFakePlayerCount, setLobbyFakePlayerCount
+  playerName, lobby
 } from '../state';
 import { PERM_DEFS, START_BONUS_DEFS, META_SKIN_DEFS, MODE_DEFS, CLASS_DEFS } from '../constants';
 import { byId, escapeHtml } from '../utils';
 import { saveMeta, loadLeaderboard, loadMeta } from '../systems/storage';
+import { net, connect, disconnect, sendReady, getMyId, NetLobbyMessage } from '../net/socket';
 
 export function costFor(key: keyof MetaPerm): number {
   const def = PERM_DEFS[key];
@@ -175,42 +176,53 @@ export async function initMenu(): Promise<void> {
   renderLeaderboard();
 }
 
-export function lobbyCheckAllReady(): void {
-  if (lobby.players.length >= 2 && lobby.players.length <= 4 && lobby.players.every(p => p.ready)) {
+// ---------------- Real multiplayer lobby (wired to the game server) ----------------
+// Previously this simulated everything locally (fake bots, instant ready-check).
+// Now `lobby.players`/`lobby.phase`/`lobby.countdownEndsAt` are mirrors of what
+// the server's Room actually reports — see server/src/Room.ts for the
+// waiting -> countdown -> active state machine this is reflecting.
+
+let countdownTickTimer: ReturnType<typeof setInterval> | undefined;
+
+function stopCountdownTicker(): void {
+  if (countdownTickTimer) { clearInterval(countdownTickTimer); countdownTickTimer = undefined; }
+}
+
+function applyLobbyMessage(msg: NetLobbyMessage): void {
+  const myId = getMyId();
+  lobby.players = msg.players.map(p => ({ id: p.id, name: p.name, ready: p.ready, isLocal: p.id === myId }));
+  lobby.phase = msg.phase;
+  lobby.countdownEndsAt = msg.countdownEndsAt;
+  lobby.onPlayersChanged?.();
+
+  stopCountdownTicker();
+  if (msg.phase === 'countdown') {
+    // Re-render every 200ms so the countdown visibly ticks down instead of
+    // only updating on the next actual state change from the server.
+    countdownTickTimer = setInterval(() => lobby.onPlayersChanged?.(), 200);
+  } else if (msg.phase === 'active') {
     lobby.onMatchStart?.();
   }
 }
 
-export function lobbyJoin(name: string): void {
-  lobby.players = [{ id: 'local', name, ready: false, isLocal: true }];
-  setLobbyFakePlayerCount(0);
-  lobby.onPlayersChanged?.();
-}
+net.onLobby = applyLobbyMessage;
 
 export function lobbySetReady(ready: boolean): void {
-  const me = lobby.players.find(p => p.isLocal);
-  if (me) me.ready = ready;
-  lobby.onPlayersChanged?.();
-  lobbyCheckAllReady();
+  sendReady(ready);
 }
 
 export function lobbyLeave(): void {
+  stopCountdownTicker();
+  disconnect();
   lobby.players = [];
+  lobby.phase = 'waiting';
+  lobby.countdownEndsAt = null;
   lobby.onPlayersChanged?.();
-}
-
-export function lobbySimulateJoin(): void {
-  if (lobby.players.length >= 4) return;
-  const count = lobbyFakePlayerCount + 1;
-  setLobbyFakePlayerCount(count);
-  lobby.players.push({ id: 'bot' + count, name: 'Bot ' + count, ready: true, isLocal: false });
-  lobby.onPlayersChanged?.();
-  lobbyCheckAllReady();
 }
 
 export function openLobby(): void {
   byId('lobbyOverlay').classList.remove('hidden');
-  lobbyJoin(playerName);
+  connect(playerName);
 }
 
 export function renderLobby(): void {
@@ -233,9 +245,16 @@ export function renderLobby(): void {
   const readyCount = lobby.players.filter(p => p.ready).length;
   const statusEl = byId('lobbyStatus');
   if (statusEl) {
-    if (total < 2) statusEl.textContent = `Waiting for players... (${total}/4)`;
-    else if (readyCount < total) statusEl.textContent = `Waiting for everyone to ready up (${readyCount} ready / ${total} joined)`;
-    else statusEl.textContent = 'All ready — starting...';
+    if (lobby.phase === 'countdown' && lobby.countdownEndsAt) {
+      const secsLeft = Math.max(0, Math.ceil((lobby.countdownEndsAt - Date.now()) / 1000));
+      statusEl.textContent = `All ready — starting in ${secsLeft}s...`;
+    } else if (lobby.phase === 'active') {
+      statusEl.textContent = 'Starting...';
+    } else if (total < 2) {
+      statusEl.textContent = `Waiting for players... (${total}/4)`;
+    } else {
+      statusEl.textContent = `Waiting for everyone to ready up (${readyCount} ready / ${total} joined)`;
+    }
   }
 
   const me = lobby.players.find(p => p.isLocal);

@@ -9,6 +9,10 @@ export const WORLD_W = 4200;
 export const WORLD_H = 4200;
 
 export const ROOM_MAX_PLAYERS = 4;
+export const ROOM_MIN_PLAYERS = 2;
+
+/** How long everyone must stay ready, uninterrupted, before a match actually starts. */
+export const MATCH_START_COUNTDOWN_MS = 3000;
 
 export const TICK_MS = 100;
 
@@ -48,7 +52,27 @@ export interface ShootPacket {
   angle: number;
 }
 
-export type ClientPacket = MovePacket | ShootPacket;
+export interface ReadyPacket {
+  type: 'ready';
+  ready: boolean;
+}
+
+export type ClientPacket = MovePacket | ShootPacket | ReadyPacket;
+
+export type RoomPhase = 'waiting' | 'countdown' | 'active';
+
+export interface LobbyPlayerSnapshot {
+  id: string;
+  name: string;
+  ready: boolean;
+}
+
+export interface LobbySnapshot {
+  type: 'lobby';
+  phase: RoomPhase;
+  players: LobbyPlayerSnapshot[];
+  countdownEndsAt: number | null;
+}
 
 export interface PlayerSnapshot {
   id: string;
@@ -88,6 +112,10 @@ export function isMovePacket(value: any): value is MovePacket {
 
 export function isShootPacket(value: any): value is ShootPacket {
   return value && value.type === 'shoot' && Number.isFinite(value.angle);
+}
+
+export function isReadyPacket(value: any): value is ReadyPacket {
+  return value && value.type === 'ready' && typeof value.ready === 'boolean';
 }
 
 export function clamp(v: number, lo: number, hi: number): number {

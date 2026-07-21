@@ -19,10 +19,10 @@ export class RoomManager {
     console.log(`[room] ${room.id} destroyed (empty)`);
   };
 
-  /** Finds a room with space, or creates one. */
+  /** Finds a room with space that hasn't started its match yet, or creates one. */
   assign(): Room {
     for (const room of this.rooms.values()) {
-      if (!room.isFull) return room;
+      if (!room.isFull && room.roomPhase !== 'active') return room;
     }
     const room = new Room(generateRoomId(), this.handleRoomEmpty);
     this.rooms.set(room.id, room);

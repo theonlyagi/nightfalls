@@ -10,6 +10,10 @@ export const WORLD_H = 4200;
 export const TILE = 64;
 export const BUILD_REACH = TILE * 3;
 
+// Swap this for wss://ws.night-falls.xyz/ws once the VPS/domain are live —
+// nothing else in the networking code needs to change.
+export const WS_URL = 'ws://localhost:8081/ws';
+
 export const BASE_STATS = {
   radius: 22, maxHp: 100, maxSpeed: 4.2, accel: 0.55, friction: 0.87,
   damage: 12, bulletSpeed: 9.5, bulletRadius: 5, fireRate: 3.2, regen: 0.06

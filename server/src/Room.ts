@@ -1,9 +1,10 @@
 import uWS from 'uWebSockets.js';
 import {
-  WORLD_W, WORLD_H, ROOM_MAX_PLAYERS, TICK_MS,
+  WORLD_W, WORLD_H, ROOM_MAX_PLAYERS, ROOM_MIN_PLAYERS, MATCH_START_COUNTDOWN_MS, TICK_MS,
   ZOMBIE_MAX, ZOMBIE_SPAWN_INTERVAL_MS, ZOMBIE_RADIUS, ZOMBIE_DAMAGE, ZOMBIE_HIT_COOLDOWN_MS, ZOMBIE_KILL_XP,
   BULLET_SPEED, BULLET_LIFE_TICKS, BULLET_RADIUS, BULLET_DAMAGE,
   PLAYER_RADIUS, PLAYER_MAX_HP, MAX_PLAYER_SPEED_PER_MS, MIN_SHOT_INTERVAL_MS,
+  RoomPhase,
   clamp, dist,
 } from './protocol.js';
 
@@ -12,6 +13,7 @@ const SPEED_CHECK_SLACK = 1.5;
 
 export interface ConnectionData {
   id: string;
+  name: string;
   sessionToken: string;
   connectedAt: number;
   roomId: string;
@@ -19,6 +21,7 @@ export interface ConnectionData {
 
 export interface PlayerState {
   id: string;
+  name: string;
   x: number;
   y: number;
   hp: number;
@@ -31,6 +34,7 @@ export interface PlayerState {
   lastMoveX: number;
   lastMoveY: number;
   lastShotAt: number;
+  ready: boolean;
 }
 
 export interface ZombieState {
@@ -74,15 +78,18 @@ export class Room {
   readonly zombies = new Map<string, ZombieState>();
   readonly bullets = new Map<string, BulletState>();
 
-  private zombieSpawnTimer: ReturnType<typeof setInterval>;
-  private tickTimer: ReturnType<typeof setInterval>;
+  private phase: RoomPhase = 'waiting';
+  private countdownEndsAt: number | null = null;
+  private countdownTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // Simulation only runs once the match is active — these stay unset until then.
+  private zombieSpawnTimer: ReturnType<typeof setInterval> | undefined;
+  private tickTimer: ReturnType<typeof setInterval> | undefined;
   private onEmpty: (room: Room) => void;
 
   constructor(id: string, onEmpty: (room: Room) => void) {
     this.id = id;
     this.onEmpty = onEmpty;
-    this.zombieSpawnTimer = setInterval(() => this.maybeSpawnZombie(), ZOMBIE_SPAWN_INTERVAL_MS);
-    this.tickTimer = setInterval(() => this.tick(), TICK_MS);
   }
 
   get size(): number {
@@ -93,15 +100,29 @@ export class Room {
     return this.size >= ROOM_MAX_PLAYERS;
   }
 
+  get roomPhase(): RoomPhase {
+    return this.phase;
+  }
+
   destroy(): void {
-    clearInterval(this.zombieSpawnTimer);
-    clearInterval(this.tickTimer);
+    if (this.countdownTimer) clearTimeout(this.countdownTimer);
+    if (this.zombieSpawnTimer) clearInterval(this.zombieSpawnTimer);
+    if (this.tickTimer) clearInterval(this.tickTimer);
   }
 
   private broadcast(payload: string): void {
     for (const ws of this.sockets.values()) {
       ws.send(payload);
     }
+  }
+
+  private broadcastLobby(): void {
+    this.broadcast(JSON.stringify({
+      type: 'lobby',
+      phase: this.phase,
+      players: Array.from(this.players.values()).map(p => ({ id: p.id, name: p.name, ready: p.ready })),
+      countdownEndsAt: this.countdownEndsAt,
+    }));
   }
 
   private broadcastPlayers(): void {
@@ -133,15 +154,15 @@ export class Room {
   }
 
   /** Adds a live connection. `restored` carries prior state on a reconnect. */
-  addConnection(ws: uWS.WebSocket<ConnectionData>, id: string, restored?: PlayerState): void {
+  addConnection(ws: uWS.WebSocket<ConnectionData>, id: string, name: string, restored?: PlayerState): void {
     this.sockets.set(id, ws);
     const now = Date.now();
     this.players.set(id, restored ?? {
-      id, x: WORLD_W / 2, y: WORLD_H / 2,
+      id, name, x: WORLD_W / 2, y: WORLD_H / 2,
       hp: PLAYER_MAX_HP, maxHp: PLAYER_MAX_HP, alive: true,
       xp: 0, level: 1, xpToNext: 50,
       lastMoveAt: now, lastMoveX: WORLD_W / 2, lastMoveY: WORLD_H / 2,
-      lastShotAt: 0,
+      lastShotAt: 0, ready: false,
     });
 
     // Bring the new/rejoining client up to date immediately.
@@ -150,6 +171,8 @@ export class Room {
     ws.send(JSON.stringify({ type: 'bullets', bullets: Array.from(this.bullets.values()) }));
 
     this.broadcastPlayers();
+    // A new (unready) joiner invalidates any countdown already in progress.
+    this.reevaluateLobby();
   }
 
   removeConnection(id: string): PlayerState | undefined {
@@ -159,12 +182,15 @@ export class Room {
     this.broadcastPlayers();
     if (this.sockets.size === 0) {
       this.onEmpty(this);
+      return player;
     }
+    this.reevaluateLobby();
     return player;
   }
 
   /** Validated move: rejects implausible speed/teleport, clamps to world bounds. */
   handleMove(id: string, x: number, y: number): void {
+    if (this.phase !== 'active') return;
     const p = this.players.get(id);
     if (!p || !p.alive) return;
 
@@ -191,6 +217,7 @@ export class Room {
 
   /** Validated shoot: rate-limited, ignored for dead players. */
   handleShoot(id: string, angle: number): void {
+    if (this.phase !== 'active') return;
     const p = this.players.get(id);
     if (!p || !p.alive) return;
 
@@ -205,6 +232,68 @@ export class Room {
       vx: Math.cos(angle) * BULLET_SPEED, vy: Math.sin(angle) * BULLET_SPEED,
       life: BULLET_LIFE_TICKS,
     });
+  }
+
+  /** Sets one player's ready flag and re-evaluates whether a countdown should start/cancel. */
+  handleReady(id: string, ready: boolean): void {
+    if (this.phase === 'active') return; // ready toggles are meaningless once the match is running
+    const p = this.players.get(id);
+    if (!p) return;
+    p.ready = ready;
+    this.reevaluateLobby();
+  }
+
+  /**
+   * Any membership or ready-state change lands here. Any in-progress countdown
+   * is always cancelled first, then a fresh one starts if the room currently
+   * qualifies (2-4 players, everyone ready) — so unreadying, someone new
+   * joining mid-countdown, or a player leaving all correctly reset the clock
+   * rather than letting a stale countdown finish with the wrong roster.
+   */
+  private reevaluateLobby(): void {
+    this.cancelCountdown();
+    if (this.phase !== 'active') {
+      const players = Array.from(this.players.values());
+      const allReady = players.length >= ROOM_MIN_PLAYERS && players.length <= ROOM_MAX_PLAYERS && players.every(p => p.ready);
+      if (allReady) {
+        this.phase = 'countdown';
+        this.countdownEndsAt = Date.now() + MATCH_START_COUNTDOWN_MS;
+        this.countdownTimer = setTimeout(() => this.tryStartMatch(), MATCH_START_COUNTDOWN_MS);
+      }
+    }
+    this.broadcastLobby();
+  }
+
+  private cancelCountdown(): void {
+    if (this.countdownTimer) {
+      clearTimeout(this.countdownTimer);
+      this.countdownTimer = undefined;
+    }
+    if (this.phase === 'countdown') this.phase = 'waiting';
+    this.countdownEndsAt = null;
+  }
+
+  /** Fires when a countdown naturally elapses. Re-checks the roster is still
+   *  valid — it normally always is, since any disqualifying change already
+   *  cancelled the countdown via reevaluateLobby, but this is the safety net. */
+  private tryStartMatch(): void {
+    this.countdownTimer = undefined;
+    const players = Array.from(this.players.values());
+    const stillQualifies = players.length >= ROOM_MIN_PLAYERS && players.length <= ROOM_MAX_PLAYERS && players.every(p => p.ready);
+    if (!stillQualifies) {
+      this.cancelCountdown();
+      this.broadcastLobby();
+      return;
+    }
+    this.activateMatch();
+  }
+
+  private activateMatch(): void {
+    this.phase = 'active';
+    this.countdownEndsAt = null;
+    this.zombieSpawnTimer = setInterval(() => this.maybeSpawnZombie(), ZOMBIE_SPAWN_INTERVAL_MS);
+    this.tickTimer = setInterval(() => this.tick(), TICK_MS);
+    this.broadcastLobby();
   }
 
   private maybeSpawnZombie(): void {
