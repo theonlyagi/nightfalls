@@ -26,7 +26,8 @@ export interface NetWelcomeMessage {
   protocolVersion: number;
 }
 export interface NetPlayerSnapshot {
-  id: string; x: number; y: number; hp: number; maxHp: number; alive: boolean;
+  id: string; name: string; x: number; y: number; angle: number;
+  hp: number; maxHp: number; alive: boolean;
   xp: number; level: number; xpToNext: number;
 }
 export interface NetPlayersMessage { type: 'players'; players: NetPlayerSnapshot[]; }
@@ -129,5 +130,5 @@ function send(payload: object): void {
 }
 
 export function sendReady(ready: boolean): void { send({ type: 'ready', ready }); }
-export function sendMove(x: number, y: number): void { send({ type: 'move', x, y }); }
+export function sendMove(x: number, y: number, angle: number): void { send({ type: 'move', x, y, angle }); }
 export function sendShoot(angle: number): void { send({ type: 'shoot', angle }); }

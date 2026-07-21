@@ -4,7 +4,8 @@ import {
 import {
   player, bullets, setBullets, zombies, setZombies, powerups, setPowerups,
   particles, setParticles, bursts, setBursts, bloodDecals, setBloodDecals,
-  shake, settings, godMode, activeBoss, setActiveBoss, wave, selectedBuild
+  shake, settings, godMode, activeBoss, setActiveBoss, wave, selectedBuild,
+  inNetMatch
 } from '../state';
 import {
   POWERUP_DEFS, POINTS_BY_TYPE, WEAPON_DEFS, OVERHEAT_PER_SHOT,
@@ -12,6 +13,7 @@ import {
 } from '../constants';
 import { rand, dist } from '../utils';
 import { registerKill } from './codex';
+import { sendNetShoot } from '../net/matchSync';
 
 let bannerTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -156,6 +158,17 @@ export function tryShoot(now: number): void {
       player.overheatedUntil = now + OVERHEAT_LOCKOUT_MS;
       showBanner('OVERHEATED', 'weapon cooling down...', 'power');
     }
+  }
+
+  if (inNetMatch) {
+    // Bullets are server-authoritative in a match — the server spawns and
+    // simulates the actual bullet, we just report the shot. No local bullet
+    // here, or we'd render two (one fake-local, one from the next snapshot).
+    // Known simplification: the server doesn't have weapon-type awareness
+    // yet (pellet counts, spread, explosive/burn), so multiplayer shots are
+    // currently a single generic bullet regardless of equipped weapon.
+    sendNetShoot(player.angle);
+    return;
   }
 
   const insta = now < player.instaKillUntil;

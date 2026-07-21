@@ -174,6 +174,14 @@
   function setRunning(val) {
     running = val;
   }
+  var inNetMatch = false;
+  function setInNetMatch(val) {
+    inNetMatch = val;
+  }
+  var remotePlayers = [];
+  function setRemotePlayers(val) {
+    remotePlayers = val;
+  }
   var paused = false;
   function setPaused(val) {
     paused = val;
@@ -719,6 +727,203 @@
     window.addEventListener("gestureend", preventZoom, { passive: false });
   }
 
+  // src/net/socket.ts
+  var SESSION_TOKEN_KEY = "nightfall_session_token";
+  var socket = null;
+  var myId = null;
+  var myRoomId = null;
+  var net = {
+    onWelcome: null,
+    onLobby: null,
+    onPlayers: null,
+    onZombies: null,
+    onBullets: null,
+    onDisconnected: null
+  };
+  function isConnected() {
+    return !!socket && socket.readyState === WebSocket.OPEN;
+  }
+  function getMyId() {
+    return myId;
+  }
+  function getSavedToken() {
+    try {
+      return localStorage.getItem(SESSION_TOKEN_KEY) || "";
+    } catch {
+      return "";
+    }
+  }
+  function saveToken(token) {
+    try {
+      localStorage.setItem(SESSION_TOKEN_KEY, token);
+    } catch {
+    }
+  }
+  function connect(name) {
+    if (socket) disconnect();
+    const token = getSavedToken();
+    const params = new URLSearchParams();
+    if (token) params.set("token", token);
+    params.set("name", name);
+    const url = WS_URL + "?" + params.toString();
+    socket = new WebSocket(url);
+    socket.onmessage = (e) => {
+      let msg;
+      try {
+        msg = JSON.parse(e.data);
+      } catch {
+        return;
+      }
+      switch (msg.type) {
+        case "welcome":
+          myId = msg.id;
+          myRoomId = msg.roomId;
+          saveToken(msg.sessionToken);
+          net.onWelcome?.(msg);
+          break;
+        case "lobby":
+          net.onLobby?.(msg);
+          break;
+        case "players":
+          net.onPlayers?.(msg);
+          break;
+        case "zombies":
+          net.onZombies?.(msg);
+          break;
+        case "bullets":
+          net.onBullets?.(msg);
+          break;
+      }
+    };
+    socket.onclose = () => {
+      socket = null;
+      myId = null;
+      myRoomId = null;
+      net.onDisconnected?.();
+    };
+  }
+  function disconnect() {
+    if (socket) {
+      socket.onclose = null;
+      socket.close();
+      socket = null;
+    }
+    myId = null;
+    myRoomId = null;
+  }
+  function send(payload) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(payload));
+    }
+  }
+  function sendReady(ready) {
+    send({ type: "ready", ready });
+  }
+  function sendMove(x, y, angle) {
+    send({ type: "move", x, y, angle });
+  }
+  function sendShoot(angle) {
+    send({ type: "shoot", angle });
+  }
+
+  // src/net/matchSync.ts
+  function hashId(id) {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = h * 31 + id.charCodeAt(i) >>> 0;
+    return h;
+  }
+  var HAIR_KINDS = ["bald", "hood", "tuft"];
+  var MOUTH_KINDS = ["open", "frown", "grimace"];
+  function toClientZombie(snap) {
+    const h = hashId(snap.id);
+    const variant = SKIN_VARIANTS[h % SKIN_VARIANTS.length];
+    return {
+      type: "normal",
+      x: snap.x,
+      y: snap.y,
+      radius: 20,
+      hp: snap.hp,
+      maxHp: snap.maxHp,
+      speed: 0,
+      damage: 0,
+      hitCooldown: 0,
+      wobble: h % 628 / 100,
+      flash: 0,
+      lastShot: 0,
+      fuseStart: null,
+      hairKind: HAIR_KINDS[h % HAIR_KINDS.length],
+      mouthKind: MOUTH_KINDS[(h >> 3) % MOUTH_KINDS.length],
+      squishX: 1,
+      squishY: 1,
+      skinColor: variant[0],
+      skinColor2: variant[1],
+      skinDark: variant[2],
+      clothColor: null
+    };
+  }
+  var lastBulletPos = /* @__PURE__ */ new Map();
+  function toClientBullet(snap) {
+    const prev = lastBulletPos.get(snap.id);
+    const vx = prev ? snap.x - prev.x : 0;
+    const vy = prev ? snap.y - prev.y : 0;
+    lastBulletPos.set(snap.id, { x: snap.x, y: snap.y });
+    return {
+      x: snap.x,
+      y: snap.y,
+      vx,
+      vy,
+      radius: 5,
+      damage: 0,
+      life: 1,
+      owner: "player"
+    };
+  }
+  var wired = false;
+  function initMatchSync() {
+    if (wired) return;
+    wired = true;
+    net.onPlayers = (msg) => {
+      const myId2 = getMyId();
+      const others = msg.players.filter((p) => p.id !== myId2).map((p) => ({ id: p.id, name: p.name, x: p.x, y: p.y, angle: p.angle, hp: p.hp, maxHp: p.maxHp, alive: p.alive }));
+      setRemotePlayers(others);
+      const mine = msg.players.find((p) => p.id === myId2);
+      if (mine) {
+        player.hp = mine.hp;
+        player.maxHp = mine.maxHp;
+        player.alive = mine.alive;
+      }
+    };
+    net.onZombies = (msg) => {
+      setZombies(msg.zombies.map(toClientZombie));
+    };
+    net.onBullets = (msg) => {
+      const activeIds = new Set(msg.bullets.map((b) => b.id));
+      for (const id of lastBulletPos.keys()) {
+        if (!activeIds.has(id)) lastBulletPos.delete(id);
+      }
+      setBullets(msg.bullets.map(toClientBullet));
+    };
+    net.onDisconnected = () => {
+      setInNetMatch(false);
+    };
+  }
+  function startNetMatch() {
+    setInNetMatch(true);
+    lastBulletPos.clear();
+  }
+  function stopNetMatch() {
+    setInNetMatch(false);
+    setRemotePlayers([]);
+    lastBulletPos.clear();
+  }
+  var lastSentMoveAt = 0;
+  var MOVE_SEND_INTERVAL_MS = 80;
+  function maybeSendMove(now) {
+    if (now - lastSentMoveAt < MOVE_SEND_INTERVAL_MS) return;
+    lastSentMoveAt = now;
+    sendMove(player.x, player.y, player.angle);
+  }
+
   // src/systems/codex.ts
   var CODEX_KEY = "nightfalls_codex_data_v1";
   var codex = {
@@ -939,6 +1144,10 @@
         player.overheatedUntil = now + OVERHEAT_LOCKOUT_MS;
         showBanner("OVERHEATED", "weapon cooling down...", "power");
       }
+    }
+    if (inNetMatch) {
+      sendShoot(player.angle);
+      return;
     }
     const insta = now < player.instaKillUntil;
     const dmg = insta ? Math.max(player.damage, 500) : player.damage * damageBoostMul() * wdef.damageMul;
@@ -1367,6 +1576,7 @@
       const mWorld = mouseWorldPos(mouse, camera2);
       player.angle = Math.atan2(mWorld.y - player.y, mWorld.x - player.x);
     }
+    if (inNetMatch) maybeSendMove(performance.now());
     if (mouse.down) tryShoot(performance.now());
     if (player.mutation === "overclocked" && player.heat > 0) {
       player.heat = Math.max(0, player.heat - OVERHEAT_DECAY_PER_SEC * dt / 1e3);
@@ -3354,6 +3564,38 @@
       });
     }
   }
+  function drawRemotePlayer(ctx2, rp) {
+    const s = worldToScreen(rp.x, rp.y);
+    const radius = 22;
+    const OUTLINE = "#4a3220";
+    drawShadow(ctx2, s.x, s.y, radius);
+    ctx2.fillStyle = rp.alive ? radialFill(ctx2, s.x, s.y, radius, "#ffd9ad", "#e0ac7a") : "#555";
+    ctx2.beginPath();
+    ctx2.arc(s.x, s.y, radius, 0, Math.PI * 2);
+    ctx2.fill();
+    ctx2.strokeStyle = OUTLINE;
+    ctx2.lineWidth = 3;
+    ctx2.stroke();
+    if (rp.alive) {
+      ctx2.fillStyle = "rgba(0,0,0,0.35)";
+      const tipX = s.x + Math.cos(rp.angle) * radius * 1.3, tipY = s.y + Math.sin(rp.angle) * radius * 1.3;
+      ctx2.beginPath();
+      ctx2.moveTo(s.x + Math.cos(rp.angle + 1.3) * radius * 0.6, s.y + Math.sin(rp.angle + 1.3) * radius * 0.6);
+      ctx2.lineTo(tipX, tipY);
+      ctx2.lineTo(s.x + Math.cos(rp.angle - 1.3) * radius * 0.6, s.y + Math.sin(rp.angle - 1.3) * radius * 0.6);
+      ctx2.closePath();
+      ctx2.fill();
+    }
+    ctx2.font = "11px 'Share Tech Mono', monospace";
+    ctx2.textAlign = "center";
+    ctx2.fillStyle = "#eaf3ec";
+    ctx2.fillText(rp.name, s.x, s.y - radius - 18);
+    const barW = radius * 2;
+    ctx2.fillStyle = "#00000088";
+    ctx2.fillRect(s.x - barW / 2, s.y - radius - 12, barW, 5);
+    ctx2.fillStyle = "#ff5c5c";
+    ctx2.fillRect(s.x - barW / 2, s.y - radius - 12, barW * Math.max(0, rp.hp / rp.maxHp), 5);
+  }
   function drawBullets(ctx2) {
     for (const b of bullets) {
       const s = worldToScreen(b.x, b.y);
@@ -3523,6 +3765,7 @@
     drawBuildPreview(ctx2);
     for (const z of zombies) drawZombie(ctx2, canvas2, z);
     drawBullets(ctx2);
+    for (const rp of remotePlayers) drawRemotePlayer(ctx2, rp);
     drawPlayer(ctx2);
     drawParticles(ctx2);
     drawStars(ctx2, canvas2);
@@ -3534,96 +3777,6 @@
     ctx2.fillStyle = grad;
     ctx2.fillRect(0, 0, canvas2.width, canvas2.height);
     drawMinimap(ctx2, canvas2);
-  }
-
-  // src/net/socket.ts
-  var SESSION_TOKEN_KEY = "nightfall_session_token";
-  var socket = null;
-  var myId = null;
-  var myRoomId = null;
-  var net = {
-    onWelcome: null,
-    onLobby: null,
-    onPlayers: null,
-    onZombies: null,
-    onBullets: null,
-    onDisconnected: null
-  };
-  function getMyId() {
-    return myId;
-  }
-  function getSavedToken() {
-    try {
-      return localStorage.getItem(SESSION_TOKEN_KEY) || "";
-    } catch {
-      return "";
-    }
-  }
-  function saveToken(token) {
-    try {
-      localStorage.setItem(SESSION_TOKEN_KEY, token);
-    } catch {
-    }
-  }
-  function connect(name) {
-    if (socket) disconnect();
-    const token = getSavedToken();
-    const params = new URLSearchParams();
-    if (token) params.set("token", token);
-    params.set("name", name);
-    const url = WS_URL + "?" + params.toString();
-    socket = new WebSocket(url);
-    socket.onmessage = (e) => {
-      let msg;
-      try {
-        msg = JSON.parse(e.data);
-      } catch {
-        return;
-      }
-      switch (msg.type) {
-        case "welcome":
-          myId = msg.id;
-          myRoomId = msg.roomId;
-          saveToken(msg.sessionToken);
-          net.onWelcome?.(msg);
-          break;
-        case "lobby":
-          net.onLobby?.(msg);
-          break;
-        case "players":
-          net.onPlayers?.(msg);
-          break;
-        case "zombies":
-          net.onZombies?.(msg);
-          break;
-        case "bullets":
-          net.onBullets?.(msg);
-          break;
-      }
-    };
-    socket.onclose = () => {
-      socket = null;
-      myId = null;
-      myRoomId = null;
-      net.onDisconnected?.();
-    };
-  }
-  function disconnect() {
-    if (socket) {
-      socket.onclose = null;
-      socket.close();
-      socket = null;
-    }
-    myId = null;
-    myRoomId = null;
-  }
-  function send(payload) {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(payload));
-    }
-  }
-  function sendReady(ready) {
-    send({ type: "ready", ready });
   }
 
   // src/ui/metaUI.ts
@@ -5053,6 +5206,7 @@
     onMutationChoice: openMutationChoice,
     onUpgradePanel: renderUpgradePanel
   });
+  initMatchSync();
   var canvas = byId("game");
   var ctx = canvas.getContext("2d");
   function resize() {
@@ -5089,13 +5243,15 @@
       if (dt > 100 * debugSpeedMultiplier) dt = 100 * debugSpeedMultiplier;
       setLastTime(t);
       updatePlayer(dt, camera);
-      updateBullets(dt);
-      updateStructures(dt);
-      updateZombies(dt, dayNight.factor);
+      if (!inNetMatch) {
+        updateBullets(dt);
+        updateStructures(dt);
+        updateZombies(dt, dayNight.factor);
+      }
       updateParticles(dt);
       updateBloodMoon();
       updateDayNight(dt);
-      updateWaves(dt);
+      if (!inNetMatch) updateWaves(dt);
       updateHud();
       render(ctx, canvas);
     } catch (err) {
@@ -5202,6 +5358,8 @@
   }
   byId("restartBtn").onclick = async () => {
     try {
+      if (isConnected()) disconnect();
+      stopNetMatch();
       byId("overlay").classList.add("hidden");
       byId("startOverlay").style.display = "flex";
       renderMetaPanel();
@@ -5255,6 +5413,7 @@
   lobby.onMatchStart = () => {
     setTimeout(() => {
       byId("lobbyOverlay").classList.add("hidden");
+      startNetMatch();
       resetGame();
     }, 600);
   };

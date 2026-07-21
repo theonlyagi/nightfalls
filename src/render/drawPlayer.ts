@@ -1,6 +1,6 @@
 import { WeaponKind, Bullet, TextParticle, Burst, PowerUpEntity } from '../types';
 import { SKIN_TINTS, POWERUP_DEFS, POWERUP_LIFETIME_MS } from '../constants';
-import { player, bullets, particles, bursts } from '../state';
+import { player, bullets, particles, bursts, RemotePlayer } from '../state';
 import { worldToScreen, radialFill, drawShadow } from './drawWorld';
 
 export function drawArms(
@@ -256,6 +256,41 @@ export function drawPlayer(ctx: CanvasRenderingContext2D): void {
       ctx.closePath(); ctx.fill(); ctx.stroke();
     });
   }
+}
+
+/** Simplified rendering for other players in a multiplayer match. Not the
+ *  full detailed arms/weapon art drawPlayer() has (that's hardwired to the
+ *  local `player` singleton throughout, not parameterized) — this is a
+ *  correct, positionally-synced stand-in: body, facing wedge, name, HP bar. */
+export function drawRemotePlayer(ctx: CanvasRenderingContext2D, rp: RemotePlayer): void {
+  const s = worldToScreen(rp.x, rp.y);
+  const radius = 22;
+  const OUTLINE = '#4a3220';
+
+  drawShadow(ctx, s.x, s.y, radius);
+
+  ctx.fillStyle = rp.alive ? radialFill(ctx, s.x, s.y, radius, '#ffd9ad', '#e0ac7a') : '#555';
+  ctx.beginPath(); ctx.arc(s.x, s.y, radius, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.stroke();
+
+  if (rp.alive) {
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    const tipX = s.x + Math.cos(rp.angle) * radius * 1.3, tipY = s.y + Math.sin(rp.angle) * radius * 1.3;
+    ctx.beginPath();
+    ctx.moveTo(s.x + Math.cos(rp.angle + 1.3) * radius * 0.6, s.y + Math.sin(rp.angle + 1.3) * radius * 0.6);
+    ctx.lineTo(tipX, tipY);
+    ctx.lineTo(s.x + Math.cos(rp.angle - 1.3) * radius * 0.6, s.y + Math.sin(rp.angle - 1.3) * radius * 0.6);
+    ctx.closePath(); ctx.fill();
+  }
+
+  ctx.font = "11px 'Share Tech Mono', monospace";
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#eaf3ec';
+  ctx.fillText(rp.name, s.x, s.y - radius - 18);
+
+  const barW = radius * 2;
+  ctx.fillStyle = '#00000088'; ctx.fillRect(s.x - barW / 2, s.y - radius - 12, barW, 5);
+  ctx.fillStyle = '#ff5c5c'; ctx.fillRect(s.x - barW / 2, s.y - radius - 12, barW * Math.max(0, rp.hp / rp.maxHp), 5);
 }
 
 export function drawBullets(ctx: CanvasRenderingContext2D): void {

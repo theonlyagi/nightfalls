@@ -45,6 +45,7 @@ export interface MovePacket {
   type: 'move';
   x: number;
   y: number;
+  angle: number;
 }
 
 export interface ShootPacket {
@@ -76,8 +77,10 @@ export interface LobbySnapshot {
 
 export interface PlayerSnapshot {
   id: string;
+  name: string;
   x: number;
   y: number;
+  angle: number;
   hp: number;
   maxHp: number;
   alive: boolean;
@@ -106,7 +109,8 @@ export function isMovePacket(value: any): value is MovePacket {
     value &&
     value.type === 'move' &&
     Number.isFinite(value.x) &&
-    Number.isFinite(value.y)
+    Number.isFinite(value.y) &&
+    Number.isFinite(value.angle)
   );
 }
 

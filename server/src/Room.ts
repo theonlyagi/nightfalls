@@ -24,6 +24,7 @@ export interface PlayerState {
   name: string;
   x: number;
   y: number;
+  angle: number;
   hp: number;
   maxHp: number;
   alive: boolean;
@@ -129,7 +130,7 @@ export class Room {
     this.broadcast(JSON.stringify({
       type: 'players',
       players: Array.from(this.players.values()).map(p => ({
-        id: p.id, x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, alive: p.alive,
+        id: p.id, name: p.name, x: p.x, y: p.y, angle: p.angle, hp: p.hp, maxHp: p.maxHp, alive: p.alive,
         xp: p.xp, level: p.level, xpToNext: p.xpToNext,
       })),
     }));
@@ -158,7 +159,7 @@ export class Room {
     this.sockets.set(id, ws);
     const now = Date.now();
     this.players.set(id, restored ?? {
-      id, name, x: WORLD_W / 2, y: WORLD_H / 2,
+      id, name, x: WORLD_W / 2, y: WORLD_H / 2, angle: 0,
       hp: PLAYER_MAX_HP, maxHp: PLAYER_MAX_HP, alive: true,
       xp: 0, level: 1, xpToNext: 50,
       lastMoveAt: now, lastMoveX: WORLD_W / 2, lastMoveY: WORLD_H / 2,
@@ -189,7 +190,7 @@ export class Room {
   }
 
   /** Validated move: rejects implausible speed/teleport, clamps to world bounds. */
-  handleMove(id: string, x: number, y: number): void {
+  handleMove(id: string, x: number, y: number, angle: number): void {
     if (this.phase !== 'active') return;
     const p = this.players.get(id);
     if (!p || !p.alive) return;
@@ -209,6 +210,7 @@ export class Room {
 
     p.x = clamp(x, PLAYER_RADIUS, WORLD_W - PLAYER_RADIUS);
     p.y = clamp(y, PLAYER_RADIUS, WORLD_H - PLAYER_RADIUS);
+    p.angle = angle;
     p.lastMoveAt = now;
     p.lastMoveX = p.x;
     p.lastMoveY = p.y;

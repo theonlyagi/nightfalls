@@ -10,7 +10,7 @@ import {
   setBursts, setPowerups, setBloodDecals, setWave, setWaveState, setIsBossWave,
   setActiveBoss, setShopOpen, setWeaponChoiceOpen, setMutationChoiceOpen,
   setDebugOpen, setSelectedBuild, setManualBuildAngle, lobby, settings,
-  setSettingsOpenedMidRun, debugSpeedMultiplier
+  setSettingsOpenedMidRun, debugSpeedMultiplier, inNetMatch
 } from './state';
 import { byId, rand } from './utils';
 import { loadSettings, saveSettings, applyUiScale } from './systems/storage';
@@ -20,6 +20,8 @@ import { updatePlayer, updateBullets, updateStructures, updateZombies, updatePar
 import { setXpCallbacks } from './systems/combat';
 import { generateWorld, updateBloodMoon, updateDayNight, updateWaves } from './systems/wave';
 import { render } from './render/renderer';
+import { initMatchSync, startNetMatch, stopNetMatch } from './net/matchSync';
+import { disconnect as disconnectNet, isConnected as isNetConnected } from './net/socket';
 import {
   renderMetaPanel, renderStartBonuses, renderMetaSkins, renderModeSelect,
   renderClassSelect, renderLeaderboard, updateStartBtnLabel, initMenu, openLobby, renderLobby, lobbySetReady, lobbyLeave
@@ -37,6 +39,8 @@ setXpCallbacks({
   onMutationChoice: openMutationChoice,
   onUpgradePanel: renderUpgradePanel
 });
+
+initMatchSync();
 
 const canvas = byId<HTMLCanvasElement>('game');
 const ctx = canvas.getContext('2d')!;
@@ -79,13 +83,19 @@ function loop(t: number): void {
     setLastTime(t);
 
     updatePlayer(dt, camera);
-    updateBullets(dt);
-    updateStructures(dt);
-    updateZombies(dt, dayNight.factor);
+    // In a net match, zombies/bullets are server-authoritative (see
+    // net/matchSync.ts) — running the local sim on top would fight the
+    // server's snapshots. Structures/waves aren't synced yet either
+    // (follow-up work), so they're disabled rather than half-working.
+    if (!inNetMatch) {
+      updateBullets(dt);
+      updateStructures(dt);
+      updateZombies(dt, dayNight.factor);
+    }
     updateParticles(dt);
     updateBloodMoon();
     updateDayNight(dt);
-    updateWaves(dt);
+    if (!inNetMatch) updateWaves(dt);
     updateHud();
     render(ctx, canvas);
   } catch (err) {
@@ -152,6 +162,8 @@ function resetGame(): void {
 // Event Bindings
 byId('restartBtn').onclick = async () => {
   try {
+    if (isNetConnected()) disconnectNet();
+    stopNetMatch();
     byId('overlay').classList.add('hidden');
     byId('startOverlay').style.display = 'flex';
     renderMetaPanel();
@@ -201,6 +213,7 @@ lobby.onPlayersChanged = renderLobby;
 lobby.onMatchStart = () => {
   setTimeout(() => {
     byId('lobbyOverlay').classList.add('hidden');
+    startNetMatch();
     resetGame();
   }, 600);
 };

@@ -119,7 +119,7 @@ app.ws<ConnectionData>('/ws', {
     if (!room) return;
 
     if (isMovePacket(parsed)) {
-      room.handleMove(data.id, parsed.x, parsed.y);
+      room.handleMove(data.id, parsed.x, parsed.y, parsed.angle);
       return;
     }
     if (isShootPacket(parsed)) {
