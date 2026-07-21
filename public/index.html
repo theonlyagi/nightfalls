@@ -6,6 +6,7 @@
 <title>NIGHTFALL.IO</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Ubuntu+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -36,11 +37,11 @@
   </div>
 
   <div id="resources">
-    <div class="res-pill"><div class="swatch" style="background:var(--accent-wood)"></div>wood <span id="woodCount">0</span></div>
-    <div class="res-pill"><div class="swatch" style="background:var(--accent-stone)"></div>stone <span id="stoneCount">0</span></div>
-    <div class="res-pill"><div class="swatch" style="background:var(--accent-iron)"></div>iron <span id="ironCount">0</span></div>
-    <div class="res-pill"><div class="swatch" style="background:var(--accent-gold)"></div>gold <span id="goldCount">0</span></div>
-    <div class="res-pill"><div class="swatch" style="background:var(--accent-points)"></div>points <span id="pointsCount">0</span></div>
+    <div class="res-pill res-wood squishy-hover"><div class="swatch wood"></div><span class="res-label">WOOD</span><b id="woodCount" class="res-val">0</b></div>
+    <div class="res-pill res-stone squishy-hover"><div class="swatch stone"></div><span class="res-label">STONE</span><b id="stoneCount" class="res-val">0</b></div>
+    <div class="res-pill res-iron squishy-hover"><div class="swatch iron"></div><span class="res-label">IRON</span><b id="ironCount" class="res-val">0</b></div>
+    <div class="res-pill res-gold squishy-hover"><div class="swatch gold"></div><span class="res-label">GOLD</span><b id="goldCount" class="res-val">0</b></div>
+    <div class="res-pill res-points squishy-hover"><div class="swatch points"></div><span class="res-label">POINTS</span><b id="pointsCount" class="res-val">0</b></div>
   </div>
 
   <div id="bottomHud">
@@ -245,109 +246,147 @@
   </div>
 </div>
 
-<!-- REDESIGNED MAIN MENU OVERLAY (NO SCROLLING - 3 COLUMN LAYOUT) -->
+<!-- REDESIGNED FLORR.IO STYLE MAIN MENU OVERLAY -->
 <div id="startOverlay">
-  <button id="startSettingsBtn" class="gear-btn" title="Settings">S</button>
+  <!-- Top Navigation Bar -->
+  <nav class="florr-topnav">
+    <div class="florr-logo">
+      NIGHTFALL SURVIVAL
+    </div>
+    <div class="florr-top-actions">
+      <button id="startSettingsBtn" class="florr-icon-btn squishy" title="Settings">
+        <span class="material-symbols-outlined">settings</span>
+      </button>
+    </div>
+  </nav>
 
-  <header id="menuHeader">
-    <h1 class="logo">NIGHTFALL<span class="logo-io">.IO</span></h1>
-    <div class="tagline">TOP-DOWN ZOMBIE SURVIVAL ARENA</div>
-  </header>
-
-  <div id="menuGrid">
-    <!-- LEFT PANEL: CREATORS & CREDITS -->
-    <aside id="leftPanel" class="menu-side-panel">
-      <div class="side-box">
-        <h3>COMMUNITY</h3>
-        <div class="creator-list">
-          <div class="creator-item">
-            <div class="creator-badge">DC</div>
-            <div>
-              <b>Official Discord</b>
-              <span class="sub-text">Join the community server</span>
-            </div>
+  <div class="florr-main-container">
+    <!-- Left Sidebar: Community & Credits -->
+    <aside class="florr-sidebar-left">
+      <div class="florr-side-card">
+        <div class="florr-avatar-header">
+          <div class="florr-avatar-img io-border">
+            <span class="material-symbols-outlined icon-avatar">shield_person</span>
           </div>
-          <div class="creator-item">
-            <div class="creator-badge">YT</div>
-            <div>
-              <b>Content Creators</b>
-              <span class="sub-text">Watch strategy & highlight videos</span>
-            </div>
-          </div>
-          <div class="creator-item">
-            <div class="creator-badge">GD</div>
-            <div>
-              <b>Survival Guide</b>
-              <span class="sub-text">Build defenses & defeat Nightfall bosses</span>
-            </div>
+          <div class="florr-avatar-title">
+            <span class="avatar-label">SURVIVOR COMMUNITY</span>
           </div>
         </div>
+        <nav class="florr-comm-links">
+          <a class="florr-comm-item squishy-hover" href="https://discord.gg" target="_blank" rel="noopener">
+            <span class="material-symbols-outlined">chat</span>
+            <span>Discord</span>
+          </a>
+          <a class="florr-comm-item squishy-hover" href="https://youtube.com" target="_blank" rel="noopener">
+            <span class="material-symbols-outlined">play_circle</span>
+            <span>YouTube</span>
+          </a>
+          <a class="florr-comm-item squishy-hover" href="#" id="guideBtn">
+            <span class="material-symbols-outlined">book</span>
+            <span>Survival Guide</span>
+          </a>
+        </nav>
       </div>
 
-      <div class="side-box credits-box">
-        <h3>CREDITS</h3>
-        <p class="credits-desc">Built with TypeScript &amp; HTML5 Canvas. Modular ES Modules architecture.</p>
-        <div class="version-tag">v1.0.0 &nbsp;&mdash;&nbsp; ES Modules Build</div>
+      <div class="florr-side-card credits-card">
+        <span class="florr-card-tag">VERSION</span>
+        <div class="credits-ver">v1.0.0 &bull; ES Modules</div>
       </div>
     </aside>
 
-    <!-- CENTER PANEL: SURVIVOR NAME + STATS + META UPGRADES + SKINS -->
-    <main id="centerPanel" class="menu-main-panel">
-      <div class="profile-header">
-        <label for="nameInput">SURVIVOR NAME</label>
-        <input id="nameInput" type="text" maxlength="14" placeholder="Enter name" autocomplete="off">
+    <!-- Center Canvas / Main Content -->
+    <main class="florr-center-panel">
+      <!-- Player Name Floating Pill -->
+      <div class="florr-name-pill squishy-hover animate-float">
+        <span class="material-symbols-outlined name-icon">person</span>
+        <input id="nameInput" type="text" maxlength="14" placeholder="Enter Survivor Name" autocomplete="off">
+        <span class="material-symbols-outlined edit-badge">edit</span>
       </div>
 
-      <div class="metaStatsRow" id="metaStatsRow">
-        <div class="stat-card">
-          <span class="lbl">Meta Points</span>
-          <b id="metaPointsVal">0</b>
+      <!-- Stats 4 Grid -->
+      <div class="florr-stats-grid">
+        <div class="florr-stat-card card-uncommon squishy-hover animate-float" style="animation-delay: 0.1s;">
+          <span class="florr-stat-label">META POINTS</span>
+          <b class="florr-stat-val" id="metaPointsVal">0</b>
         </div>
-        <div class="stat-card">
-          <span class="lbl">Best Wave</span>
-          <b id="bestWaveVal">0</b>
+        <div class="florr-stat-card card-rare squishy-hover animate-float" style="animation-delay: 0.2s;">
+          <span class="florr-stat-label">BEST WAVE</span>
+          <b class="florr-stat-val" id="bestWaveVal">0</b>
         </div>
-        <div class="stat-card">
-          <span class="lbl">Lifetime Kills</span>
-          <b id="lifetimeKillsVal">0</b>
+        <div class="florr-stat-card card-epic squishy-hover animate-float" style="animation-delay: 0.3s;">
+          <span class="florr-stat-label">LIFETIME KILLS</span>
+          <b class="florr-stat-val" id="lifetimeKillsVal">0</b>
         </div>
-        <div class="stat-card">
-          <span class="lbl">Total Runs</span>
-          <b id="gamesPlayedVal">0</b>
-        </div>
-      </div>
-
-      <div class="meta-section">
-        <h4>PERMANENT UPGRADES</h4>
-        <div id="metaUpgrades"></div>
-      </div>
-
-      <div class="meta-two-col">
-        <div class="meta-sub-section">
-          <h4>STARTING BONUSES</h4>
-          <div id="startBonuses" class="shop-row"></div>
-        </div>
-        <div class="meta-sub-section">
-          <h4>SKINS</h4>
-          <div id="metaSkins" class="shop-row"></div>
+        <div class="florr-stat-card card-legendary squishy-hover animate-float" style="animation-delay: 0.4s;">
+          <span class="florr-stat-label">TOTAL RUNS</span>
+          <b class="florr-stat-val" id="gamesPlayedVal">0</b>
         </div>
       </div>
 
-      <div class="mode-selector-wrap">
-        <div class="mode-label">SELECT MODE</div>
-        <div id="modeSelect"></div>
+      <!-- Mode Selector -->
+      <div class="florr-mode-section">
+        <div class="florr-section-title">SELECT MODE</div>
+        <div id="modeSelect" class="florr-mode-grid"></div>
       </div>
 
-      <button id="startBtn">ENTER THE ZONE</button>
+      <!-- Big Enter Button -->
+      <button id="startBtn" class="florr-enter-btn squishy-lg squishy-hover animate-pulse-io">
+        ENTER THE ZONE
+        <span class="material-symbols-outlined btn-icon">rocket_launch</span>
+      </button>
     </main>
 
-    <!-- RIGHT PANEL: LEADERBOARD -->
-    <aside id="rightPanel" class="menu-side-panel">
-      <div class="side-box lb-box">
-        <h3>LEADERBOARD</h3>
-        <div id="leaderboardList"><div class="lb-empty">Loading...</div></div>
+    <!-- Right Sidebar: Leaderboard -->
+    <aside class="florr-sidebar-right">
+      <div class="florr-side-card lb-card">
+        <h3 class="florr-card-title">
+          <span class="material-symbols-outlined title-icon text-legendary">emoji_events</span>
+          Top Survivors
+        </h3>
+        <div id="leaderboardList" class="florr-lb-list">
+          <div class="lb-empty">Loading...</div>
+        </div>
       </div>
     </aside>
+  </div>
+
+  <!-- Bottom Dock Navigation Bar -->
+  <div class="florr-bottom-dock">
+    <div class="dock-container">
+      <button id="tabUpgradesBtn" class="dock-btn squishy squishy-hover">
+        <span class="material-symbols-outlined text-primary-fixed">bolt</span>
+        <span>Upgrades</span>
+      </button>
+      <button id="tabBonusesBtn" class="dock-btn squishy squishy-hover">
+        <span class="material-symbols-outlined text-secondary">redeem</span>
+        <span>Bonuses</span>
+      </button>
+      <button id="tabSkinsBtn" class="dock-btn squishy squishy-hover">
+        <span class="material-symbols-outlined text-epic">shield</span>
+        <span>Skins</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MANAGEMENT MODAL (UPGRADES / BONUSES / SKINS) -->
+<div id="metaModal" class="overlay-anim hidden">
+  <div id="metaModalBox" class="io-border io-shadow-solid">
+    <div class="meta-modal-header">
+      <h3 id="metaModalTitle">PERMANENT UPGRADES</h3>
+      <button id="metaModalCloseBtn" class="florr-icon-btn">✕</button>
+    </div>
+    <div class="meta-modal-body">
+      <div id="metaModalUpgradesSection" class="meta-tab-content">
+        <div id="metaUpgrades"></div>
+      </div>
+      <div id="metaModalBonusesSection" class="meta-tab-content hidden">
+        <div id="startBonuses" class="shop-row"></div>
+      </div>
+      <div id="metaModalSkinsSection" class="meta-tab-content hidden">
+        <div id="metaSkins" class="shop-row"></div>
+      </div>
+    </div>
   </div>
 </div>
 

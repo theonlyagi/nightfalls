@@ -350,10 +350,28 @@ export function renderUpgradePanel(): void {
   if (!panel) return;
   panel.innerHTML = '';
   if (player.statPoints <= 0) return;
+
+  const iconMap: Record<string, string> = {
+    'Vitality': 'favorite',
+    'Speed': 'bolt',
+    'Power': 'swords',
+    'Reload': 'autorenew',
+    'Recovery': 'health_and_safety',
+    'Fortune': 'monetization_on'
+  };
+
   upgrades.forEach(u => {
+    const keyClass = 'upg-' + u.label.toLowerCase().replace(/[^a-z]/g, '');
+    const iconName = iconMap[u.label] || 'upgrade';
     const btn = document.createElement('div');
-    btn.className = 'upgrade-btn';
-    btn.innerHTML = `<b>${u.label}</b>${u.desc}`;
+    btn.className = `upgrade-btn ${keyClass} squishy squishy-hover animate-slide-in`;
+    btn.innerHTML = `
+      <div class="upg-badge"><span class="material-symbols-outlined">${iconName}</span></div>
+      <div class="upg-info">
+        <b>${u.label}</b>
+        <span>${u.desc}</span>
+      </div>
+    `;
     btn.onclick = () => {
       if (player.statPoints <= 0) return;
       u.apply();
