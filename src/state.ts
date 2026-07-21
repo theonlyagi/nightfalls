@@ -56,7 +56,7 @@ export const player: PlayerState = {
   level: 1, xp: 0, xpToNext: 50, statPoints: 0,
   points: 0, wood: 0, stone: 0, kills: 0, regen: BASE_STATS.regen, alive: true,
   buildDiscount: 1, resourceMul: 1, fortuneMul: 1,
-  instaKillUntil: 0, doublePointsUntil: 0, speedBoostUntil: 0, damageBoostUntil: 0,
+  instaKillUntil: 0, doubleXpUntil: 0, speedBoostUntil: 0, damageBoostUntil: 0,
   fireRateBoostUntil: 0, regenBoostUntil: 0, secondChance: false, skinTint: null,
   weapon: 'pistol', weaponChosen: false, mutation: null, mutationChosen: false,
   heat: 0, overheatedUntil: 0

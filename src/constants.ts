@@ -18,12 +18,12 @@ export const BASE_STATS = {
 export const POWERUP_DEFS: Record<PowerupKind, PowerUpDef> = {
   nuke:   { label: 'NUKE',       color: '#ff5c5c', symbol: 'N' },
   insta:  { label: 'INSTA-KILL', color: '#ffd76a', symbol: '!', duration: 20000 },
-  double: { label: '2x POINTS',  color: '#4ecdc4', symbol: '2', duration: 30000 },
+  double: { label: '2x XP',      color: '#4ecdc4', symbol: '2', duration: 30000 },
   heal:   { label: 'FULL HEAL',  color: '#8bd17c', symbol: '+' }
 };
 
 export const POINTS_BY_TYPE: Record<ZombieKind, number> = {
-  normal: 10, scout: 8, brute: 22, spitter: 16, exploder: 16, boss: 600
+  normal: 10, scout: 8, brute: 22, spitter: 16, exploder: 16, wolf: 12, boss: 600
 };
 
 export const POWERUP_LIFETIME_MS = 20000;

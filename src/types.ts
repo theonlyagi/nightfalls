@@ -18,7 +18,7 @@ export interface PlayerState {
   level: number; xp: number; xpToNext: number; statPoints: number;
   points: number; wood: number; stone: number; kills: number; regen: number; alive: boolean;
   buildDiscount: number; resourceMul: number; fortuneMul: number;
-  instaKillUntil: number; doublePointsUntil: number;
+  instaKillUntil: number; doubleXpUntil: number;
   speedBoostUntil: number; damageBoostUntil: number; fireRateBoostUntil: number; regenBoostUntil: number;
   secondChance: boolean; skinTint: string | null;
   weapon: WeaponKind; weaponChosen: boolean;

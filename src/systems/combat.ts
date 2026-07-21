@@ -28,8 +28,7 @@ export function showBanner(title: string, sub: string, mode?: 'boss' | 'night' |
 }
 
 export function awardPoints(amount: number): void {
-  const mul = performance.now() < player.doublePointsUntil ? 2 : 1;
-  player.points += Math.round(amount * mul * player.fortuneMul);
+  player.points += Math.round(amount * player.fortuneMul);
 }
 
 export function maybeDropPowerup(x: number, y: number, guaranteed?: boolean): void {
@@ -61,8 +60,8 @@ export function applyPowerup(kind: PowerupKind): void {
     player.instaKillUntil = now + (def.duration || 0);
     showBanner('INSTA-KILL', 'weapons overcharged', 'power');
   } else if (kind === 'double') {
-    player.doublePointsUntil = now + (def.duration || 0);
-    showBanner('DOUBLE POINTS', 'points x2 active', 'power');
+    player.doubleXpUntil = now + (def.duration || 0);
+    showBanner('DOUBLE XP', 'xp x2 active', 'power');
   } else if (kind === 'heal') {
     player.hp = player.maxHp;
     showBanner('FULL HEAL', 'wounds patched up', 'power');
@@ -199,7 +198,8 @@ export function tryShoot(now: number): void {
 }
 
 export function gainXp(amount: number): void {
-  player.xp += amount;
+  const mul = performance.now() < player.doubleXpUntil ? 2 : 1;
+  player.xp += amount * mul;
   while (player.xp >= player.xpToNext) {
     player.xp -= player.xpToNext;
     player.level++;

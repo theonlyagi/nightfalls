@@ -22,7 +22,7 @@ import { getBuildTarget, getPlacementAngle } from '../render/drawWorld';
 export function createShopItems(): ShopItemDef[] {
   return [
     { key: 'buy_insta',  category: 'powerup', label: 'Insta-Kill',    desc: '20s of one-shot kills',    cost: 80,  apply: () => applyPowerup('insta') },
-    { key: 'buy_double', category: 'powerup', label: 'Double Points', desc: '30s of 2x points',         cost: 60,  apply: () => applyPowerup('double') },
+    { key: 'buy_double', category: 'powerup', label: 'Double XP',     desc: '30s of 2x XP',             cost: 60,  apply: () => applyPowerup('double') },
     { key: 'buy_heal',   category: 'powerup', label: 'Full Heal',     desc: 'restore all HP',           cost: 50,  apply: () => applyPowerup('heal') },
     { key: 'buy_nuke',   category: 'powerup', label: 'Nuke',          desc: 'devastate nearby zombies', cost: 150, apply: () => applyPowerup('nuke') },
 
@@ -423,7 +423,7 @@ export function updateHud(): void {
   if (now < player.instaKillUntil) { instaEl.classList.add('show'); instaEl.textContent = '⚡ INSTA-KILL ' + Math.ceil((player.instaKillUntil - now) / 1000) + 's'; }
   else instaEl.classList.remove('show');
   const doubleEl = byId('puDouble');
-  if (now < player.doublePointsUntil) { doubleEl.classList.add('show'); doubleEl.textContent = '2x POINTS ' + Math.ceil((player.doublePointsUntil - now) / 1000) + 's'; }
+  if (now < player.doubleXpUntil) { doubleEl.classList.add('show'); doubleEl.textContent = '2x XP ' + Math.ceil((player.doubleXpUntil - now) / 1000) + 's'; }
   else doubleEl.classList.remove('show');
   const speedEl = byId('puSpeed');
   if (now < player.speedBoostUntil) { speedEl.classList.add('show'); speedEl.textContent = '💨 SPEED ' + Math.ceil((player.speedBoostUntil - now) / 1000) + 's'; }
