@@ -46,11 +46,29 @@ export function setupInputListeners(
     mouse.y = e.clientY - rect.top;
   });
 
-  canvas.addEventListener('mousedown', () => {
-    mouse.down = true;
+  // Prevent context menu (right click image save popup, etc)
+  window.addEventListener('contextmenu', (e: MouseEvent) => {
+    e.preventDefault();
   });
 
-  window.addEventListener('mouseup', () => {
-    mouse.down = false;
+  canvas.addEventListener('mousedown', (e: MouseEvent) => {
+    if (e.button === 0) { // Left Click
+      if (selectedBuild) {
+        onTryBuildOrUpgrade();
+      } else {
+        mouse.down = true;
+      }
+    } else if (e.button === 2) { // Right Click
+      if (selectedBuild) {
+        setSelectedBuild(null);
+        onRenderBuildBar();
+      }
+    }
+  });
+
+  window.addEventListener('mouseup', (e: MouseEvent) => {
+    if (e.button === 0) { // Left Click release
+      mouse.down = false;
+    }
   });
 }

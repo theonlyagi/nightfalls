@@ -60,10 +60,18 @@
 
   <div id="waveBanner">WAVE 1<span>Zombies incoming</span></div>
 
-  <div id="hint">
-    <b>WASD</b> move &nbsp; <b>MOUSE</b> aim / shoot<br>
-    <b>1-5</b> select building &nbsp; <b>E</b> place / shop &nbsp; <b>ESC</b> deselect<br>
-    <b>R</b> rotate structure &nbsp;&mdash;&nbsp; zombies hit harder at night
+  <div id="helpContainer">
+    <div id="hint" class="hidden">
+      <div class="help-title">Controls &amp; Guide</div>
+      <div class="help-row"><span>Move Character</span><b>WASD</b></div>
+      <div class="help-row"><span>Aim &amp; Shoot</span><b>MOUSE</b></div>
+      <div class="help-row"><span>Select Structures</span><b>1 &ndash; 5</b></div>
+      <div class="help-row"><span>Place / Open Shop</span><b>E</b></div>
+      <div class="help-row"><span>Rotate Structure</span><b>R</b></div>
+      <div class="help-row"><span>Cancel Selection</span><b>ESC</b></div>
+      <div class="help-note">Zombies hit harder and move faster during the night.</div>
+    </div>
+    <button id="helpBtn">? How to Play</button>
   </div>
 
   <div id="touchOverlay" class="hidden">

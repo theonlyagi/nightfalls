@@ -4,7 +4,7 @@ import {
 import {
   player, bullets, setBullets, zombies, setZombies, powerups, setPowerups,
   particles, setParticles, bursts, setBursts, bloodDecals, setBloodDecals,
-  shake, settings, godMode, activeBoss, setActiveBoss, wave
+  shake, settings, godMode, activeBoss, setActiveBoss, wave, selectedBuild
 } from '../state';
 import {
   POWERUP_DEFS, POINTS_BY_TYPE, WEAPON_DEFS, OVERHEAT_PER_SHOT,
@@ -142,6 +142,7 @@ export function setXpCallbacks(callbacks: {
 
 export function tryShoot(now: number): void {
   if (!player.alive) return;
+  if (selectedBuild) return;
   if (player.mutation === 'overclocked' && now < player.overheatedUntil) return;
   const wdef = WEAPON_DEFS[player.weapon];
   const fireRateMul = wdef.fireRateMul * fireRateBoostMul() * mutationFireRateMul();

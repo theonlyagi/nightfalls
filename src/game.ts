@@ -240,4 +240,21 @@ setupInputListeners(canvas, tryBuildOrUpgrade, selectBuild, renderBuildBar, togg
 setupTouchListeners(canvas, tryBuildOrUpgrade, selectBuild, renderBuildBar);
 setupDebugUI();
 loadSettings();
+
+// Toggleable How to Play UI
+const helpBtn = byId('helpBtn');
+const hintBox = byId('hint');
+if (helpBtn && hintBox) {
+  helpBtn.onclick = (e) => {
+    e.stopPropagation();
+    hintBox.classList.toggle('hidden');
+  };
+  window.addEventListener('click', () => {
+    hintBox.classList.add('hidden');
+  });
+  hintBox.onclick = (e) => {
+    e.stopPropagation();
+  };
+}
+
 initMenu().catch(err => showFatalError(err));

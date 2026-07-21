@@ -79,10 +79,46 @@
   .bar-text{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:10px; color:#0a1410; font-weight:700; text-shadow:0 0 2px rgba(255,255,255,.4); }
   #levelTag{ font-family:'Ubuntu',sans-serif; font-weight:700; font-size:11px; text-align:center; color:var(--accent-xp); }
 
-  #upgradePanel{ position:absolute; bottom:220px; left:50%; transform:translateX(-50%); display:flex; gap:8px; pointer-events:auto; }
-  .upgrade-btn{ background:var(--bg-panel); backdrop-filter:blur(6px); box-shadow:var(--shadow-panel); border:1px solid var(--accent-warn); color:var(--text-main); border-radius:8px; padding:8px 10px; font-family:'Ubuntu',sans-serif; font-size:11px; cursor:pointer; text-align:center; width:82px; transition:transform var(--dur) var(--ease), background var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
-  .upgrade-btn:hover{ background:#1c3226; transform:translateY(-2px); box-shadow:0 0 12px rgba(255,159,67,.35), var(--shadow-panel); }
-  .upgrade-btn b{ display:block; font-family:'Ubuntu',sans-serif; font-weight:700; font-size:12px; color:var(--accent-warn); margin-bottom:2px; }
+  #upgradePanel{
+    position: absolute;
+    bottom: 24px;
+    left: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: auto;
+    z-index: 10;
+  }
+  .upgrade-btn{
+    background: rgba(18, 36, 28, 0.88);
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-panel);
+    border: 1px solid var(--accent-warn);
+    color: var(--text-main);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-family: 'Ubuntu', sans-serif;
+    font-size: 11px;
+    cursor: pointer;
+    text-align: left;
+    width: 145px;
+    transition: transform var(--dur) var(--ease), background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  }
+  .upgrade-btn:hover{
+    background: rgba(26, 44, 33, 0.95);
+    transform: translateX(4px);
+    box-shadow: 0 0 12px rgba(255,159,67,.35), var(--shadow-panel);
+  }
+  .upgrade-btn b{
+    display: block;
+    font-family: 'Ubuntu', sans-serif;
+    font-weight: 700;
+    font-size: 11px;
+    color: var(--accent-warn);
+    margin-bottom: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
 
   #buildBar{ position:absolute; bottom:96px; left:50%; transform:translateX(-50%); display:flex; gap:12px; pointer-events:auto; }
   .build-slot{
@@ -170,8 +206,94 @@
   #rotateHint{ position:absolute; bottom:232px; left:50%; transform:translateX(-50%); font-family:'Ubuntu',sans-serif; font-weight:700; font-size:12px; color:var(--accent-xp); background:var(--bg-panel); backdrop-filter:blur(6px); box-shadow:var(--shadow-panel); border:1px solid var(--accent-xp); border-radius:8px; padding:6px 14px; display:none; text-align:center; white-space:nowrap; }
   #rotateHint.show{ display:block; }
 
-  #hint{ position:absolute; bottom:16px; right:16px; font-size:11px; color:var(--text-dim); background:var(--bg-panel); backdrop-filter:blur(6px); box-shadow:var(--shadow-panel); border:1px solid var(--line); border-radius:8px; padding:8px 12px; line-height:1.6; }
-  #hint b{ color:var(--text-main); }
+  #helpContainer {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    pointer-events: auto;
+    z-index: 10;
+  }
+  #helpBtn {
+    background: rgba(18, 36, 28, 0.88);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--col-text);
+    font-family: 'Ubuntu', sans-serif;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    padding: 8px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  }
+  #helpBtn:hover {
+    background: rgba(26, 44, 33, 0.95);
+    border-color: var(--col-teal-light);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.4), 0 0 8px rgba(61, 168, 158, 0.2);
+  }
+  #hint {
+    background: rgba(18, 36, 28, 0.94);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 14px 16px;
+    width: 250px;
+    box-shadow: 0 10px 32px rgba(0,0,0,0.6);
+    margin-bottom: 10px;
+    font-size: 11px;
+    color: var(--col-text-dim);
+    line-height: 1.5;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    transform-origin: bottom right;
+  }
+  #hint.hidden {
+    display: none !important;
+    opacity: 0;
+    transform: scale(0.95) translate(5px, 5px);
+  }
+  #hint b {
+    color: var(--col-text);
+    font-weight: 700;
+  }
+  .help-title {
+    font-weight: 700;
+    font-size: 11px;
+    color: var(--col-teal-light);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 4px;
+  }
+  .help-row {
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .help-row b {
+    margin-left: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: 'Ubuntu Mono', monospace;
+    font-size: 10px;
+    color: var(--col-text);
+  }
+  .help-note {
+    margin-top: 8px;
+    font-style: italic;
+    color: var(--col-muted);
+    font-size: 10px;
+    line-height: 1.3;
+    border-top: 1px dashed rgba(255, 255, 255, 0.08);
+    padding-top: 6px;
+  }
 
   .overlay-anim{ opacity:1; transform:scale(1); transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
   .overlay-anim.hidden{ display:none !important; opacity:0; transform:scale(.96); pointer-events:none; }
@@ -294,16 +416,17 @@
       url('menu-bg.jpg');
     background-size: cover; background-position: center;
     display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-    padding: 18px 28px 14px; height: 100vh; width: 100vw; overflow: hidden;
+    padding: 24px 28px 10vh; /* 하단 10% 여백 지정 */
+    height: 100vh; width: 100vw; overflow: hidden;
     font-family: 'Ubuntu', sans-serif;
   }
 
   /* ── HEADER ── */
   #menuHeader {
-    text-align: center; margin-bottom: 16px; flex-shrink: 0;
+    text-align: center; margin-bottom: 20px; flex-shrink: 0;
   }
   #menuHeader .logo {
-    font-family: 'Ubuntu', sans-serif; font-weight: 700; font-size: 36px;
+    font-family: 'Ubuntu', sans-serif; font-weight: 700; font-size: 38px;
     color: var(--col-text); letter-spacing: 6px; margin: 0;
     text-shadow: 0 0 40px rgba(224,82,82,0.3), 0 2px 6px rgba(0,0,0,0.8);
   }
@@ -319,8 +442,8 @@
 
   /* ── 3-COLUMN GRID ── */
   #menuGrid {
-    display: grid; grid-template-columns: 234px 1fr 260px; gap: 14px;
-    width: 100%; max-width: 1220px; height: calc(100vh - 108px); align-items: stretch;
+    display: grid; grid-template-columns: 260px 1fr 280px; gap: 18px; /* 가로폭 및 간격 증대 */
+    width: 100%; max-width: 1320px; flex: 1; min-height: 0; align-items: stretch;
   }
 
   /* ── SIDE PANELS ── */
@@ -468,28 +591,28 @@
     font-family: 'Ubuntu', sans-serif; font-weight: 700; font-size: 10px;
     letter-spacing: 2px; color: var(--col-muted); text-transform: uppercase;
   }
-  #modeSelect { display: flex; gap: 8px; }
+  #modeSelect { display: flex; gap: 12px; }
   #modeSelect .class-card {
-    flex: 1; text-align: center; padding: 11px 10px;
-    background: rgba(0,0,0,0.25); border: 1.5px solid var(--menu-border);
-    border-radius: 8px; cursor: pointer; pointer-events: auto; user-select: none;
+    flex: 1; text-align: center; padding: 18px 16px;
+    background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px; cursor: pointer; pointer-events: auto; user-select: none;
     transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease),
                 transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
   }
   #modeSelect .class-card:hover {
-    background: rgba(212,133,58,0.08); border-color: var(--col-amber);
-    transform: translateY(-2px); box-shadow: 0 4px 14px rgba(212,133,58,0.2);
+    background: rgba(212,133,58,0.08); border-color: var(--col-amber-light);
+    transform: translateY(-3px); box-shadow: 0 6px 18px rgba(212,133,58,0.25);
   }
-  #modeSelect .class-card:active { transform: translateY(0); }
+  #modeSelect .class-card:active { transform: translateY(-1px); }
   #modeSelect .class-card.active {
-    border-color: var(--col-amber); background: rgba(212,133,58,0.1);
-    box-shadow: 0 0 14px rgba(212,133,58,0.3);
+    border: 2px solid var(--col-amber); background: rgba(212, 133, 58, 0.16);
+    box-shadow: 0 0 20px rgba(212, 133, 58, 0.45), inset 0 0 10px rgba(212, 133, 58, 0.15);
   }
   #modeSelect .class-card b {
     display: block; font-family: 'Ubuntu', sans-serif; font-weight: 700;
-    font-size: 12px; color: var(--col-text); margin-bottom: 3px;
+    font-size: 14px; color: var(--col-text); margin-bottom: 4px;
   }
-  #modeSelect .class-card span { font-size: 10px; color: var(--col-text-dim); }
+  #modeSelect .class-card span { font-size: 11px; color: var(--col-text-dim); }
 
   /* Start Button */
   #startBtn {

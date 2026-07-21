@@ -154,10 +154,35 @@ export function updateDayNight(dt: number): void {
     if (dayNight.isNight) showBanner('NIGHTFALL', 'Zombies grow bolder and faster...', 'night');
     else showBanner('DAYBREAK', 'A short reprieve...');
   }
+  
+  // Calculate remaining time for current phase
+  let timeLeftSec = 0;
+  if (dayNight.isNight) {
+    // Night is from frac 0.25 to 0.75 (time 27500 to 82500)
+    timeLeftSec = Math.max(0, Math.ceil((82500 - dayNight.time) / 1000));
+  } else {
+    // Day is from frac 0.75 to 1.0, and 0.0 to 0.25
+    if (dayNight.time < 27500) {
+      timeLeftSec = Math.max(0, Math.ceil((27500 - dayNight.time) / 1000));
+    } else {
+      timeLeftSec = Math.max(0, Math.ceil(((dayNight.total - dayNight.time) + 27500) / 1000));
+    }
+  }
+
   const label = byId('phaseLabel');
-  if (bloodMoon.active) { label.textContent = '🩸 BLOOD MOON'; label.className = 'pill hud-font blood'; }
-  else if (dayNight.isNight) { label.textContent = '🌙 NIGHT'; label.className = 'pill hud-font night'; }
-  else { label.textContent = '☀ DAY'; label.className = 'pill hud-font day'; }
+  if (bloodMoon.active) {
+    const bmRemaining = Math.max(0, Math.ceil((bloodMoon.endsAt - performance.now()) / 1000));
+    label.textContent = `BLOOD MOON | ${bmRemaining}s`;
+    label.className = 'pill hud-font blood';
+  }
+  else if (dayNight.isNight) {
+    label.textContent = `NIGHT | ${timeLeftSec}s`;
+    label.className = 'pill hud-font night';
+  }
+  else {
+    label.textContent = `DAY | ${timeLeftSec}s`;
+    label.className = 'pill hud-font day';
+  }
 
   if (dayNight.factor > 0.55) {
     dayNight.nightSpawnTimer -= dt;

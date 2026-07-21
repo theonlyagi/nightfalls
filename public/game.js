@@ -539,11 +539,27 @@
       mouse.x = e.clientX - rect.left;
       mouse.y = e.clientY - rect.top;
     });
-    canvas2.addEventListener("mousedown", () => {
-      mouse.down = true;
+    window.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
     });
-    window.addEventListener("mouseup", () => {
-      mouse.down = false;
+    canvas2.addEventListener("mousedown", (e) => {
+      if (e.button === 0) {
+        if (selectedBuild) {
+          onTryBuildOrUpgrade();
+        } else {
+          mouse.down = true;
+        }
+      } else if (e.button === 2) {
+        if (selectedBuild) {
+          setSelectedBuild(null);
+          onRenderBuildBar();
+        }
+      }
+    });
+    window.addEventListener("mouseup", (e) => {
+      if (e.button === 0) {
+        mouse.down = false;
+      }
     });
   }
 
@@ -834,6 +850,7 @@
   }
   function tryShoot(now) {
     if (!player.alive) return;
+    if (selectedBuild) return;
     if (player.mutation === "overclocked" && now < player.overheatedUntil) return;
     const wdef = WEAPON_DEFS[player.weapon];
     const fireRateMul = wdef.fireRateMul * fireRateBoostMul() * mutationFireRateMul();
@@ -1535,15 +1552,26 @@
       if (dayNight.isNight) showBanner("NIGHTFALL", "Zombies grow bolder and faster...", "night");
       else showBanner("DAYBREAK", "A short reprieve...");
     }
+    let timeLeftSec = 0;
+    if (dayNight.isNight) {
+      timeLeftSec = Math.max(0, Math.ceil((82500 - dayNight.time) / 1e3));
+    } else {
+      if (dayNight.time < 27500) {
+        timeLeftSec = Math.max(0, Math.ceil((27500 - dayNight.time) / 1e3));
+      } else {
+        timeLeftSec = Math.max(0, Math.ceil((dayNight.total - dayNight.time + 27500) / 1e3));
+      }
+    }
     const label = byId("phaseLabel");
     if (bloodMoon.active) {
-      label.textContent = "\u{1FA78} BLOOD MOON";
+      const bmRemaining = Math.max(0, Math.ceil((bloodMoon.endsAt - performance.now()) / 1e3));
+      label.textContent = `BLOOD MOON | ${bmRemaining}s`;
       label.className = "pill hud-font blood";
     } else if (dayNight.isNight) {
-      label.textContent = "\u{1F319} NIGHT";
+      label.textContent = `NIGHT | ${timeLeftSec}s`;
       label.className = "pill hud-font night";
     } else {
-      label.textContent = "\u2600 DAY";
+      label.textContent = `DAY | ${timeLeftSec}s`;
       label.className = "pill hud-font day";
     }
     if (dayNight.factor > 0.55) {
@@ -4135,5 +4163,19 @@
   setupTouchListeners(canvas, tryBuildOrUpgrade, selectBuild, renderBuildBar);
   setupDebugUI();
   loadSettings();
+  var helpBtn = byId("helpBtn");
+  var hintBox = byId("hint");
+  if (helpBtn && hintBox) {
+    helpBtn.onclick = (e) => {
+      e.stopPropagation();
+      hintBox.classList.toggle("hidden");
+    };
+    window.addEventListener("click", () => {
+      hintBox.classList.add("hidden");
+    });
+    hintBox.onclick = (e) => {
+      e.stopPropagation();
+    };
+  }
   initMenu().catch((err) => showFatalError(err));
 })();
