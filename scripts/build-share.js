@@ -61,6 +61,11 @@ async function main() {
     fs.mkdirSync(distDir, { recursive: true });
     fs.writeFileSync(path.join(distDir, 'index.html'), bundled);
     fs.writeFileSync(path.join(distDir, 'LICENSE.txt'), license);
-    console.log('Wrote docs/index.html + docs/LICENSE.txt (' + devJs.length + ' -> ' + js.length + ' bytes minified)');
+    const assetsSrc = path.join(publicDir, 'assets');
+    const assetsDst = path.join(distDir, 'assets');
+    if (fs.existsSync(assetsSrc)) {
+        fs.cpSync(assetsSrc, assetsDst, { recursive: true });
+    }
+    console.log('Wrote docs/index.html + docs/LICENSE.txt + docs/assets/ (' + devJs.length + ' -> ' + js.length + ' bytes minified)');
 }
 main().catch(err => { console.error(err); process.exitCode = 1; });
