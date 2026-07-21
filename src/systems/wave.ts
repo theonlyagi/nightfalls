@@ -78,23 +78,44 @@ export function pickZombieType(): ZombieKind {
   if (wave < 3) return 'normal';
   if (wave < 5) return Math.random() < 0.3 ? 'scout' : 'normal';
   if (wave < 7) {
+    // Wolves start showing up here, in small numbers.
     const r = Math.random();
-    return r < 0.4 ? 'normal' : (r < 0.65 ? 'scout' : (r < 0.85 ? 'brute' : 'spitter'));
+    if (r < 0.38) return 'normal';
+    if (r < 0.62) return 'scout';
+    if (r < 0.8) return 'brute';
+    if (r < 0.92) return 'spitter';
+    return 'wolf';
   }
+  if (wave < 8) {
+    const r = Math.random();
+    if (r < 0.24) return 'normal';
+    if (r < 0.44) return 'scout';
+    if (r < 0.6) return 'brute';
+    if (r < 0.76) return 'spitter';
+    if (r < 0.9) return 'exploder';
+    return 'wolf';
+  }
+  // Wave 8+: wolves (and their packs) are common from here on.
   const r = Math.random();
-  if (r < 0.28) return 'normal';
-  if (r < 0.5) return 'scout';
-  if (r < 0.68) return 'brute';
-  if (r < 0.86) return 'spitter';
-  return 'exploder';
+  if (r < 0.2) return 'normal';
+  if (r < 0.36) return 'scout';
+  if (r < 0.52) return 'brute';
+  if (r < 0.68) return 'spitter';
+  if (r < 0.8) return 'exploder';
+  return 'wolf';
 }
 
-export function spawnZombie(forceType?: ZombieKind): void {
-  const angle = rand(0, Math.PI * 2);
-  const d = rand(900, 1300);
-  let x = clamp(player.x + Math.cos(angle) * d, 40, WORLD_W - 40);
-  let y = clamp(player.y + Math.sin(angle) * d, 40, WORLD_H - 40);
+export function spawnZombie(forceType?: ZombieKind, atX?: number, atY?: number): void {
   const type = forceType || pickZombieType();
+  let x: number, y: number;
+  if (atX !== undefined && atY !== undefined) {
+    x = atX; y = atY;
+  } else {
+    const angle = rand(0, Math.PI * 2);
+    const d = rand(900, 1300);
+    x = clamp(player.x + Math.cos(angle) * d, 40, WORLD_W - 40);
+    y = clamp(player.y + Math.sin(angle) * d, 40, WORLD_H - 40);
+  }
   const def = ZTYPE[type];
   const hpScale = 1 + (wave - 1) * 0.32;
   const speedScale = Math.min(1 + (wave - 1) * 0.045, 1.9);
@@ -102,13 +123,13 @@ export function spawnZombie(forceType?: ZombieKind): void {
   const hp0 = Math.round(24 * hpScale * def.hpMul * bloodMul);
   const usesVariant = (type === 'normal' || type === 'scout');
   const variant = usesVariant ? SKIN_VARIANTS[Math.floor(rand(0, SKIN_VARIANTS.length))] : [def.color, def.color2, def.dark];
-  const cloth = (type === 'boss') ? null : CLOTH_COLORS[Math.floor(rand(0, CLOTH_COLORS.length))];
+  const cloth = (type === 'boss' || type === 'wolf') ? null : CLOTH_COLORS[Math.floor(rand(0, CLOTH_COLORS.length))];
   const z: Zombie = {
     type, x, y, radius: rand(def.radiusR[0], def.radiusR[1]),
     hp: hp0, maxHp: hp0, speed: 1.15 * speedScale * def.speedMul,
     damage: (7 + wave * 0.6) * def.dmgMul * bloodMul,
     hitCooldown: 0, wobble: rand(0, Math.PI * 2), flash: 0, lastShot: 0, fuseStart: null,
-    hairKind: (type === 'boss' || type === 'exploder') ? null : (['bald', 'hood', 'tuft'] as HairKind[])[Math.floor(rand(0, 3))],
+    hairKind: (type === 'boss' || type === 'exploder' || type === 'wolf') ? null : (['bald', 'hood', 'tuft'] as HairKind[])[Math.floor(rand(0, 3))],
     mouthKind: (['open', 'frown', 'grimace'] as MouthKind[])[Math.floor(rand(0, 3))],
     squishX: rand(0.92, 1.08), squishY: rand(0.92, 1.08),
     skinColor: variant[0], skinColor2: variant[1], skinDark: variant[2], clothColor: cloth
@@ -127,6 +148,17 @@ export function spawnZombie(forceType?: ZombieKind): void {
     byId('bossName').textContent = 'BOSS · WAVE ' + wave;
   }
   zombies.push(z);
+
+  // Wolves hunt in packs — a fresh wolf call (not a pack companion, and not a
+  // debug-forced spawn) brings 1-2 more along, placed near it rather than at
+  // an independent random spot so they actually read as a pack on arrival.
+  if (type === 'wolf' && atX === undefined) {
+    const packSize = Math.floor(rand(1, 3));
+    for (let i = 0; i < packSize; i++) {
+      const offAngle = rand(0, Math.PI * 2), offD = rand(35, 80);
+      spawnZombie('wolf', clamp(x + Math.cos(offAngle) * offD, 40, WORLD_W - 40), clamp(y + Math.sin(offAngle) * offD, 40, WORLD_H - 40));
+    }
+  }
 }
 
 export function updateBloodMoon(): void {

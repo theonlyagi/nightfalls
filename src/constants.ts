@@ -125,6 +125,7 @@ export const ZTYPE: Record<ZombieKind, ZombieTypeDef> = {
   brute:    { radiusR: [28, 33], hpMul: 2.4,  speedMul: 0.65, dmgMul: 1.8, color: '#8a3d3d', color2: '#6e2f2f', dark: '#4d2020' },
   spitter:  { radiusR: [15, 18], hpMul: 0.7,  speedMul: 0.55, dmgMul: 0,   color: '#5a9151', color2: '#437040', dark: '#2b4526', ranged: true, range: 340, fireRate: 0.8 },
   exploder: { radiusR: [19, 24], hpMul: 0.6,  speedMul: 1.5,  dmgMul: 0,   color: '#c07a2e', color2: '#9c5c1e', dark: '#5c2e0d', explode: true, explodeRadius: 95 },
+  wolf:     { radiusR: [16, 20], hpMul: 0.5,  speedMul: 1.85, dmgMul: 1.1, color: '#7a8a95', color2: '#5c6b75', dark: '#3a444c' },
   boss:     { radiusR: [54, 54], hpMul: 1,    speedMul: 1,    dmgMul: 1,   color: '#4b2a63', color2: '#3a1f4d', dark: '#241333' }
 };
 

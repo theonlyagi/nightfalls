@@ -131,6 +131,7 @@
     brute: { radiusR: [28, 33], hpMul: 2.4, speedMul: 0.65, dmgMul: 1.8, color: "#8a3d3d", color2: "#6e2f2f", dark: "#4d2020" },
     spitter: { radiusR: [15, 18], hpMul: 0.7, speedMul: 0.55, dmgMul: 0, color: "#5a9151", color2: "#437040", dark: "#2b4526", ranged: true, range: 340, fireRate: 0.8 },
     exploder: { radiusR: [19, 24], hpMul: 0.6, speedMul: 1.5, dmgMul: 0, color: "#c07a2e", color2: "#9c5c1e", dark: "#5c2e0d", explode: true, explodeRadius: 95 },
+    wolf: { radiusR: [16, 20], hpMul: 0.5, speedMul: 1.85, dmgMul: 1.1, color: "#7a8a95", color2: "#5c6b75", dark: "#3a444c" },
     boss: { radiusR: [54, 54], hpMul: 1, speedMul: 1, dmgMul: 1, color: "#4b2a63", color2: "#3a1f4d", dark: "#241333" }
   };
   var SKIN_VARIANTS = [
@@ -1463,21 +1464,41 @@
     if (wave < 5) return Math.random() < 0.3 ? "scout" : "normal";
     if (wave < 7) {
       const r2 = Math.random();
-      return r2 < 0.4 ? "normal" : r2 < 0.65 ? "scout" : r2 < 0.85 ? "brute" : "spitter";
+      if (r2 < 0.38) return "normal";
+      if (r2 < 0.62) return "scout";
+      if (r2 < 0.8) return "brute";
+      if (r2 < 0.92) return "spitter";
+      return "wolf";
+    }
+    if (wave < 8) {
+      const r2 = Math.random();
+      if (r2 < 0.24) return "normal";
+      if (r2 < 0.44) return "scout";
+      if (r2 < 0.6) return "brute";
+      if (r2 < 0.76) return "spitter";
+      if (r2 < 0.9) return "exploder";
+      return "wolf";
     }
     const r = Math.random();
-    if (r < 0.28) return "normal";
-    if (r < 0.5) return "scout";
-    if (r < 0.68) return "brute";
-    if (r < 0.86) return "spitter";
-    return "exploder";
+    if (r < 0.2) return "normal";
+    if (r < 0.36) return "scout";
+    if (r < 0.52) return "brute";
+    if (r < 0.68) return "spitter";
+    if (r < 0.8) return "exploder";
+    return "wolf";
   }
-  function spawnZombie(forceType) {
-    const angle = rand(0, Math.PI * 2);
-    const d = rand(900, 1300);
-    let x = clamp(player.x + Math.cos(angle) * d, 40, WORLD_W - 40);
-    let y = clamp(player.y + Math.sin(angle) * d, 40, WORLD_H - 40);
+  function spawnZombie(forceType, atX, atY) {
     const type = forceType || pickZombieType();
+    let x, y;
+    if (atX !== void 0 && atY !== void 0) {
+      x = atX;
+      y = atY;
+    } else {
+      const angle = rand(0, Math.PI * 2);
+      const d = rand(900, 1300);
+      x = clamp(player.x + Math.cos(angle) * d, 40, WORLD_W - 40);
+      y = clamp(player.y + Math.sin(angle) * d, 40, WORLD_H - 40);
+    }
     const def = ZTYPE[type];
     const hpScale = 1 + (wave - 1) * 0.32;
     const speedScale = Math.min(1 + (wave - 1) * 0.045, 1.9);
@@ -1485,7 +1506,7 @@
     const hp0 = Math.round(24 * hpScale * def.hpMul * bloodMul);
     const usesVariant = type === "normal" || type === "scout";
     const variant = usesVariant ? SKIN_VARIANTS[Math.floor(rand(0, SKIN_VARIANTS.length))] : [def.color, def.color2, def.dark];
-    const cloth = type === "boss" ? null : CLOTH_COLORS[Math.floor(rand(0, CLOTH_COLORS.length))];
+    const cloth = type === "boss" || type === "wolf" ? null : CLOTH_COLORS[Math.floor(rand(0, CLOTH_COLORS.length))];
     const z = {
       type,
       x,
@@ -1500,7 +1521,7 @@
       flash: 0,
       lastShot: 0,
       fuseStart: null,
-      hairKind: type === "boss" || type === "exploder" ? null : ["bald", "hood", "tuft"][Math.floor(rand(0, 3))],
+      hairKind: type === "boss" || type === "exploder" || type === "wolf" ? null : ["bald", "hood", "tuft"][Math.floor(rand(0, 3))],
       mouthKind: ["open", "frown", "grimace"][Math.floor(rand(0, 3))],
       squishX: rand(0.92, 1.08),
       squishY: rand(0.92, 1.08),
@@ -1527,6 +1548,13 @@
       byId("bossName").textContent = "BOSS \xB7 WAVE " + wave;
     }
     zombies.push(z);
+    if (type === "wolf" && atX === void 0) {
+      const packSize = Math.floor(rand(1, 3));
+      for (let i = 0; i < packSize; i++) {
+        const offAngle = rand(0, Math.PI * 2), offD = rand(35, 80);
+        spawnZombie("wolf", clamp(x + Math.cos(offAngle) * offD, 40, WORLD_W - 40), clamp(y + Math.sin(offAngle) * offD, 40, WORLD_H - 40));
+      }
+    }
   }
   function updateBloodMoon() {
     const now = performance.now();
@@ -2363,6 +2391,117 @@
       ctx2.fill();
     }
   }
+  function drawWolfZombie(ctx2, z, s, angle, flashing, OUTLINE) {
+    const r = z.radius;
+    const bodyCol = flashing ? "#ffffff" : z.skinColor;
+    const bodyCol2 = flashing ? "#ffffff" : z.skinColor2;
+    const legCol = flashing ? "#ffffff" : z.skinDark;
+    const fx = Math.cos(angle), fy = Math.sin(angle);
+    const px = Math.cos(angle + Math.PI / 2), py = Math.sin(angle + Math.PI / 2);
+    const tailBaseX = s.x - fx * r * 0.85, tailBaseY = s.y - fy * r * 0.85;
+    const tailTipX = s.x - fx * r * 1.8 + px * r * 0.3, tailTipY = s.y - fy * r * 1.8 + py * r * 0.3;
+    ctx2.lineCap = "round";
+    ctx2.strokeStyle = OUTLINE;
+    ctx2.lineWidth = r * 0.34 + 4;
+    ctx2.beginPath();
+    ctx2.moveTo(tailBaseX, tailBaseY);
+    ctx2.quadraticCurveTo(s.x - fx * r * 1.5, s.y - fy * r * 1.5, tailTipX, tailTipY);
+    ctx2.stroke();
+    ctx2.strokeStyle = legCol;
+    ctx2.lineWidth = r * 0.34;
+    ctx2.beginPath();
+    ctx2.moveTo(tailBaseX, tailBaseY);
+    ctx2.quadraticCurveTo(s.x - fx * r * 1.5, s.y - fy * r * 1.5, tailTipX, tailTipY);
+    ctx2.stroke();
+    ctx2.lineCap = "butt";
+    [[0.5, 1], [0.5, -1], [-0.45, 1], [-0.45, -1]].forEach(([along, side]) => {
+      const hipX = s.x + fx * r * along, hipY = s.y + fy * r * along;
+      const footX = hipX + px * r * 0.55 * side, footY = hipY + py * r * 0.55 * side;
+      ctx2.lineCap = "round";
+      ctx2.strokeStyle = OUTLINE;
+      ctx2.lineWidth = r * 0.3 + 4;
+      ctx2.beginPath();
+      ctx2.moveTo(hipX, hipY);
+      ctx2.lineTo(footX, footY);
+      ctx2.stroke();
+      ctx2.strokeStyle = legCol;
+      ctx2.lineWidth = r * 0.3;
+      ctx2.beginPath();
+      ctx2.moveTo(hipX, hipY);
+      ctx2.lineTo(footX, footY);
+      ctx2.stroke();
+      ctx2.lineCap = "butt";
+      ctx2.fillStyle = OUTLINE;
+      ctx2.beginPath();
+      ctx2.arc(footX, footY, r * 0.14, 0, Math.PI * 2);
+      ctx2.fill();
+    });
+    ctx2.fillStyle = radialFill(ctx2, s.x, s.y, r, bodyCol, bodyCol2);
+    ctx2.beginPath();
+    ctx2.ellipse(s.x, s.y, r * 1.05, r * 0.68, angle, 0, Math.PI * 2);
+    ctx2.fill();
+    ctx2.strokeStyle = OUTLINE;
+    ctx2.lineWidth = 3;
+    ctx2.stroke();
+    ctx2.lineCap = "round";
+    ctx2.strokeStyle = legCol;
+    ctx2.lineWidth = r * 0.12;
+    ctx2.beginPath();
+    ctx2.moveTo(s.x - fx * r * 0.75, s.y - fy * r * 0.75);
+    ctx2.lineTo(s.x + fx * r * 0.55, s.y + fy * r * 0.55);
+    ctx2.stroke();
+    ctx2.lineCap = "butt";
+    ctx2.fillStyle = "rgba(255,255,255,0.18)";
+    ctx2.beginPath();
+    ctx2.ellipse(s.x - px * r * 0.3 + fx * r * 0.1, s.y - py * r * 0.3 + fy * r * 0.1, r * 0.28, r * 0.16, angle, 0, Math.PI * 2);
+    ctx2.fill();
+    const headX = s.x + fx * r * 0.95, headY = s.y + fy * r * 0.95;
+    ctx2.fillStyle = radialFill(ctx2, headX, headY, r * 0.55, bodyCol2, z.skinDark);
+    ctx2.beginPath();
+    ctx2.ellipse(headX, headY, r * 0.5, r * 0.36, angle, 0, Math.PI * 2);
+    ctx2.fill();
+    ctx2.strokeStyle = OUTLINE;
+    ctx2.lineWidth = 2.5;
+    ctx2.stroke();
+    ctx2.fillStyle = legCol;
+    ctx2.strokeStyle = OUTLINE;
+    ctx2.lineWidth = 2;
+    [-1, 1].forEach((side) => {
+      const a = angle + side * 0.5;
+      const bx = headX + Math.cos(a) * r * 0.3, by = headY + Math.sin(a) * r * 0.3;
+      const tx = headX + Math.cos(a) * r * 0.7, ty = headY + Math.sin(a) * r * 0.7;
+      ctx2.beginPath();
+      ctx2.moveTo(bx - px * r * 0.1 * side, by - py * r * 0.1 * side);
+      ctx2.lineTo(tx, ty);
+      ctx2.lineTo(bx + px * r * 0.1 * side, by + py * r * 0.1 * side);
+      ctx2.closePath();
+      ctx2.fill();
+      ctx2.stroke();
+    });
+    ctx2.fillStyle = flashing ? "#ffffff" : "#ffcf4d";
+    [-1, 1].forEach((side) => {
+      const ex = headX + fx * r * 0.15 + px * r * 0.22 * side;
+      const ey = headY + fy * r * 0.15 + py * r * 0.22 * side;
+      ctx2.beginPath();
+      ctx2.arc(ex, ey, r * 0.09, 0, Math.PI * 2);
+      ctx2.fill();
+    });
+    const snoutX = headX + fx * r * 0.42, snoutY = headY + fy * r * 0.42;
+    ctx2.fillStyle = "#1a0a0a";
+    ctx2.beginPath();
+    ctx2.ellipse(snoutX, snoutY, r * 0.22, r * 0.13, angle, 0, Math.PI * 2);
+    ctx2.fill();
+    ctx2.fillStyle = "#f0ead6";
+    [-1, 1].forEach((side) => {
+      const tx = snoutX + px * r * 0.12 * side, ty = snoutY + py * r * 0.12 * side;
+      ctx2.beginPath();
+      ctx2.moveTo(tx - px * r * 0.04 * side, ty - py * r * 0.04 * side);
+      ctx2.lineTo(tx + fx * r * 0.14, ty + fy * r * 0.14);
+      ctx2.lineTo(tx + px * r * 0.04 * side, ty + py * r * 0.04 * side);
+      ctx2.closePath();
+      ctx2.fill();
+    });
+  }
   function drawZombie(ctx2, canvas2, z) {
     const s = worldToScreen(z.x, z.y);
     if (s.x < -110 || s.x > canvas2.width + 110 || s.y < -110 || s.y > canvas2.height + 110) return;
@@ -2379,6 +2518,15 @@
       ctx2.fillRect(s.x - barW2 / 2, s.y - z.radius - 18, barW2, 6);
       ctx2.fillStyle = "#c084fc";
       ctx2.fillRect(s.x - barW2 / 2, s.y - z.radius - 18, barW2 * (z.hp / z.maxHp), 6);
+      return;
+    }
+    if (z.type === "wolf") {
+      drawWolfZombie(ctx2, z, s, angle, flashing, OUTLINE);
+      const barW3 = z.radius * 2;
+      ctx2.fillStyle = "#00000088";
+      ctx2.fillRect(s.x - barW3 / 2, s.y - z.radius - 12, barW3, 5);
+      ctx2.fillStyle = "#ff5c5c";
+      ctx2.fillRect(s.x - barW3 / 2, s.y - z.radius - 12, barW3 * (z.hp / z.maxHp), 5);
       return;
     }
     if (z.type === "brute") {

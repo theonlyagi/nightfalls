@@ -164,6 +164,97 @@ export function drawBossZombie(ctx: CanvasRenderingContext2D, z: Zombie, s: Vec2
   }
 }
 
+export function drawWolfZombie(
+  ctx: CanvasRenderingContext2D, z: Zombie, s: Vec2, angle: number, flashing: boolean, OUTLINE: string
+): void {
+  const r = z.radius;
+  const bodyCol = flashing ? '#ffffff' : z.skinColor;
+  const bodyCol2 = flashing ? '#ffffff' : z.skinColor2;
+  const legCol = flashing ? '#ffffff' : z.skinDark;
+  const fx = Math.cos(angle), fy = Math.sin(angle);
+  const px = Math.cos(angle + Math.PI / 2), py = Math.sin(angle + Math.PI / 2);
+
+  // Tail — curves back and slightly to one side from the rear of the body.
+  const tailBaseX = s.x - fx * r * 0.85, tailBaseY = s.y - fy * r * 0.85;
+  const tailTipX = s.x - fx * r * 1.8 + px * r * 0.3, tailTipY = s.y - fy * r * 1.8 + py * r * 0.3;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = r * 0.34 + 4;
+  ctx.beginPath(); ctx.moveTo(tailBaseX, tailBaseY); ctx.quadraticCurveTo(s.x - fx * r * 1.5, s.y - fy * r * 1.5, tailTipX, tailTipY); ctx.stroke();
+  ctx.strokeStyle = legCol; ctx.lineWidth = r * 0.34;
+  ctx.beginPath(); ctx.moveTo(tailBaseX, tailBaseY); ctx.quadraticCurveTo(s.x - fx * r * 1.5, s.y - fy * r * 1.5, tailTipX, tailTipY); ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // Four legs — front pair toward the head end, back pair toward the tail end,
+  // each splayed out to the side, with a small paw at the foot.
+  ([[0.5, 1], [0.5, -1], [-0.45, 1], [-0.45, -1]] as [number, number][]).forEach(([along, side]) => {
+    const hipX = s.x + fx * r * along, hipY = s.y + fy * r * along;
+    const footX = hipX + px * r * 0.55 * side, footY = hipY + py * r * 0.55 * side;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = OUTLINE; ctx.lineWidth = r * 0.3 + 4;
+    ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(footX, footY); ctx.stroke();
+    ctx.strokeStyle = legCol; ctx.lineWidth = r * 0.3;
+    ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(footX, footY); ctx.stroke();
+    ctx.lineCap = 'butt';
+    ctx.fillStyle = OUTLINE;
+    ctx.beginPath(); ctx.arc(footX, footY, r * 0.14, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // Elongated body, long axis along the facing direction — reads as a
+  // quadruped silhouette from above instead of the humanoid round body.
+  ctx.fillStyle = radialFill(ctx, s.x, s.y, r, bodyCol, bodyCol2);
+  ctx.beginPath(); ctx.ellipse(s.x, s.y, r * 1.05, r * 0.68, angle, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.stroke();
+
+  // Spine stripe and a highlight patch for fur texture/depth.
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = legCol; ctx.lineWidth = r * 0.12;
+  ctx.beginPath(); ctx.moveTo(s.x - fx * r * 0.75, s.y - fy * r * 0.75); ctx.lineTo(s.x + fx * r * 0.55, s.y + fy * r * 0.55); ctx.stroke();
+  ctx.lineCap = 'butt';
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.beginPath(); ctx.ellipse(s.x - px * r * 0.3 + fx * r * 0.1, s.y - py * r * 0.3 + fy * r * 0.1, r * 0.28, r * 0.16, angle, 0, Math.PI * 2); ctx.fill();
+
+  // Head/snout, offset forward and tapered toward the facing direction.
+  const headX = s.x + fx * r * 0.95, headY = s.y + fy * r * 0.95;
+  ctx.fillStyle = radialFill(ctx, headX, headY, r * 0.55, bodyCol2, z.skinDark);
+  ctx.beginPath(); ctx.ellipse(headX, headY, r * 0.5, r * 0.36, angle, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2.5; ctx.stroke();
+
+  // Ears — small triangles on top of the head.
+  ctx.fillStyle = legCol; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2;
+  [-1, 1].forEach(side => {
+    const a = angle + side * 0.5;
+    const bx = headX + Math.cos(a) * r * 0.3, by = headY + Math.sin(a) * r * 0.3;
+    const tx = headX + Math.cos(a) * r * 0.7, ty = headY + Math.sin(a) * r * 0.7;
+    ctx.beginPath();
+    ctx.moveTo(bx - px * r * 0.1 * side, by - py * r * 0.1 * side);
+    ctx.lineTo(tx, ty);
+    ctx.lineTo(bx + px * r * 0.1 * side, by + py * r * 0.1 * side);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  });
+
+  // Glowing eyes — distinguishes it at a glance from the white-eyed humanoid zombies.
+  ctx.fillStyle = flashing ? '#ffffff' : '#ffcf4d';
+  [-1, 1].forEach(side => {
+    const ex = headX + fx * r * 0.15 + px * r * 0.22 * side;
+    const ey = headY + fy * r * 0.15 + py * r * 0.22 * side;
+    ctx.beginPath(); ctx.arc(ex, ey, r * 0.09, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // Open snarling mouth with fangs at the snout tip.
+  const snoutX = headX + fx * r * 0.42, snoutY = headY + fy * r * 0.42;
+  ctx.fillStyle = '#1a0a0a';
+  ctx.beginPath(); ctx.ellipse(snoutX, snoutY, r * 0.22, r * 0.13, angle, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f0ead6';
+  [-1, 1].forEach(side => {
+    const tx = snoutX + px * r * 0.12 * side, ty = snoutY + py * r * 0.12 * side;
+    ctx.beginPath();
+    ctx.moveTo(tx - px * r * 0.04 * side, ty - py * r * 0.04 * side);
+    ctx.lineTo(tx + fx * r * 0.14, ty + fy * r * 0.14);
+    ctx.lineTo(tx + px * r * 0.04 * side, ty + py * r * 0.04 * side);
+    ctx.closePath(); ctx.fill();
+  });
+}
+
 export function drawZombie(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, z: Zombie): void {
   const s = worldToScreen(z.x, z.y);
   if (s.x < -110 || s.x > canvas.width + 110 || s.y < -110 || s.y > canvas.height + 110) return;
@@ -180,6 +271,14 @@ export function drawZombie(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElem
     const barW2 = z.radius * 2;
     ctx.fillStyle = '#00000088'; ctx.fillRect(s.x - barW2 / 2, s.y - z.radius - 18, barW2, 6);
     ctx.fillStyle = '#c084fc'; ctx.fillRect(s.x - barW2 / 2, s.y - z.radius - 18, barW2 * (z.hp / z.maxHp), 6);
+    return;
+  }
+
+  if (z.type === 'wolf') {
+    drawWolfZombie(ctx, z, s, angle, flashing, OUTLINE);
+    const barW3 = z.radius * 2;
+    ctx.fillStyle = '#00000088'; ctx.fillRect(s.x - barW3 / 2, s.y - z.radius - 12, barW3, 5);
+    ctx.fillStyle = '#ff5c5c'; ctx.fillRect(s.x - barW3 / 2, s.y - z.radius - 12, barW3 * (z.hp / z.maxHp), 5);
     return;
   }
 
