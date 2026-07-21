@@ -107,9 +107,15 @@
   var BUILD_DEFS = {
     wall: { label: "Wall", wood: 15, stone: 0, hp: 80, radius: 26, color: ["#c9a668", "#9aa3a6", "#c7cfd2"] },
     spike: { label: "Spike", wood: 10, stone: 5, hp: 40, radius: 18, damage: 9 },
-    turret: { label: "Turret", wood: 25, stone: 20, hp: 70, radius: 20, range: 270, fireRate: 1.6, damage: 9 },
     campfire: { label: "Campfire", wood: 20, stone: 0, hp: 50, radius: 20, healRadius: 150, healRate: 5 },
-    shop: { label: "Shop", wood: 40, stone: 35, hp: 120, radius: 24 }
+    shop: { label: "Shop", wood: 40, stone: 35, hp: 120, radius: 24 },
+    factory: { label: "Factory", wood: 50, stone: 40, hp: 150, radius: 28 },
+    cannon: { label: "Cannon", wood: 25, stone: 20, hp: 70, radius: 20, range: 250, fireRate: 1, damage: 15 },
+    mortar: { label: "Mortar", wood: 35, stone: 25, hp: 80, radius: 22, range: 400, fireRate: 0.4, damage: 40 },
+    sniper: { label: "Sniper", wood: 40, stone: 30, hp: 60, radius: 20, range: 600, fireRate: 0.25, damage: 120 },
+    tesla: { label: "Tesla Tower", wood: 30, stone: 30, hp: 70, radius: 20, range: 240, fireRate: 0.8, damage: 20 },
+    frost: { label: "Frost Tower", wood: 30, stone: 25, hp: 90, radius: 22, range: 200, fireRate: 1, damage: 5 },
+    toxic: { label: "Toxic Spitter", wood: 35, stone: 30, hp: 80, radius: 20, range: 340, fireRate: 0.25, damage: 10 }
   };
   var STRUCTURE_TIERS = {
     wall: [
@@ -117,15 +123,58 @@
       { name: "Stone", hpMax: 170, pointsCost: 40 },
       { name: "Metal", hpMax: 280, pointsCost: 90 }
     ],
-    turret: [
-      { name: "Mk1", hpMax: 70, damage: 9, range: 270, fireRate: 1.6, pointsCost: 0 },
-      { name: "Mk2", hpMax: 110, damage: 14, range: 310, fireRate: 2, pointsCost: 70 },
-      { name: "Mk3", hpMax: 160, damage: 20, range: 350, fireRate: 2.5, pointsCost: 150 }
-    ],
     spike: [
       { name: "Sharp", hpMax: 40, damage: 9, pointsCost: 0 },
       { name: "Barbed", hpMax: 65, damage: 16, pointsCost: 45 },
       { name: "Serrated", hpMax: 95, damage: 26, pointsCost: 95 }
+    ]
+  };
+  var TOWER_LEVELS = {
+    cannon: [
+      { damage: 15, fireRate: 1, range: 250, cost: null },
+      { damage: 22, fireRate: 1.1, range: 275, cost: { resource: "wood", amount: 10 } },
+      { damage: 32, fireRate: 1.25, range: 300, cost: { resource: "stone", amount: 15 } },
+      { damage: 48, fireRate: 1.4, range: 325, cost: { resource: "iron", amount: 8 } },
+      { damage: 75, fireRate: 1.6, range: 350, cost: { resource: "gold", amount: 3 } }
+    ],
+    mortar: [
+      { damage: 40, fireRate: 0.4, range: 400, specialValue: 125, cost: null },
+      // splash radius 125px
+      { damage: 60, fireRate: 0.45, range: 420, specialValue: 140, cost: { resource: "wood", amount: 15 } },
+      { damage: 90, fireRate: 0.5, range: 440, specialValue: 160, cost: { resource: "stone", amount: 20 } },
+      { damage: 135, fireRate: 0.55, range: 460, specialValue: 180, cost: { resource: "iron", amount: 12 } },
+      { damage: 210, fireRate: 0.6, range: 480, specialValue: 200, cost: { resource: "gold", amount: 4 } }
+    ],
+    tesla: [
+      { damage: 20, fireRate: 0.8, range: 240, specialValue: 3, cost: null },
+      // chain count 3
+      { damage: 30, fireRate: 0.9, range: 260, specialValue: 3, cost: { resource: "wood", amount: 12 } },
+      { damage: 45, fireRate: 1, range: 280, specialValue: 4, cost: { resource: "stone", amount: 18 } },
+      { damage: 65, fireRate: 1.1, range: 300, specialValue: 5, cost: { resource: "iron", amount: 10 } },
+      { damage: 100, fireRate: 1.3, range: 320, specialValue: 6, cost: { resource: "gold", amount: 3 } }
+    ],
+    sniper: [
+      { damage: 120, fireRate: 0.25, range: 600, cost: null },
+      { damage: 180, fireRate: 0.28, range: 650, cost: { resource: "wood", amount: 18 } },
+      { damage: 270, fireRate: 0.32, range: 700, cost: { resource: "stone", amount: 25 } },
+      { damage: 400, fireRate: 0.35, range: 750, cost: { resource: "iron", amount: 15 } },
+      { damage: 650, fireRate: 0.4, range: 800, cost: { resource: "gold", amount: 5 } }
+    ],
+    frost: [
+      { damage: 5, fireRate: 1, range: 200, specialValue: 0.2, cost: null },
+      // slow rate 20%
+      { damage: 8, fireRate: 1, range: 225, specialValue: 0.25, cost: { resource: "wood", amount: 12 } },
+      { damage: 13, fireRate: 1, range: 250, specialValue: 0.32, cost: { resource: "stone", amount: 18 } },
+      { damage: 20, fireRate: 1, range: 275, specialValue: 0.4, cost: { resource: "iron", amount: 10 } },
+      { damage: 32, fireRate: 1, range: 300, specialValue: 0.5, cost: { resource: "gold", amount: 3 } }
+    ],
+    toxic: [
+      { damage: 10, fireRate: 0.25, range: 340, specialValue: 5, cost: null },
+      // armor reduction 5
+      { damage: 16, fireRate: 0.25, range: 360, specialValue: 8, cost: { resource: "wood", amount: 15 } },
+      { damage: 25, fireRate: 0.25, range: 380, specialValue: 12, cost: { resource: "stone", amount: 20 } },
+      { damage: 38, fireRate: 0.25, range: 400, specialValue: 18, cost: { resource: "iron", amount: 12 } },
+      { damage: 58, fireRate: 0.25, range: 420, specialValue: 25, cost: { resource: "gold", amount: 4 } }
     ]
   };
   var ZTYPE = {
@@ -229,6 +278,8 @@
     points: 0,
     wood: 0,
     stone: 0,
+    iron: 0,
+    gold: 0,
     kills: 0,
     regen: BASE_STATS.regen,
     alive: true,
@@ -393,6 +444,22 @@
   function setDebugSpeedMultiplier(val) {
     debugSpeedMultiplier = val;
   }
+  var fireZones = [];
+  function setFireZones(val) {
+    fireZones = val;
+  }
+  var toxicClouds = [];
+  function setToxicClouds(val) {
+    toxicClouds = val;
+  }
+  var teslaChains = [];
+  function setTeslaChains(val) {
+    teslaChains = val;
+  }
+  var sniperLasers = [];
+  function setSniperLasers(val) {
+    sniperLasers = val;
+  }
 
   // src/utils.ts
   var elCache = {};
@@ -520,9 +587,15 @@
       if (k === "e") onTryBuildOrUpgrade();
       if (k === "1") onSelectBuild("wall");
       if (k === "2") onSelectBuild("spike");
-      if (k === "3") onSelectBuild("turret");
-      if (k === "4") onSelectBuild("campfire");
-      if (k === "5") onSelectBuild("shop");
+      if (k === "3") onSelectBuild("cannon");
+      if (k === "4") onSelectBuild("mortar");
+      if (k === "5") onSelectBuild("sniper");
+      if (k === "6") onSelectBuild("tesla");
+      if (k === "7") onSelectBuild("frost");
+      if (k === "8") onSelectBuild("toxic");
+      if (k === "9") onSelectBuild("campfire");
+      if (k === "0") onSelectBuild("shop");
+      if (k === "-") onSelectBuild("factory");
       if (k === "r" && (selectedBuild === "wall" || selectedBuild === "spike")) {
         const base = manualBuildAngle !== null ? manualBuildAngle : snapAngleToCardinal(player.angle);
         setManualBuildAngle((base + Math.PI / 2) % (Math.PI * 2));
@@ -1115,6 +1188,10 @@
     }
     return "normal";
   }
+  var nextZombieId = 1;
+  function resetZombieId() {
+    nextZombieId = 1;
+  }
   function spawnZombie(forceType, atX, atY) {
     const type = forceType || pickZombieType();
     let x, y;
@@ -1135,7 +1212,15 @@
     const usesVariant = type === "normal" || type === "scout";
     const variant = usesVariant ? SKIN_VARIANTS[Math.floor(rand(0, SKIN_VARIANTS.length))] : [def.color, def.color2, def.dark];
     const cloth = type === "boss" || type === "wolf" ? null : CLOTH_COLORS[Math.floor(rand(0, CLOTH_COLORS.length))];
+    let armorVal = 0;
+    if (type === "spider") armorVal = 2;
+    else if (type === "spitter") armorVal = 3;
+    else if (type === "exploder") armorVal = 4;
+    else if (type === "witch") armorVal = 6;
+    else if (type === "brute") armorVal = 12;
+    else if (type === "boss") armorVal = 24;
     const z = {
+      id: nextZombieId++,
       type,
       x,
       y,
@@ -1156,7 +1241,8 @@
       skinColor: variant[0],
       skinColor2: variant[1],
       skinDark: variant[2],
-      clothColor: cloth
+      clothColor: cloth,
+      armor: armorVal
     };
     z.maxHp = z.hp;
     if (type === "spitter") {
@@ -1410,6 +1496,16 @@
           player.hp = Math.min(player.maxHp, player.hp + amt);
           spawnParticle(c.x, c.y, "+" + amt + " hp", "#8bd17c");
         }
+        if (Math.random() < 0.35) {
+          const ironAmt = Math.round((2 + Math.floor(Math.random() * 4)) * (player.resourceMul || 1));
+          player.iron += ironAmt;
+          setTimeout(() => spawnParticle(c.x, c.y - 15, "+" + ironAmt + " iron", "#708090"), 150);
+        }
+        if (Math.random() < 0.15) {
+          const goldAmt = Math.round((1 + Math.floor(Math.random() * 2)) * (player.resourceMul || 1));
+          player.gold += goldAmt;
+          setTimeout(() => spawnParticle(c.x, c.y - 30, "+" + goldAmt + " gold", "#ffd76a"), 300);
+        }
         spawnBurst(c.x, c.y, "#ffd76a", 8);
       }
     }
@@ -1430,19 +1526,54 @@
     for (const z of zombies) {
       const d = dist(b.x, b.y, z.x, z.y);
       if (d < radius + z.radius) {
-        const falloff = 1 - d / (radius + z.radius) * 0.4;
-        const dealt = b.damage * falloff;
-        z.hp -= dealt;
+        let dealt = b.damage;
+        if (b.isMortar && b.mortarLevel && b.mortarLevel >= 3 && d < 55) {
+          dealt *= b.mortarLevel === 3 ? 1.4 : 1.8;
+        } else {
+          const falloff = 1 - d / (radius + z.radius) * 0.4;
+          dealt *= falloff;
+        }
+        const vuln = 1 + (z.dmgVulnerability || 0);
+        const physVuln = 1 + (z.physVulnerability || 0);
+        let finalDmg = dealt * vuln;
+        if (b.owner === "player" || b.owner === "turret") {
+          finalDmg *= physVuln;
+        }
+        const reducedArmor = Math.max(0, z.armor - (z.armorReduction || 0));
+        const armorPen = b.armorPenetration ? reducedArmor * b.armorPenetration : 0;
+        const netArmor = Math.max(0, reducedArmor - armorPen);
+        finalDmg = Math.max(1, finalDmg - netArmor);
+        z.hp -= finalDmg;
         z.flash = performance.now();
         if (b.owner === "player" && player.mutation === "vampire") {
-          player.hp = Math.min(player.maxHp, player.hp + dealt * 0.02);
+          player.hp = Math.min(player.maxHp, player.hp + finalDmg * 0.02);
         }
         if (z.hp <= 0) zombieDied(z);
         else spawnBlood(z.x, z.y, z.radius * 0.4);
       }
     }
-    spawnBurst(b.x, b.y, "#ffb347", 26);
-    triggerShake(10, 220);
+    if (b.isMortar && b.mortarLevel === 5) {
+      fireZones.push({
+        x: b.x,
+        y: b.y,
+        radius: 90,
+        damagePerSec: 30,
+        endsAt: performance.now() + 3e3
+      });
+    }
+    if (b.isToxic) {
+      toxicClouds.push({
+        x: b.x,
+        y: b.y,
+        radius: b.toxicRadius || 150,
+        damagePerSec: b.toxicDmg || 10,
+        armorReduction: b.armorReduction || 5,
+        dmgVulnerability: b.dmgVulnerability || 0,
+        endsAt: performance.now() + 4e3
+      });
+    }
+    spawnBurst(b.x, b.y, b.isToxic ? "#59b37a" : "#ffb347", b.isToxic ? 14 : 26);
+    triggerShake(b.isToxic ? 4 : 10, 220);
   }
   function updateBullets(dt) {
     bullets.forEach((b) => {
@@ -1479,18 +1610,32 @@
           if (b.explosive) {
             explodeBullet(b);
           } else {
-            z.hp -= b.damage;
+            const vuln = 1 + (z.dmgVulnerability || 0);
+            const physVuln = 1 + (z.physVulnerability || 0);
+            let finalDmg = b.damage * vuln;
+            if (b.owner === "player" || b.owner === "turret") {
+              finalDmg *= physVuln;
+            }
+            const reducedArmor = Math.max(0, z.armor - (z.armorReduction || 0));
+            const armorPen = b.armorPenetration ? reducedArmor * b.armorPenetration : 0;
+            const netArmor = Math.max(0, reducedArmor - armorPen);
+            finalDmg = Math.max(1, finalDmg - netArmor);
+            z.hp -= finalDmg;
             z.flash = performance.now();
-            spawnDamageNumber(z.x, z.y - 20, b.damage, "#ff8080");
+            spawnDamageNumber(z.x, z.y - 20, Math.round(finalDmg), b.owner === "turret" ? "#f08080" : "#ff8080");
+            if (b.owner === "turret" && b.armorPenetration === 0.5) {
+              const pushDir = Math.atan2(z.y - b.y, z.x - b.x);
+              z.x = clamp(z.x + Math.cos(pushDir) * 16, z.radius, WORLD_W - z.radius);
+              z.y = clamp(z.y + Math.sin(pushDir) * 16, z.radius, WORLD_H - z.radius);
+            }
             if (b.owner === "player" && player.mutation === "vampire") {
-              player.hp = Math.min(player.maxHp, player.hp + b.damage * 0.02);
+              player.hp = Math.min(player.maxHp, player.hp + finalDmg * 0.02);
             }
             if (b.owner === "player" && b.burn) {
               z.burnUntil = performance.now() + BURN_DURATION_MS;
               z.burnDamagePerSec = b.damage * BURN_DAMAGE_FRACTION;
             }
             if (z.hp <= 0) zombieDied(z);
-            else if (Math.random() < 0.4) spawnBlood(z.x, z.y, z.radius * 0.5);
           }
           b.dead = true;
           break;
@@ -1514,6 +1659,16 @@
                 const amt = Math.round((6 + Math.random() * 4) * (player.resourceMul || 1));
                 player.stone += amt;
                 spawnParticle(r.x, r.y, "+" + amt + " stone", "#9aa7ac");
+                if (Math.random() < 0.25) {
+                  const ironAmt = Math.round((1 + Math.floor(Math.random() * 3)) * (player.resourceMul || 1));
+                  player.iron += ironAmt;
+                  setTimeout(() => spawnParticle(r.x, r.y - 15, "+" + ironAmt + " iron", "#708090"), 150);
+                }
+                if (Math.random() < 0.08) {
+                  const goldAmt = 1;
+                  player.gold += goldAmt;
+                  setTimeout(() => spawnParticle(r.x, r.y - 30, "+" + goldAmt + " gold", "#ffd76a"), 300);
+                }
                 gainXp(Math.round(3 * (player.resourceMul || 1)));
               }
             }
@@ -1528,35 +1683,57 @@
   }
   function updateStructures(dt) {
     const now = performance.now();
-    for (const s of structures) {
-      if (s.type === "turret") {
-        if (!s.lastShot) s.lastShot = 0;
-        let nearest = null, nd = Infinity;
-        for (const z of zombies) {
-          const d = dist(s.x, s.y, z.x, z.y);
-          if (d < (s.range || 0) && d < nd) {
-            nd = d;
-            nearest = z;
-          }
+    for (const z of zombies) {
+      z.armorReduction = 0;
+      z.dmgVulnerability = 0;
+      z.slowAmount = 0;
+      z.physVulnerability = 0;
+    }
+    const activeFireZones = fireZones.filter((fz) => now < fz.endsAt);
+    for (const fz of activeFireZones) {
+      const dmg = fz.damagePerSec * dt / 1e3;
+      for (const z of zombies) {
+        if (z.dead) continue;
+        if (dist(fz.x, fz.y, z.x, z.y) < fz.radius + z.radius) {
+          z.hp -= dmg;
+          z.flash = now;
+          if (z.hp <= 0) zombieDied(z);
         }
-        if (nearest) {
-          s.aimAngle = Math.atan2(nearest.y - s.y, nearest.x - s.x);
-          if (now - s.lastShot > 1e3 / (s.fireRate || 1)) {
-            s.lastShot = now;
-            const a = s.aimAngle;
-            bullets.push({
-              x: s.x + Math.cos(a) * (s.radius + 4),
-              y: s.y + Math.sin(a) * (s.radius + 4),
-              vx: Math.cos(a) * 8,
-              vy: Math.sin(a) * 8,
-              radius: 4,
-              damage: s.damage || 9,
-              life: 1200,
-              owner: "turret"
-            });
+      }
+    }
+    setFireZones(activeFireZones);
+    const activeToxicClouds = toxicClouds.filter((tc) => now < tc.endsAt);
+    for (const tc of activeToxicClouds) {
+      const dmg = tc.damagePerSec * dt / 1e3;
+      for (const z of zombies) {
+        if (z.dead) continue;
+        if (dist(tc.x, tc.y, z.x, z.y) < tc.radius + z.radius) {
+          z.hp -= dmg;
+          z.flash = now;
+          z.armorReduction = Math.max(z.armorReduction || 0, tc.armorReduction);
+          z.dmgVulnerability = Math.max(z.dmgVulnerability || 0, tc.dmgVulnerability);
+          z.toxicUntil = now + 500;
+          if (z.hp <= 0) {
+            zombieDied(z);
+            if (tc.armorReduction === 25) {
+              toxicClouds.push({
+                x: z.x,
+                y: z.y,
+                radius: 75,
+                damagePerSec: 12,
+                armorReduction: 10,
+                dmgVulnerability: 0.1,
+                endsAt: now + 2e3
+              });
+            }
           }
         }
       }
+    }
+    setToxicClouds(activeToxicClouds);
+    setTeslaChains(teslaChains.filter((tc) => now < tc.endsAt));
+    setSniperLasers(sniperLasers.filter((sl) => now < sl.endsAt));
+    for (const s of structures) {
       if (s.type === "campfire") {
         if (dist(player.x, player.y, s.x, s.y) < (s.healRadius || 150)) {
           player.hp = Math.min(player.maxHp, player.hp + (s.healRate || 5) * dt / 1e3);
@@ -1566,12 +1743,287 @@
         for (const z of zombies) {
           if (dist(s.x, s.y, z.x, z.y) < s.radius + z.radius) {
             if (!z.spikeCd || now - z.spikeCd > 500) {
-              z.hp -= s.damage || 9;
+              const reducedArmor = Math.max(0, z.armor - (z.armorReduction || 0));
+              const vuln = 1 + (z.dmgVulnerability || 0);
+              const physVuln = 1 + (z.physVulnerability || 0);
+              let finalDmg = (s.damage || 9) * vuln * physVuln;
+              finalDmg = Math.max(1, finalDmg - reducedArmor);
+              z.hp -= finalDmg;
               z.spikeCd = now;
               z.flash = now;
               if (z.hp <= 0) zombieDied(z);
             }
           }
+        }
+      }
+      if (s.type === "cannon") {
+        const lvl = s.level || 1;
+        const spec = TOWER_LEVELS.cannon[lvl - 1];
+        if (!s.lastShot) s.lastShot = 0;
+        let target = null, bestDist = Infinity;
+        for (const z of zombies) {
+          if (z.dead) continue;
+          const d = dist(s.x, s.y, z.x, z.y);
+          if (d < spec.range) {
+            const dPlayer = dist(z.x, z.y, player.x, player.y);
+            if (dPlayer < bestDist) {
+              target = z;
+              bestDist = dPlayer;
+            }
+          }
+        }
+        if (target) {
+          s.aimAngle = Math.atan2(target.y - s.y, target.x - s.x);
+          let speedup = 1;
+          if (lvl >= 3) {
+            if (s.lastTargetId !== target.id) {
+              s.consecutiveHits = 0;
+            }
+            const maxBoost = lvl === 3 ? 0.3 : 0.5;
+            speedup = 1 + Math.min(maxBoost, (s.consecutiveHits || 0) * 0.05);
+          }
+          const cooldown = 1e3 / (spec.fireRate * speedup);
+          if (now - s.lastShot > cooldown) {
+            s.lastShot = now;
+            if (lvl >= 3) {
+              s.lastTargetId = target.id;
+              s.consecutiveHits = (s.consecutiveHits || 0) + 1;
+            }
+            const a = s.aimAngle;
+            const b = {
+              x: s.x + Math.cos(a) * (s.radius + 4),
+              y: s.y + Math.sin(a) * (s.radius + 4),
+              vx: Math.cos(a) * 8.5,
+              vy: Math.sin(a) * 8.5,
+              radius: 4,
+              damage: spec.damage,
+              life: 1200,
+              owner: "turret"
+            };
+            if (lvl === 5) {
+              b.armorPenetration = 0.5;
+            }
+            bullets.push(b);
+          }
+        }
+      }
+      if (s.type === "mortar") {
+        const lvl = s.level || 1;
+        const spec = TOWER_LEVELS.mortar[lvl - 1];
+        if (!s.lastShot) s.lastShot = 0;
+        let target = null, bestDensity = -1;
+        for (const z of zombies) {
+          if (z.dead) continue;
+          const d = dist(s.x, s.y, z.x, z.y);
+          if (d >= 120 && d < spec.range) {
+            let density = 0;
+            for (const other of zombies) {
+              if (other !== z && !other.dead && dist(z.x, z.y, other.x, other.y) < 120) {
+                density++;
+              }
+            }
+            if (density > bestDensity) {
+              target = z;
+              bestDensity = density;
+            }
+          }
+        }
+        if (target && now - s.lastShot > 1e3 / spec.fireRate) {
+          s.lastShot = now;
+          s.aimAngle = Math.atan2(target.y - s.y, target.x - s.x);
+          const a = s.aimAngle;
+          bullets.push({
+            x: s.x + Math.cos(a) * (s.radius + 4),
+            y: s.y + Math.sin(a) * (s.radius + 4),
+            vx: Math.cos(a) * 4.5,
+            vy: Math.sin(a) * 4.5,
+            radius: 6,
+            damage: spec.damage,
+            life: 1800,
+            owner: "turret",
+            explosive: true,
+            explodeRadius: spec.specialValue || 125,
+            isMortar: true,
+            mortarLevel: lvl
+          });
+        }
+      }
+      if (s.type === "tesla") {
+        const lvl = s.level || 1;
+        const spec = TOWER_LEVELS.tesla[lvl - 1];
+        if (!s.lastShot) s.lastShot = 0;
+        let target = null, bestD = Infinity;
+        for (const z of zombies) {
+          if (z.dead) continue;
+          const d = dist(s.x, s.y, z.x, z.y);
+          if (d < spec.range && d < bestD) {
+            target = z;
+            bestD = d;
+          }
+        }
+        if (target && now - s.lastShot > 1e3 / spec.fireRate) {
+          s.lastShot = now;
+          s.aimAngle = Math.atan2(target.y - s.y, target.x - s.x);
+          const maxChains = spec.specialValue || 3;
+          const damageReduction = lvl === 3 ? 0.08 : lvl >= 4 ? 0.05 : 0.15;
+          let current = target;
+          let chainDmg = spec.damage;
+          const hitSet = /* @__PURE__ */ new Set();
+          const segments = [];
+          let sx = s.x, sy = s.y;
+          for (let c = 0; c < maxChains; c++) {
+            if (!current) break;
+            hitSet.add(current.id);
+            const reducedArmor = Math.max(0, current.armor - (current.armorReduction || 0));
+            const vuln = 1 + (current.dmgVulnerability || 0);
+            const finalDmg = Math.max(1, chainDmg * vuln - reducedArmor);
+            current.hp -= finalDmg;
+            current.flash = now;
+            if (lvl === 5 && Math.random() < 0.2) {
+              current.stunUntil = now + 1e3;
+              spawnParticle(current.x, current.y - 20, "SHOCK", "#89cff0");
+            }
+            if (current.hp <= 0) zombieDied(current);
+            segments.push({ sx, sy, tx: current.x, ty: current.y });
+            let next = null, nextBestD = Infinity;
+            for (const z of zombies) {
+              if (z.dead || hitSet.has(z.id)) continue;
+              const dNext = dist(current.x, current.y, z.x, z.y);
+              if (dNext < 160 && dNext < nextBestD) {
+                next = z;
+                nextBestD = dNext;
+              }
+            }
+            sx = current.x;
+            sy = current.y;
+            current = next;
+            chainDmg *= 1 - damageReduction;
+          }
+          teslaChains.push({ segments, endsAt: now + 100 });
+        }
+      }
+      if (s.type === "sniper") {
+        const lvl = s.level || 1;
+        const spec = TOWER_LEVELS.sniper[lvl - 1];
+        if (!s.lastShot) s.lastShot = 0;
+        let target = null, highestHp = -1;
+        for (const z of zombies) {
+          if (z.dead) continue;
+          const d = dist(s.x, s.y, z.x, z.y);
+          if (d < spec.range && z.hp > highestHp) {
+            target = z;
+            highestHp = z.hp;
+          }
+        }
+        if (target && now - s.lastShot > 1e3 / spec.fireRate) {
+          s.lastShot = now;
+          s.aimAngle = Math.atan2(target.y - s.y, target.x - s.x);
+          let damage = spec.damage;
+          let isCrit = false;
+          if (lvl >= 3) {
+            const reqHpPct = lvl === 3 ? 0.7 : 0.5;
+            if (target.hp >= target.maxHp * reqHpPct) {
+              damage *= 2;
+              isCrit = true;
+            }
+          }
+          if (lvl === 5) {
+            if (target.type === "boss") {
+              damage *= 4;
+            } else if (target.hp <= target.maxHp * 0.18) {
+              damage = target.hp + 9999;
+              isCrit = true;
+            }
+          }
+          const reducedArmor = Math.max(0, target.armor - (target.armorReduction || 0));
+          const vuln = 1 + (target.dmgVulnerability || 0);
+          const finalDmg = Math.max(1, damage * vuln - reducedArmor);
+          target.hp -= finalDmg;
+          target.flash = now;
+          spawnDamageNumber(target.x, target.y - 20, Math.round(finalDmg), isCrit ? "#ffd76a" : "#ff5c5c");
+          if (isCrit) {
+            spawnParticle(target.x, target.y - 35, "CRIT", "#ffd76a");
+          }
+          if (target.hp <= 0) zombieDied(target);
+          sniperLasers.push({ sx: s.x, sy: s.y, tx: target.x, ty: target.y, endsAt: now + 150 });
+        }
+      }
+      if (s.type === "frost") {
+        const lvl = s.level || 1;
+        const spec = TOWER_LEVELS.frost[lvl - 1];
+        const slowAmt = spec.specialValue || 0.2;
+        const dmg = spec.damage * dt / 1e3;
+        for (const z of zombies) {
+          if (z.dead) continue;
+          const d = dist(s.x, s.y, z.x, z.y);
+          if (d < spec.range) {
+            z.hp -= dmg;
+            z.flash = now;
+            if (z.hp <= 0) {
+              zombieDied(z);
+              continue;
+            }
+            z.slowedUntil = now + 300;
+            z.slowAmount = Math.max(z.slowAmount || 0, slowAmt);
+            if (lvl >= 3) {
+              z.physVulnerability = Math.max(z.physVulnerability || 0, lvl === 3 ? 0.1 : 0.2);
+            }
+            if (lvl === 5) {
+              z.frozenTime = (z.frozenTime || 0) + dt;
+              if (z.frozenTime >= 4e3) {
+                z.stunUntil = now + 2e3;
+                z.frozenTime = 0;
+                spawnParticle(z.x, z.y - 25, "FROZEN", "#5b9ad6");
+              }
+            }
+          } else {
+            if (z.frozenTime) z.frozenTime = Math.max(0, z.frozenTime - dt * 0.5);
+          }
+        }
+      }
+      if (s.type === "toxic") {
+        const lvl = s.level || 1;
+        const spec = TOWER_LEVELS.toxic[lvl - 1];
+        if (!s.lastShot) s.lastShot = 0;
+        let target = null, bestDensity = -1;
+        for (const z of zombies) {
+          if (z.dead) continue;
+          const d = dist(s.x, s.y, z.x, z.y);
+          if (d < spec.range) {
+            let density = 0;
+            for (const other of zombies) {
+              if (other !== z && !other.dead && dist(z.x, z.y, other.x, other.y) < 120) {
+                density++;
+              }
+            }
+            if (density > bestDensity) {
+              target = z;
+              bestDensity = density;
+            }
+          }
+        }
+        if (target && now - s.lastShot > 1e3 / spec.fireRate) {
+          s.lastShot = now;
+          s.aimAngle = Math.atan2(target.y - s.y, target.x - s.x);
+          const a = s.aimAngle;
+          const vuln = lvl === 3 ? 0.15 : lvl >= 4 ? 0.25 : 0;
+          bullets.push({
+            x: s.x + Math.cos(a) * (s.radius + 4),
+            y: s.y + Math.sin(a) * (s.radius + 4),
+            vx: Math.cos(a) * 5,
+            vy: Math.sin(a) * 5,
+            radius: 5,
+            damage: 0,
+            life: 1800,
+            owner: "turret",
+            explosive: true,
+            explodeRadius: 10,
+            isToxic: true,
+            toxicRadius: 150 + (lvl - 1) * 15,
+            toxicDmg: spec.damage,
+            armorReduction: spec.specialValue || 5,
+            dmgVulnerability: vuln
+          });
         }
       }
     }
@@ -1583,6 +2035,13 @@
     const speedM = nightMul(dayNightFactor), dmgM = nightDmgMul(dayNightFactor);
     for (const z of zombies) {
       const def = ZTYPE[z.type];
+      let slowMul = 1;
+      if (z.slowedUntil && now < z.slowedUntil) {
+        slowMul = Math.max(0.1, 1 - (z.slowAmount || 0.2));
+      }
+      if (z.stunUntil && now < z.stunUntil) {
+        slowMul = 0;
+      }
       if (z.burnUntil && now < z.burnUntil) {
         const burnDmg = (z.burnDamagePerSec || 0) * dt / 1e3;
         z.hp -= burnDmg;
@@ -1657,8 +2116,8 @@
           }
           z.wobble += dt * 4e-3;
           const wob = Math.sin(z.wobble) * 0.25;
-          z.x += (dx2 + -dy2 * wob) * z.speed * speedM * speedFactor * witchBuff;
-          z.y += (dy2 + dx2 * wob) * z.speed * speedM * speedFactor * witchBuff;
+          z.x += (dx2 + -dy2 * wob) * z.speed * speedM * speedFactor * witchBuff * slowMul;
+          z.y += (dy2 + dx2 * wob) * z.speed * speedM * speedFactor * witchBuff * slowMul;
         }
         if (z.type === "witch") {
           if (!z.lastSummon) z.lastSummon = 0;
@@ -1734,8 +2193,8 @@
           const witchNearby = zombies.some((other) => other.type === "witch" && !other.dead && dist(z.x, z.y, other.x, other.y) < 160);
           if (witchNearby) witchBuff = 1.35;
         }
-        z.x += (dx + -dy * wob) * z.speed * speedM * witchBuff;
-        z.y += (dy + dx * wob) * z.speed * speedM * witchBuff;
+        z.x += (dx + -dy * wob) * z.speed * speedM * witchBuff * slowMul;
+        z.y += (dy + dx * wob) * z.speed * speedM * witchBuff * slowMul;
       }
       z.x = clamp(z.x, z.radius, WORLD_W - z.radius);
       z.y = clamp(z.y, z.radius, WORLD_H - z.radius);
@@ -1758,6 +2217,29 @@
             triggerShake(z.type === "boss" ? 12 : 6, z.type === "boss" ? 250 : 150);
             checkDeath(killPlayer);
           }
+        }
+      }
+    }
+    if (player.alive) {
+      for (const z of zombies) {
+        if (z.dead) continue;
+        let dx = z.x - player.x;
+        let dy = z.y - player.y;
+        let d = Math.hypot(dx, dy);
+        const minDist = player.radius + z.radius;
+        if (d < minDist) {
+          if (d === 0) {
+            dx = Math.random() - 0.5;
+            dy = Math.random() - 0.5;
+            d = Math.hypot(dx, dy) || 1;
+          }
+          const overlap = minDist - d;
+          const playerWeight = z.type === "boss" ? 0.75 : z.type === "brute" ? 0.55 : 0.4;
+          const zombieWeight = 1 - playerWeight;
+          player.x = clamp(player.x - dx / d * overlap * playerWeight, player.radius, WORLD_W - player.radius);
+          player.y = clamp(player.y - dy / d * overlap * playerWeight, player.radius, WORLD_H - player.radius);
+          z.x = clamp(z.x + dx / d * overlap * zombieWeight, z.radius, WORLD_W - z.radius);
+          z.y = clamp(z.y + dy / d * overlap * zombieWeight, z.radius, WORLD_H - z.radius);
         }
       }
     }
@@ -1829,7 +2311,7 @@
     }
     const cell = gridCellCenter(tx, ty, TILE);
     const occupant = structureAtCell(cell.x, cell.y);
-    const canUpgrade = !!occupant && occupant.type === build && (occupant.type === "wall" || occupant.type === "turret" || occupant.type === "spike");
+    const canUpgrade = !!occupant && occupant.type === build && (occupant.type === "wall" || occupant.type === "spike" || occupant.type === "cannon" || occupant.type === "mortar" || occupant.type === "sniper" || occupant.type === "tesla" || occupant.type === "frost" || occupant.type === "toxic");
     const def = BUILD_DEFS[build];
     let blockedByResource = false;
     if (!occupant) {
@@ -2164,7 +2646,7 @@
       if (imgStone.complete && imgStone.naturalWidth !== 0) {
         const seed = Math.abs(Math.sin(r.x * 12.9898 + r.y * 78.233) * 43758.5453) % 1;
         const scaleMul = 0.88 + seed * 0.24;
-        const rot = (seed - 0.5) * 0.45;
+        const rot = seed * Math.PI * 2;
         ctx2.save();
         ctx2.translate(s.x, s.y);
         ctx2.rotate(rot);
@@ -2257,6 +2739,7 @@
     const s = worldToScreen(st.x, st.y);
     drawShadow(ctx2, s.x, s.y, st.radius);
     const ang = st.angle || 0;
+    const lvl = st.level || 1;
     if (st.type === "wall") {
       const tierGray = ["#8f9498", "#a9aeb2", "#c3c8cc"];
       const col = tierGray[st.tier ?? 0];
@@ -2333,31 +2816,220 @@
       ctx2.lineTo(w / 2 - 4, h * 0.15);
       ctx2.stroke();
       ctx2.restore();
-    } else if (st.type === "turret") {
-      const turretTierColors = ["#4a5a5e", "#597b7f", "#6a9a9e"];
-      ctx2.fillStyle = turretTierColors[st.tier ?? 0];
+    } else if (st.type === "cannon") {
+      ctx2.save();
+      ctx2.translate(s.x, s.y);
+      const baseColors = ["#4a5a5e", "#597b7f", "#6a9a9e", "#3a7d8c", "#ffd76a"];
+      ctx2.fillStyle = baseColors[lvl - 1];
       ctx2.strokeStyle = "#1c2426";
       ctx2.lineWidth = 3.5;
       ctx2.beginPath();
-      ctx2.arc(s.x, s.y, st.radius, 0, Math.PI * 2);
+      ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
       ctx2.fill();
       ctx2.stroke();
-      ctx2.fillStyle = "#6b7a7e";
-      [[-6, -6], [6, -6], [-6, 6], [6, 6]].forEach(([ox, oy]) => {
+      ctx2.fillStyle = "#ffffff";
+      for (let i = 0; i < lvl; i++) {
+        const aDots = i * Math.PI * 2 / lvl;
         ctx2.beginPath();
-        ctx2.arc(s.x + ox, s.y + oy, 2, 0, Math.PI * 2);
+        ctx2.arc(Math.cos(aDots) * (st.radius * 0.6), Math.sin(aDots) * (st.radius * 0.6), 2, 0, Math.PI * 2);
         ctx2.fill();
-      });
+      }
       const aimA = st.aimAngle ?? -Math.PI / 2;
-      ctx2.save();
-      ctx2.translate(s.x, s.y);
       ctx2.rotate(aimA + Math.PI / 2);
       ctx2.fillStyle = "#2f3a3c";
       ctx2.strokeStyle = "#1c2426";
-      ctx2.lineWidth = 2;
-      ctx2.fillRect(-4, -st.radius - 10, 8, 12);
-      ctx2.strokeRect(-4, -st.radius - 10, 8, 12);
+      ctx2.lineWidth = 2.5;
+      ctx2.fillRect(-5, -st.radius - 8, 10, 11);
+      ctx2.strokeRect(-5, -st.radius - 8, 10, 11);
+      ctx2.fillStyle = lvl === 5 ? "#e74c3c" : "#ffd76a";
+      ctx2.fillRect(-6, -st.radius - 12, 12, 4);
+      ctx2.strokeRect(-6, -st.radius - 12, 12, 4);
       ctx2.restore();
+    } else if (st.type === "mortar") {
+      ctx2.save();
+      ctx2.translate(s.x, s.y);
+      ctx2.fillStyle = "#34495e";
+      ctx2.strokeStyle = "#1a252f";
+      ctx2.lineWidth = 4;
+      ctx2.beginPath();
+      ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.strokeStyle = "#f1c40f";
+      ctx2.lineWidth = 2.5;
+      for (let i = 0; i < 8; i++) {
+        const edgeA = i * Math.PI * 2 / 8;
+        ctx2.beginPath();
+        ctx2.moveTo(Math.cos(edgeA) * (st.radius - 3), Math.sin(edgeA) * (st.radius - 3));
+        ctx2.lineTo(Math.cos(edgeA + 0.15) * st.radius, Math.sin(edgeA + 0.15) * st.radius);
+        ctx2.stroke();
+      }
+      const aimA = st.aimAngle ?? -Math.PI / 2;
+      ctx2.rotate(aimA + Math.PI / 2);
+      ctx2.fillStyle = "#2c3e50";
+      ctx2.strokeStyle = "#1a252f";
+      ctx2.lineWidth = 2;
+      ctx2.fillRect(-7, -st.radius - 3, 14, 12);
+      ctx2.strokeRect(-7, -st.radius - 3, 14, 12);
+      ctx2.fillStyle = "#111";
+      ctx2.beginPath();
+      ctx2.arc(0, -st.radius - 1, 5, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.restore();
+    } else if (st.type === "sniper") {
+      ctx2.save();
+      ctx2.translate(s.x, s.y);
+      ctx2.fillStyle = "#7f8c8d";
+      ctx2.strokeStyle = "#2c3e50";
+      ctx2.lineWidth = 3.5;
+      ctx2.beginPath();
+      ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.fillStyle = "#34495e";
+      ctx2.beginPath();
+      ctx2.arc(0, 0, st.radius * 0.6, 0, Math.PI * 2);
+      ctx2.fill();
+      const aimA = st.aimAngle ?? -Math.PI / 2;
+      ctx2.rotate(aimA + Math.PI / 2);
+      ctx2.fillStyle = "#333333";
+      ctx2.strokeStyle = "#000000";
+      ctx2.lineWidth = 1.5;
+      ctx2.fillRect(-2, -st.radius - 16, 4, 18);
+      ctx2.strokeRect(-2, -st.radius - 16, 4, 18);
+      ctx2.fillStyle = "#e74c3c";
+      ctx2.beginPath();
+      ctx2.arc(0, -st.radius - 16, 2.5, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.restore();
+    } else if (st.type === "tesla") {
+      ctx2.save();
+      ctx2.translate(s.x, s.y);
+      ctx2.fillStyle = "#d35400";
+      ctx2.strokeStyle = "#873600";
+      ctx2.lineWidth = 3.5;
+      ctx2.beginPath();
+      ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.strokeStyle = "#e67e22";
+      ctx2.lineWidth = 3;
+      ctx2.beginPath();
+      ctx2.arc(0, 0, st.radius * 0.7, 0, Math.PI * 2);
+      ctx2.stroke();
+      ctx2.beginPath();
+      ctx2.arc(0, 0, st.radius * 0.45, 0, Math.PI * 2);
+      ctx2.stroke();
+      ctx2.fillStyle = "#5dade2";
+      ctx2.strokeStyle = "#2874a6";
+      ctx2.lineWidth = 1.5;
+      const pulseRadius = st.radius * 0.3 + Math.sin(performance.now() * 0.015) * 1.5;
+      ctx2.beginPath();
+      ctx2.arc(0, 0, pulseRadius, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.stroke();
+      if (Math.random() < 0.35) {
+        ctx2.strokeStyle = "#ffffff";
+        ctx2.lineWidth = 1.2;
+        ctx2.beginPath();
+        ctx2.moveTo(0, 0);
+        const angleSpark = Math.random() * Math.PI * 2;
+        const sparkDist = st.radius * (0.4 + Math.random() * 0.45);
+        ctx2.lineTo(Math.cos(angleSpark) * sparkDist, Math.sin(angleSpark) * sparkDist);
+        ctx2.stroke();
+      }
+      ctx2.restore();
+    } else if (st.type === "frost") {
+      ctx2.save();
+      ctx2.translate(s.x, s.y);
+      const spec = TOWER_LEVELS.frost[lvl - 1];
+      ctx2.fillStyle = "rgba(165, 243, 252, 0.04)";
+      ctx2.strokeStyle = "rgba(56, 189, 248, 0.15)";
+      ctx2.lineWidth = 1.5;
+      ctx2.beginPath();
+      ctx2.arc(0, 0, spec.range, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.fillStyle = "#a5f3fc";
+      ctx2.strokeStyle = "#0284c7";
+      ctx2.lineWidth = 3.5;
+      ctx2.beginPath();
+      ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.fillStyle = "#e0f2fe";
+      ctx2.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const shardA = i * Math.PI * 2 / 6;
+        ctx2.lineTo(Math.cos(shardA) * (st.radius * 0.8), Math.sin(shardA) * (st.radius * 0.8));
+      }
+      ctx2.closePath();
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.restore();
+    } else if (st.type === "toxic") {
+      ctx2.save();
+      ctx2.translate(s.x, s.y);
+      ctx2.fillStyle = "#1e8449";
+      ctx2.strokeStyle = "#145a32";
+      ctx2.lineWidth = 3.5;
+      ctx2.beginPath();
+      ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.fillStyle = "#2ecc71";
+      const nowBubble = performance.now();
+      [[-6, -6], [6, -6], [-6, 6], [6, 6]].forEach(([ox, oy], i) => {
+        const pRadius = 3 + Math.sin(nowBubble * 8e-3 + i) * 1;
+        ctx2.beginPath();
+        ctx2.arc(ox, oy, pRadius, 0, Math.PI * 2);
+        ctx2.fill();
+      });
+      const aimA = st.aimAngle ?? -Math.PI / 2;
+      ctx2.rotate(aimA + Math.PI / 2);
+      ctx2.fillStyle = "#27ae60";
+      ctx2.strokeStyle = "#145a32";
+      ctx2.lineWidth = 2;
+      ctx2.fillRect(-4, -st.radius - 4, 8, 10);
+      ctx2.strokeRect(-4, -st.radius - 4, 8, 10);
+      ctx2.restore();
+    } else if (st.type === "factory") {
+      const w = st.radius * 2.1, h = st.radius * 1.5;
+      ctx2.save();
+      ctx2.translate(s.x, s.y);
+      ctx2.rotate(ang + Math.PI / 2);
+      ctx2.fillStyle = "#c0392b";
+      ctx2.strokeStyle = "#78281f";
+      ctx2.lineWidth = 4;
+      roundRectPath(ctx2, -w / 2, -h / 2, w, h, 6);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.fillStyle = "#922b21";
+      ctx2.beginPath();
+      ctx2.moveTo(-w / 2, -h / 2);
+      ctx2.lineTo(-w / 4, -h / 2 - 8);
+      ctx2.lineTo(-w / 4, -h / 2);
+      ctx2.lineTo(0, -h / 2 - 8);
+      ctx2.lineTo(0, -h / 2);
+      ctx2.lineTo(w / 4, -h / 2 - 8);
+      ctx2.lineTo(w / 4, -h / 2);
+      ctx2.lineTo(w / 2, -h / 2 - 8);
+      ctx2.lineTo(w / 2, -h / 2);
+      ctx2.closePath();
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.fillStyle = "#7f8c8d";
+      ctx2.strokeStyle = "#2c3e50";
+      ctx2.lineWidth = 2;
+      ctx2.fillRect(-w * 0.3, -h / 2 - 14, 5, 12);
+      ctx2.strokeRect(-w * 0.3, -h / 2 - 14, 5, 12);
+      ctx2.fillRect(w * 0.2, -h / 2 - 14, 5, 12);
+      ctx2.strokeRect(w * 0.2, -h / 2 - 14, 5, 12);
+      ctx2.restore();
+      if (Math.random() < 0.12) {
+        const smokeX = s.x + (Math.random() < 0.5 ? -w * 0.3 : w * 0.2);
+        const smokeY = s.y - h / 2 - 14;
+      }
     } else if (st.type === "campfire") {
       ctx2.fillStyle = "#5c4530";
       ctx2.strokeStyle = "#22190f";
@@ -2416,6 +3088,20 @@
       ctx2.textAlign = "center";
       ctx2.fillText("$", s.x, s.y - st.radius * 0.1 + st.radius * 0.14);
     }
+    if (st.type === "cannon" || st.type === "mortar" || st.type === "sniper" || st.type === "tesla" || st.type === "frost" || st.type === "toxic") {
+      ctx2.save();
+      ctx2.fillStyle = "rgba(10, 18, 14, 0.72)";
+      ctx2.strokeStyle = "rgba(255, 215, 106, 0.25)";
+      ctx2.lineWidth = 1;
+      roundRectPath(ctx2, s.x - 14, s.y - st.radius - 23, 28, 9, 2);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.fillStyle = "#ffd76a";
+      ctx2.font = "bold 8px 'Share Tech Mono', monospace";
+      ctx2.textAlign = "center";
+      ctx2.fillText("LV " + lvl, s.x, s.y - st.radius - 16);
+      ctx2.restore();
+    }
     if (st.hp < st.maxHp) {
       const w = st.radius * 2;
       ctx2.fillStyle = "#00000088";
@@ -2431,15 +3117,31 @@
     const half = TILE / 2;
     let color = "#8bd17c";
     let label = "";
-    if (target.occupant && target.canUpgrade && (target.occupant.type === "wall" || target.occupant.type === "turret" || target.occupant.type === "spike")) {
-      const tiers = STRUCTURE_TIERS[target.occupant.type];
-      const next = tiers[(target.occupant.tier || 0) + 1];
-      if (next) {
-        color = "#4ecdc4";
-        label = "UPGRADE  " + next.pointsCost + " pts";
-      } else {
-        color = "#8bd17c";
-        label = "MAX TIER";
+    if (target.occupant && target.canUpgrade) {
+      if (target.occupant.type === "wall" || target.occupant.type === "spike") {
+        const tiers = STRUCTURE_TIERS[target.occupant.type];
+        const next = tiers[(target.occupant.tier || 0) + 1];
+        if (next) {
+          color = "#4ecdc4";
+          label = "UPGRADE  " + next.pointsCost + " pts";
+        } else {
+          color = "#8bd17c";
+          label = "MAX TIER";
+        }
+      } else if (target.occupant.type === "cannon" || target.occupant.type === "mortar" || target.occupant.type === "sniper" || target.occupant.type === "tesla" || target.occupant.type === "frost" || target.occupant.type === "toxic") {
+        const lvl = target.occupant.level || 1;
+        if (lvl < 5) {
+          const levels = TOWER_LEVELS[target.occupant.type];
+          const nextSpec = levels[lvl];
+          const costInfo = nextSpec.cost;
+          if (costInfo) {
+            color = "#ffd76a";
+            label = "UPGRADE  " + costInfo.amount + " " + costInfo.resource;
+          }
+        } else {
+          color = "#8bd17c";
+          label = "MAX LEVEL";
+        }
       }
     } else if (target.occupant) {
       color = "#ff5c5c";
@@ -2466,7 +3168,10 @@
       const def = BUILD_DEFS[selectedBuild];
       const ghostAngle = getPlacementAngle();
       const ghost = { type: selectedBuild, x: target.cx, y: target.cy, radius: def.radius, hp: def.hp, maxHp: def.hp, angle: ghostAngle };
-      if (selectedBuild === "turret") ghost.aimAngle = ghostAngle;
+      if (selectedBuild === "cannon" || selectedBuild === "mortar" || selectedBuild === "sniper" || selectedBuild === "tesla" || selectedBuild === "frost" || selectedBuild === "toxic") {
+        ghost.aimAngle = ghostAngle;
+        ghost.level = 1;
+      }
       ctx2.save();
       ctx2.globalAlpha = 0.5;
       drawStructure(ctx2, ghost);
@@ -2560,6 +3265,112 @@
     ctx2.font = "10px 'Orbitron', sans-serif";
     ctx2.textAlign = "center";
     ctx2.fillText(dayNight.isNight ? "MAP \xB7 NIGHT" : "MAP", mapX + MINIMAP_SIZE / 2, mapY + MINIMAP_SIZE + 13);
+  }
+  function drawFireZones(ctx2) {
+    const now = performance.now();
+    ctx2.save();
+    for (const fz of fireZones) {
+      const s = worldToScreen(fz.x, fz.y);
+      const pulse = 1 + 0.08 * Math.sin(now * 0.01 + fz.x);
+      const grad = ctx2.createRadialGradient(s.x, s.y, fz.radius * 0.1, s.x, s.y, fz.radius * pulse);
+      grad.addColorStop(0, "rgba(255, 100, 30, 0.42)");
+      grad.addColorStop(0.5, "rgba(230, 70, 10, 0.22)");
+      grad.addColorStop(1, "rgba(150, 20, 0, 0)");
+      ctx2.fillStyle = grad;
+      ctx2.beginPath();
+      ctx2.arc(s.x, s.y, fz.radius * pulse, 0, Math.PI * 2);
+      ctx2.fill();
+      if (Math.random() < 0.15) {
+        const sparkA = Math.random() * Math.PI * 2;
+        const sparkD = Math.random() * fz.radius * 0.7;
+        ctx2.fillStyle = "#ffcc00";
+        ctx2.beginPath();
+        ctx2.arc(s.x + Math.cos(sparkA) * sparkD, s.y + Math.sin(sparkA) * sparkD, 2, 0, Math.PI * 2);
+        ctx2.fill();
+      }
+    }
+    ctx2.restore();
+  }
+  function drawToxicClouds(ctx2) {
+    const now = performance.now();
+    ctx2.save();
+    for (const tc of toxicClouds) {
+      const s = worldToScreen(tc.x, tc.y);
+      const pulse = 1 + 0.05 * Math.sin(now * 7e-3 + tc.x);
+      const grad = ctx2.createRadialGradient(s.x, s.y, tc.radius * 0.2, s.x, s.y, tc.radius * pulse);
+      grad.addColorStop(0, "rgba(46, 204, 113, 0.32)");
+      grad.addColorStop(0.6, "rgba(39, 174, 96, 0.16)");
+      grad.addColorStop(1, "rgba(20, 90, 50, 0)");
+      ctx2.fillStyle = grad;
+      ctx2.beginPath();
+      ctx2.arc(s.x, s.y, tc.radius * pulse, 0, Math.PI * 2);
+      ctx2.fill();
+      if (Math.random() < 0.1) {
+        const bubbleA = Math.random() * Math.PI * 2;
+        const bubbleD = Math.random() * tc.radius * 0.8;
+        ctx2.fillStyle = "rgba(46, 204, 113, 0.45)";
+        ctx2.beginPath();
+        ctx2.arc(s.x + Math.cos(bubbleA) * bubbleD, s.y + Math.sin(bubbleA) * bubbleD, 3, 0, Math.PI * 2);
+        ctx2.fill();
+      }
+    }
+    ctx2.restore();
+  }
+  function drawSniperLasers(ctx2) {
+    const now = performance.now();
+    ctx2.save();
+    for (const sl of sniperLasers) {
+      const s = worldToScreen(sl.sx, sl.sy);
+      const t = worldToScreen(sl.tx, sl.ty);
+      const alpha = Math.max(0, (sl.endsAt - now) / 150);
+      ctx2.strokeStyle = `rgba(255, 92, 92, ${alpha * 0.65})`;
+      ctx2.lineWidth = 4.5;
+      ctx2.beginPath();
+      ctx2.moveTo(s.x, s.y);
+      ctx2.lineTo(t.x, t.y);
+      ctx2.stroke();
+      ctx2.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.95})`;
+      ctx2.lineWidth = 1.8;
+      ctx2.beginPath();
+      ctx2.moveTo(s.x, s.y);
+      ctx2.lineTo(t.x, t.y);
+      ctx2.stroke();
+    }
+    ctx2.restore();
+  }
+  function drawTeslaChains(ctx2) {
+    const now = performance.now();
+    ctx2.save();
+    for (const tc of teslaChains) {
+      const alpha = Math.max(0, (tc.endsAt - now) / 100);
+      ctx2.strokeStyle = `rgba(137, 207, 240, ${alpha * 0.9})`;
+      ctx2.shadowColor = "#89cff0";
+      ctx2.shadowBlur = 8;
+      for (const seg of tc.segments) {
+        const s = worldToScreen(seg.sx, seg.sy);
+        const t = worldToScreen(seg.tx, seg.ty);
+        const dx = t.x - s.x;
+        const dy = t.y - s.y;
+        const len = Math.hypot(dx, dy);
+        const steps = Math.max(3, Math.floor(len / 15));
+        ctx2.lineWidth = 2.5;
+        ctx2.beginPath();
+        ctx2.moveTo(s.x, s.y);
+        for (let i = 1; i < steps; i++) {
+          const tVal = i / steps;
+          const px = s.x + dx * tVal;
+          const py = s.y + dy * tVal;
+          const normalX = -dy / len;
+          const normalY = dx / len;
+          const offset = (Math.random() - 0.5) * 8.5;
+          ctx2.lineTo(px + normalX * offset, py + normalY * offset);
+        }
+        ctx2.lineTo(t.x, t.y);
+        ctx2.stroke();
+      }
+      ctx2.shadowBlur = 0;
+    }
+    ctx2.restore();
   }
 
   // src/render/drawZombie.ts
@@ -3846,6 +4657,8 @@
     }
     drawBackground(ctx2, canvas2);
     drawWorldBounds(ctx2);
+    drawFireZones(ctx2);
+    drawToxicClouds(ctx2);
     for (const r of resources) drawResource(ctx2, canvas2, r);
     for (const c of crates) drawCrate(ctx2, c);
     for (const p of powerups) drawPowerup(ctx2, canvas2, p);
@@ -3855,6 +4668,8 @@
     drawBullets(ctx2);
     drawPlayer(ctx2);
     drawParticles(ctx2);
+    drawSniperLasers(ctx2);
+    drawTeslaChains(ctx2);
     drawStars(ctx2, canvas2);
     drawNightOverlay(ctx2, canvas2);
     drawFlashlight(ctx2, canvas2);
@@ -4238,6 +5053,12 @@
     }
   }
   function selectBuild(key) {
+    const hasFactory = structures.some((s) => s.type === "factory");
+    const isLocked = !hasFactory && (key === "tesla" || key === "frost" || key === "toxic");
+    if (isLocked) {
+      spawnParticle(player.x, player.y - 30, "Factory required!", "#ff8080");
+      return;
+    }
     setSelectedBuild(selectedBuild === key ? null : key);
     setManualBuildAngle(null);
     renderBuildBar();
@@ -4303,22 +5124,114 @@
       ctx2.fill();
       ctx2.stroke();
       ctx2.restore();
-    } else if (key === "turret") {
+    } else if (key === "cannon") {
       ctx2.save();
       ctx2.translate(cx, cy);
-      ctx2.fillStyle = "#597b7f";
+      ctx2.fillStyle = "#6a9a9e";
       ctx2.strokeStyle = "#1c2426";
       ctx2.lineWidth = 2;
       ctx2.beginPath();
       ctx2.arc(0, 0, 8, 0, Math.PI * 2);
       ctx2.fill();
       ctx2.stroke();
-      ctx2.rotate(-Math.PI / 4);
       ctx2.fillStyle = "#2f3a3c";
-      ctx2.strokeStyle = "#1c2426";
-      ctx2.lineWidth = 1.2;
-      ctx2.fillRect(-1.5, -13, 3, 7);
-      ctx2.strokeRect(-1.5, -13, 3, 7);
+      ctx2.fillRect(-2, -12, 4, 7);
+      ctx2.strokeRect(-2, -12, 4, 7);
+      ctx2.restore();
+    } else if (key === "mortar") {
+      ctx2.save();
+      ctx2.translate(cx, cy);
+      ctx2.fillStyle = "#34495e";
+      ctx2.strokeStyle = "#2c3e50";
+      ctx2.lineWidth = 2;
+      ctx2.beginPath();
+      ctx2.arc(0, 0, 8, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.fillStyle = "#1a252f";
+      ctx2.beginPath();
+      ctx2.arc(0, 0, 5, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.restore();
+    } else if (key === "sniper") {
+      ctx2.save();
+      ctx2.translate(cx, cy);
+      ctx2.fillStyle = "#7f8c8d";
+      ctx2.strokeStyle = "#bdc3c7";
+      ctx2.lineWidth = 1.5;
+      ctx2.beginPath();
+      ctx2.arc(0, 0, 6, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.fillStyle = "#333";
+      ctx2.fillRect(-1, -14, 2, 10);
+      ctx2.fillStyle = "#e74c3c";
+      ctx2.beginPath();
+      ctx2.arc(0, -14, 1.5, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.restore();
+    } else if (key === "tesla") {
+      ctx2.save();
+      ctx2.translate(cx, cy);
+      ctx2.fillStyle = "#d35400";
+      ctx2.strokeStyle = "#e67e22";
+      ctx2.lineWidth = 1.8;
+      ctx2.beginPath();
+      ctx2.moveTo(-6, 8);
+      ctx2.lineTo(-2, -6);
+      ctx2.lineTo(2, -6);
+      ctx2.lineTo(6, 8);
+      ctx2.closePath();
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.fillStyle = "#5dade2";
+      ctx2.beginPath();
+      ctx2.arc(0, -6, 4, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.restore();
+    } else if (key === "frost") {
+      ctx2.save();
+      ctx2.translate(cx, cy);
+      ctx2.fillStyle = "#a5f3fc";
+      ctx2.strokeStyle = "#38bdf8";
+      ctx2.lineWidth = 1.5;
+      ctx2.beginPath();
+      ctx2.moveTo(0, -10);
+      ctx2.lineTo(5, -2);
+      ctx2.lineTo(3, 8);
+      ctx2.lineTo(-3, 8);
+      ctx2.lineTo(-5, -2);
+      ctx2.closePath();
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.restore();
+    } else if (key === "toxic") {
+      ctx2.save();
+      ctx2.translate(cx, cy);
+      ctx2.fillStyle = "#27ae60";
+      ctx2.strokeStyle = "#1e8449";
+      ctx2.lineWidth = 1.8;
+      ctx2.beginPath();
+      ctx2.arc(0, 0, 7, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.fillStyle = "#2ecc71";
+      ctx2.beginPath();
+      ctx2.arc(-2, -2, 2, 0, Math.PI * 2);
+      ctx2.arc(2, 2, 1.5, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.restore();
+    } else if (key === "factory") {
+      ctx2.save();
+      ctx2.translate(cx, cy);
+      ctx2.fillStyle = "#c0392b";
+      ctx2.strokeStyle = "#962d22";
+      ctx2.lineWidth = 2;
+      ctx2.fillRect(-10, -4, 20, 11);
+      ctx2.strokeRect(-10, -4, 20, 11);
+      ctx2.fillStyle = "#7f8c8d";
+      ctx2.fillRect(-6, -10, 3, 6);
+      ctx2.fillRect(2, -10, 3, 6);
       ctx2.restore();
     } else if (key === "campfire") {
       ctx2.save();
@@ -4371,17 +5284,26 @@
     const bar = byId("buildBar");
     if (!bar) return;
     bar.innerHTML = "";
-    const order = ["wall", "spike", "turret", "campfire", "shop"];
+    const order = ["wall", "spike", "cannon", "mortar", "sniper", "tesla", "frost", "toxic", "campfire", "shop", "factory"];
+    const hasFactory = structures.some((s) => s.type === "factory");
     order.forEach((key, index) => {
       const def = BUILD_DEFS[key];
       const wCost = Math.ceil(def.wood * (player.buildDiscount || 1));
       const sCost = Math.ceil(def.stone * (player.buildDiscount || 1));
+      const isLocked = !hasFactory && (key === "tesla" || key === "frost" || key === "toxic");
       const slot = document.createElement("div");
-      slot.className = "build-slot" + (selectedBuild === key ? " active" : "");
-      slot.onclick = () => selectBuild(key);
+      slot.className = "build-slot" + (selectedBuild === key ? " active" : "") + (isLocked ? " locked" : "");
+      slot.onclick = () => {
+        if (isLocked) {
+          spawnParticle(player.x, player.y - 30, "Factory required!", "#ff8080");
+          return;
+        }
+        selectBuild(key);
+      };
       const badge = document.createElement("div");
       badge.className = "build-key-badge";
-      badge.textContent = String(index + 1);
+      const hotkeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-"];
+      badge.textContent = hotkeys[index] || "";
       slot.appendChild(badge);
       const canvasWrap = document.createElement("div");
       canvasWrap.className = "build-canvas-wrap";
@@ -4396,7 +5318,12 @@
       slot.appendChild(label);
       const cost = document.createElement("div");
       cost.className = "cost";
-      cost.textContent = (wCost ? wCost + "w " : "") + (sCost ? sCost + "s" : "");
+      if (isLocked) {
+        cost.textContent = "FACTORY REQ";
+        cost.style.color = "#ff8080";
+      } else {
+        cost.textContent = (wCost ? wCost + "w " : "") + (sCost ? sCost + "s" : "");
+      }
       slot.appendChild(cost);
       bar.appendChild(slot);
     });
@@ -4431,32 +5358,56 @@
     }
     const target = getBuildTarget();
     const occupant = target.occupant;
-    if (occupant && target.canUpgrade && (occupant.type === "wall" || occupant.type === "turret" || occupant.type === "spike")) {
-      const tiers = STRUCTURE_TIERS[occupant.type];
-      const curTier = occupant.tier || 0;
-      const next = tiers[curTier + 1];
-      if (next) {
-        if (player.points >= next.pointsCost) {
-          player.points -= next.pointsCost;
-          occupant.tier = curTier + 1;
-          occupant.maxHp = next.hpMax;
-          occupant.hp = next.hpMax;
-          if (occupant.type === "turret") {
-            occupant.damage = next.damage;
-            occupant.range = next.range;
-            occupant.fireRate = next.fireRate;
+    if (occupant && target.canUpgrade) {
+      if (occupant.type === "wall" || occupant.type === "spike") {
+        const tiers = STRUCTURE_TIERS[occupant.type];
+        const curTier = occupant.tier || 0;
+        const next = tiers[curTier + 1];
+        if (next) {
+          if (player.points >= next.pointsCost) {
+            player.points -= next.pointsCost;
+            occupant.tier = curTier + 1;
+            occupant.maxHp = next.hpMax;
+            occupant.hp = next.hpMax;
+            if (occupant.type === "spike") {
+              occupant.damage = next.damage;
+            }
+            spawnParticle(occupant.x, occupant.y - 30, next.name.toUpperCase() + " " + occupant.type.toUpperCase(), "#c7cfd2");
+          } else {
+            spawnParticle(player.x, player.y - 30, "need " + next.pointsCost + " points", "#ff8080");
           }
-          if (occupant.type === "spike") {
-            occupant.damage = next.damage;
-          }
-          spawnParticle(occupant.x, occupant.y - 30, next.name.toUpperCase() + " " + occupant.type.toUpperCase(), "#c7cfd2");
         } else {
-          spawnParticle(player.x, player.y - 30, "need " + next.pointsCost + " points", "#ff8080");
+          spawnParticle(occupant.x, occupant.y - 30, "MAX TIER", "#8bd17c");
         }
-      } else {
-        spawnParticle(occupant.x, occupant.y - 30, "MAX TIER", "#8bd17c");
+        return;
       }
-      return;
+      if (occupant.type === "cannon" || occupant.type === "mortar" || occupant.type === "sniper" || occupant.type === "tesla" || occupant.type === "frost" || occupant.type === "toxic") {
+        const curLvl = occupant.level || 1;
+        if (curLvl >= 5) {
+          spawnParticle(occupant.x, occupant.y - 30, "MAX LEVEL", "#8bd17c");
+          return;
+        }
+        const levels = TOWER_LEVELS[occupant.type];
+        const nextSpec = levels[curLvl];
+        const costInfo = nextSpec.cost;
+        if (costInfo) {
+          const res = costInfo.resource;
+          const amt = costInfo.amount;
+          if (player[res] >= amt) {
+            player[res] -= amt;
+            occupant.level = curLvl + 1;
+            const hpFactor = 1 + (occupant.level - 1) * 0.5;
+            const baseHp = BUILD_DEFS[occupant.type].hp;
+            occupant.maxHp = Math.round(baseHp * hpFactor);
+            occupant.hp = occupant.maxHp;
+            spawnParticle(occupant.x, occupant.y - 30, "Lv." + occupant.level + " " + occupant.type.toUpperCase() + "!", "#ffd76a");
+            spawnBurst(occupant.x, occupant.y, "#ffd76a", 12);
+          } else {
+            spawnParticle(player.x, player.y - 30, "need " + amt + " " + res, "#ff8080");
+          }
+        }
+        return;
+      }
     }
     if (occupant) {
       spawnParticle(player.x, player.y - 30, "cell occupied", "#ff8080");
@@ -4478,21 +5429,18 @@
     const placedAngle = getPlacementAngle();
     const s = { type: selectedBuild, x: target.cx, y: target.cy, radius: def.radius, hp: def.hp, maxHp: def.hp, angle: placedAngle };
     if (selectedBuild === "wall") s.tier = 0;
-    if (selectedBuild === "turret") {
-      s.range = def.range;
-      s.fireRate = def.fireRate;
+    if (selectedBuild === "spike") {
       s.damage = def.damage;
-      s.lastShot = 0;
       s.tier = 0;
-      s.aimAngle = placedAngle;
     }
     if (selectedBuild === "campfire") {
       s.healRadius = def.healRadius;
       s.healRate = def.healRate;
     }
-    if (selectedBuild === "spike") {
-      s.damage = def.damage;
-      s.tier = 0;
+    if (selectedBuild === "cannon" || selectedBuild === "mortar" || selectedBuild === "sniper" || selectedBuild === "tesla" || selectedBuild === "frost" || selectedBuild === "toxic") {
+      s.level = 1;
+      s.aimAngle = placedAngle;
+      s.lastShot = 0;
     }
     structures.push(s);
   }
@@ -4550,6 +5498,8 @@
     byId("zLabel").textContent = "zombies: " + zombies.length + (zombiesToSpawn > 0 ? " (+" + zombiesToSpawn + ")" : "");
     byId("woodCount").textContent = String(player.wood);
     byId("stoneCount").textContent = String(player.stone);
+    byId("ironCount").textContent = String(player.iron);
+    byId("goldCount").textContent = String(player.gold);
     byId("levelTag").textContent = "LEVEL " + player.level + (player.statPoints > 0 ? "  \u2022  " + player.statPoints + " pt available" : "");
     byId("pointsCount").textContent = String(player.points);
     const now = performance.now();
@@ -5478,6 +6428,8 @@
       points: 0,
       wood: 0,
       stone: 0,
+      iron: 0,
+      gold: 0,
       kills: 0,
       regen: BASE_STATS.regen + PERM_DEFS.regen.bonus(perm.regen),
       alive: true,
@@ -5507,6 +6459,7 @@
     if (meta.startBonuses["nestegg"]) {
       player.points += 30;
     }
+    resetZombieId();
     setBullets([]);
     setZombies([]);
     setStructures([]);

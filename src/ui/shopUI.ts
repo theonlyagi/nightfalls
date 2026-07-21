@@ -1,6 +1,6 @@
 import { ShopCategory, ShopItemDef, StructureKind, WeaponKind, MutationKind } from '../types';
 import {
-  WEAPON_DEFS, MUTATION_DEFS, BUILD_DEFS, STRUCTURE_TIERS
+  WEAPON_DEFS, MUTATION_DEFS, BUILD_DEFS, STRUCTURE_TIERS, TOWER_LEVELS
 } from '../constants';
 
 export const upgrades: { key: string; label: string; desc: string; apply: () => void }[] = [
@@ -15,7 +15,7 @@ import {
   mutationChoiceOpen, setMutationChoiceOpen, zombies, zombiesToSpawn, wave
 } from '../state';
 import { byId, snapAngleToCardinal } from '../utils';
-import { applyPowerup, showBanner, spawnParticle } from '../systems/combat';
+import { applyPowerup, showBanner, spawnParticle, spawnBurst } from '../systems/combat';
 import { findNearestShop } from '../systems/update';
 import { getBuildTarget, getPlacementAngle } from '../render/drawWorld';
 
@@ -95,6 +95,12 @@ export function toggleShop(): void {
 }
 
 export function selectBuild(key: StructureKind): void {
+  const hasFactory = structures.some(s => s.type === 'factory');
+  const isLocked = !hasFactory && (key === 'tesla' || key === 'frost' || key === 'toxic');
+  if (isLocked) {
+    spawnParticle(player.x, player.y - 30, 'Factory required!', '#ff8080');
+    return;
+  }
   setSelectedBuild((selectedBuild === key) ? null : key);
   setManualBuildAngle(null);
   renderBuildBar();
@@ -165,24 +171,85 @@ function drawBuildPreview(canvas: HTMLCanvasElement, key: StructureKind): void {
     ctx.fill();
     ctx.stroke();
     ctx.restore();
-  } else if (key === 'turret') {
+  } else if (key === 'cannon') {
     ctx.save();
     ctx.translate(cx, cy);
-    
-    ctx.fillStyle = '#597b7f';
+    ctx.fillStyle = '#6a9a9e';
     ctx.strokeStyle = '#1c2426';
     ctx.lineWidth = 2.0;
-    ctx.beginPath();
-    ctx.arc(0, 0, 8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.rotate(-Math.PI / 4);
+    ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#2f3a3c';
-    ctx.strokeStyle = '#1c2426';
-    ctx.lineWidth = 1.2;
-    ctx.fillRect(-1.5, -13, 3, 7);
-    ctx.strokeRect(-1.5, -13, 3, 7);
+    ctx.fillRect(-2, -12, 4, 7);
+    ctx.strokeRect(-2, -12, 4, 7);
+    ctx.restore();
+  } else if (key === 'mortar') {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = '#34495e';
+    ctx.strokeStyle = '#2c3e50';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#1a252f';
+    ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  } else if (key === 'sniper') {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = '#7f8c8d';
+    ctx.strokeStyle = '#bdc3c7';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#333';
+    ctx.fillRect(-1, -14, 2, 10);
+    ctx.fillStyle = '#e74c3c';
+    ctx.beginPath(); ctx.arc(0, -14, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  } else if (key === 'tesla') {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = '#d35400';
+    ctx.strokeStyle = '#e67e22';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(-6, 8); ctx.lineTo(-2, -6); ctx.lineTo(2, -6); ctx.lineTo(6, 8); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#5dade2';
+    ctx.beginPath(); ctx.arc(0, -6, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  } else if (key === 'frost') {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = '#a5f3fc';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -10);
+    ctx.lineTo(5, -2);
+    ctx.lineTo(3, 8);
+    ctx.lineTo(-3, 8);
+    ctx.lineTo(-5, -2);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
+  } else if (key === 'toxic') {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = '#27ae60';
+    ctx.strokeStyle = '#1e8449';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#2ecc71';
+    ctx.beginPath(); ctx.arc(-2, -2, 2, 0, Math.PI * 2); ctx.arc(2, 2, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  } else if (key === 'factory') {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = '#c0392b';
+    ctx.strokeStyle = '#962d22';
+    ctx.lineWidth = 2.0;
+    ctx.fillRect(-10, -4, 20, 11);
+    ctx.strokeRect(-10, -4, 20, 11);
+    ctx.fillStyle = '#7f8c8d';
+    ctx.fillRect(-6, -10, 3, 6);
+    ctx.fillRect(2, -10, 3, 6);
     ctx.restore();
   } else if (key === 'campfire') {
     ctx.save();
@@ -242,18 +309,31 @@ export function renderBuildBar(): void {
   const bar = byId('buildBar');
   if (!bar) return;
   bar.innerHTML = '';
-  const order: StructureKind[] = ['wall', 'spike', 'turret', 'campfire', 'shop'];
+  const order: StructureKind[] = ['wall', 'spike', 'cannon', 'mortar', 'sniper', 'tesla', 'frost', 'toxic', 'campfire', 'shop', 'factory'];
+  const hasFactory = structures.some(s => s.type === 'factory');
+
   order.forEach((key, index) => {
     const def = BUILD_DEFS[key];
     const wCost = Math.ceil(def.wood * (player.buildDiscount || 1));
     const sCost = Math.ceil(def.stone * (player.buildDiscount || 1));
+    
+    const isLocked = !hasFactory && (key === 'tesla' || key === 'frost' || key === 'toxic');
+    
     const slot = document.createElement('div');
-    slot.className = 'build-slot' + (selectedBuild === key ? ' active' : '');
-    slot.onclick = () => selectBuild(key);
+    slot.className = 'build-slot' + (selectedBuild === key ? ' active' : '') + (isLocked ? ' locked' : '');
+    slot.onclick = () => {
+      if (isLocked) {
+        spawnParticle(player.x, player.y - 30, 'Factory required!', '#ff8080');
+        return;
+      }
+      selectBuild(key);
+    };
 
     const badge = document.createElement('div');
     badge.className = 'build-key-badge';
-    badge.textContent = String(index + 1);
+    // Hotkey: 1 to 9, 0, - (so let's map them index wise: 1..9, 0, -)
+    const hotkeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'];
+    badge.textContent = hotkeys[index] || '';
     slot.appendChild(badge);
 
     const canvasWrap = document.createElement('div');
@@ -273,7 +353,12 @@ export function renderBuildBar(): void {
 
     const cost = document.createElement('div');
     cost.className = 'cost';
-    cost.textContent = (wCost ? wCost + 'w ' : '') + (sCost ? sCost + 's' : '');
+    if (isLocked) {
+      cost.textContent = 'FACTORY REQ';
+      cost.style.color = '#ff8080';
+    } else {
+      cost.textContent = (wCost ? wCost + 'w ' : '') + (sCost ? sCost + 's' : '');
+    }
     slot.appendChild(cost);
 
     bar.appendChild(slot);
@@ -310,27 +395,63 @@ export function tryBuildOrUpgrade(): void {
   const target = getBuildTarget();
   const occupant = target.occupant;
 
-  if (occupant && target.canUpgrade && (occupant.type === 'wall' || occupant.type === 'turret' || occupant.type === 'spike')) {
-    const tiers = STRUCTURE_TIERS[occupant.type];
-    const curTier = occupant.tier || 0;
-    const next = tiers[curTier + 1];
-    if (next) {
-      if (player.points >= next.pointsCost) {
-        player.points -= next.pointsCost;
-        occupant.tier = curTier + 1;
-        occupant.maxHp = next.hpMax;
-        occupant.hp = next.hpMax;
-        if (occupant.type === 'turret') { occupant.damage = next.damage; occupant.range = next.range; occupant.fireRate = next.fireRate; }
-        if (occupant.type === 'spike') { occupant.damage = next.damage; }
-        spawnParticle(occupant.x, occupant.y - 30, next.name.toUpperCase() + ' ' + occupant.type.toUpperCase(), '#c7cfd2');
+  if (occupant && target.canUpgrade) {
+    if (occupant.type === 'wall' || occupant.type === 'spike') {
+      const tiers = STRUCTURE_TIERS[occupant.type];
+      const curTier = occupant.tier || 0;
+      const next = tiers[curTier + 1];
+      if (next) {
+        if (player.points >= next.pointsCost) {
+          player.points -= next.pointsCost;
+          occupant.tier = curTier + 1;
+          occupant.maxHp = next.hpMax;
+          occupant.hp = next.hpMax;
+          if (occupant.type === 'spike') { occupant.damage = next.damage; }
+          spawnParticle(occupant.x, occupant.y - 30, next.name.toUpperCase() + ' ' + occupant.type.toUpperCase(), '#c7cfd2');
+        } else {
+          spawnParticle(player.x, player.y - 30, 'need ' + next.pointsCost + ' points', '#ff8080');
+        }
       } else {
-        spawnParticle(player.x, player.y - 30, 'need ' + next.pointsCost + ' points', '#ff8080');
+        spawnParticle(occupant.x, occupant.y - 30, 'MAX TIER', '#8bd17c');
       }
-    } else {
-      spawnParticle(occupant.x, occupant.y - 30, 'MAX TIER', '#8bd17c');
+      return;
     }
-    return;
+    
+    // Towers: cannon, mortar, sniper, tesla, frost, toxic
+    if (occupant.type === 'cannon' || occupant.type === 'mortar' || occupant.type === 'sniper' || occupant.type === 'tesla' || occupant.type === 'frost' || occupant.type === 'toxic') {
+      const curLvl = occupant.level || 1;
+      if (curLvl >= 5) {
+        spawnParticle(occupant.x, occupant.y - 30, 'MAX LEVEL', '#8bd17c');
+        return;
+      }
+      
+      const levels = TOWER_LEVELS[occupant.type];
+      const nextSpec = levels[curLvl];
+      const costInfo = nextSpec.cost;
+      
+      if (costInfo) {
+        const res = costInfo.resource;
+        const amt = costInfo.amount;
+        
+        if (player[res] >= amt) {
+          player[res] -= amt;
+          occupant.level = curLvl + 1;
+          
+          const hpFactor = 1.0 + (occupant.level - 1) * 0.50;
+          const baseHp = BUILD_DEFS[occupant.type].hp;
+          occupant.maxHp = Math.round(baseHp * hpFactor);
+          occupant.hp = occupant.maxHp;
+          
+          spawnParticle(occupant.x, occupant.y - 30, 'Lv.' + occupant.level + ' ' + occupant.type.toUpperCase() + '!', '#ffd76a');
+          spawnBurst(occupant.x, occupant.y, '#ffd76a', 12);
+        } else {
+          spawnParticle(player.x, player.y - 30, 'need ' + amt + ' ' + res, '#ff8080');
+        }
+      }
+      return;
+    }
   }
+
   if (occupant) {
     spawnParticle(player.x, player.y - 30, 'cell occupied', '#ff8080');
     return;
@@ -348,12 +469,17 @@ export function tryBuildOrUpgrade(): void {
   const wCost = Math.ceil(def.wood * (player.buildDiscount || 1));
   const sCost = Math.ceil(def.stone * (player.buildDiscount || 1));
   player.wood -= wCost; player.stone -= sCost;
+
   const placedAngle = getPlacementAngle();
   const s = { type: selectedBuild, x: target.cx, y: target.cy, radius: def.radius, hp: def.hp, maxHp: def.hp, angle: placedAngle } as any;
   if (selectedBuild === 'wall') s.tier = 0;
-  if (selectedBuild === 'turret') { s.range = def.range; s.fireRate = def.fireRate; s.damage = def.damage; s.lastShot = 0; s.tier = 0; s.aimAngle = placedAngle; }
-  if (selectedBuild === 'campfire') { s.healRadius = def.healRadius; s.healRate = def.healRate; }
   if (selectedBuild === 'spike') { s.damage = def.damage; s.tier = 0; }
+  if (selectedBuild === 'campfire') { s.healRadius = def.healRadius; s.healRate = def.healRate; }
+  if (selectedBuild === 'cannon' || selectedBuild === 'mortar' || selectedBuild === 'sniper' || selectedBuild === 'tesla' || selectedBuild === 'frost' || selectedBuild === 'toxic') {
+    s.level = 1;
+    s.aimAngle = placedAngle;
+    s.lastShot = 0;
+  }
   structures.push(s);
 }
 
@@ -415,6 +541,8 @@ export function updateHud(): void {
   byId('zLabel').textContent = 'zombies: ' + zombies.length + (zombiesToSpawn > 0 ? ' (+' + zombiesToSpawn + ')' : '');
   byId('woodCount').textContent = String(player.wood);
   byId('stoneCount').textContent = String(player.stone);
+  byId('ironCount').textContent = String(player.iron);
+  byId('goldCount').textContent = String(player.gold);
   byId('levelTag').textContent = 'LEVEL ' + player.level + (player.statPoints > 0 ? '  •  ' + player.statPoints + ' pt available' : '');
   byId('pointsCount').textContent = String(player.points);
 

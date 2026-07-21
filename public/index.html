@@ -38,6 +38,8 @@
   <div id="resources">
     <div class="res-pill"><div class="swatch" style="background:var(--accent-wood)"></div>wood <span id="woodCount">0</span></div>
     <div class="res-pill"><div class="swatch" style="background:var(--accent-stone)"></div>stone <span id="stoneCount">0</span></div>
+    <div class="res-pill"><div class="swatch" style="background:var(--accent-iron)"></div>iron <span id="ironCount">0</span></div>
+    <div class="res-pill"><div class="swatch" style="background:var(--accent-gold)"></div>gold <span id="goldCount">0</span></div>
     <div class="res-pill"><div class="swatch" style="background:var(--accent-points)"></div>points <span id="pointsCount">0</span></div>
   </div>
 
@@ -65,7 +67,7 @@
       <div class="help-title">Controls &amp; Guide</div>
       <div class="help-row"><span>Move Character</span><b>WASD</b></div>
       <div class="help-row"><span>Aim &amp; Shoot</span><b>MOUSE</b></div>
-      <div class="help-row"><span>Select Structures</span><b>1 &ndash; 5</b></div>
+      <div class="help-row"><span>Select Structures</span><b>1 &ndash; 9, 0, -</b></div>
       <div class="help-row"><span>Place / Open Shop</span><b>E</b></div>
       <div class="help-row"><span>Rotate Structure</span><b>R</b></div>
       <div class="help-row"><span>Cancel Selection</span><b>ESC</b></div>
@@ -124,12 +126,16 @@
       <div class="codex-detail">
         <div id="codexDetailEmpty">Select a specimen to view records.</div>
         <div id="codexDetailContent" class="hidden">
-          <h4 id="codexMonsterName">Name</h4>
-          <canvas id="codexPreviewCanvas" width="240" height="240"></canvas>
-          <div id="codexHistory" class="codex-history"></div>
-          <div id="codexStats" class="codex-stats"></div>
-          <div class="codex-lore-title">FIELD NOTES</div>
-          <div id="codexLore" class="codex-lore"></div>
+          <div class="codex-detail-left">
+            <canvas id="codexPreviewCanvas" width="240" height="240"></canvas>
+            <div id="codexStats" class="codex-stats"></div>
+          </div>
+          <div class="codex-detail-right">
+            <h4 id="codexMonsterName">Name</h4>
+            <div id="codexHistory" class="codex-history"></div>
+            <div class="codex-lore-title">FIELD NOTES</div>
+            <div id="codexLore" class="codex-lore"></div>
+          </div>
         </div>
       </div>
     </div>

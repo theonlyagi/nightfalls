@@ -6,7 +6,8 @@ import { WORLD_W, WORLD_H } from '../constants';
 import { clamp, rand } from '../utils';
 import {
   drawBackground, drawWorldBounds, drawResource, drawCrate, drawStructure,
-  drawBuildPreview, drawStars, drawMinimap, worldToScreen
+  drawBuildPreview, drawStars, drawMinimap, worldToScreen,
+  drawFireZones, drawToxicClouds, drawSniperLasers, drawTeslaChains
 } from './drawWorld';
 import { drawZombie } from './drawZombie';
 import { drawBullets, drawPlayer, drawParticles, drawPowerup } from './drawPlayer';
@@ -77,6 +78,11 @@ export function render(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement)
 
   drawBackground(ctx, canvas);
   drawWorldBounds(ctx);
+  
+  // Lingering area of effect drawing
+  drawFireZones(ctx);
+  drawToxicClouds(ctx);
+
   for (const r of resources) drawResource(ctx, canvas, r);
   for (const c of crates) drawCrate(ctx, c);
   for (const p of powerups) drawPowerup(ctx, canvas, p);
@@ -86,6 +92,11 @@ export function render(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement)
   drawBullets(ctx);
   drawPlayer(ctx);
   drawParticles(ctx);
+
+  // Tower instant attack tracers
+  drawSniperLasers(ctx);
+  drawTeslaChains(ctx);
+
   drawStars(ctx, canvas);
   drawNightOverlay(ctx, canvas);
   drawFlashlight(ctx, canvas);

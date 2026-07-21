@@ -107,6 +107,9 @@ export function pickZombieType(): ZombieKind {
   return 'normal';
 }
 
+export let nextZombieId = 1;
+export function resetZombieId(): void { nextZombieId = 1; }
+
 export function spawnZombie(forceType?: ZombieKind, atX?: number, atY?: number): void {
   const type = forceType || pickZombieType();
   let x: number, y: number;
@@ -126,7 +129,17 @@ export function spawnZombie(forceType?: ZombieKind, atX?: number, atY?: number):
   const usesVariant = (type === 'normal' || type === 'scout');
   const variant = usesVariant ? SKIN_VARIANTS[Math.floor(rand(0, SKIN_VARIANTS.length))] : [def.color, def.color2, def.dark];
   const cloth = (type === 'boss' || type === 'wolf') ? null : CLOTH_COLORS[Math.floor(rand(0, CLOTH_COLORS.length))];
+  
+  let armorVal = 0;
+  if (type === 'spider') armorVal = 2;
+  else if (type === 'spitter') armorVal = 3;
+  else if (type === 'exploder') armorVal = 4;
+  else if (type === 'witch') armorVal = 6;
+  else if (type === 'brute') armorVal = 12;
+  else if (type === 'boss') armorVal = 24;
+
   const z: Zombie = {
+    id: nextZombieId++,
     type, x, y, radius: rand(def.radiusR[0], def.radiusR[1]),
     hp: hp0, maxHp: hp0, speed: 1.15 * speedScale * def.speedMul,
     damage: (7 + wave * 0.6) * def.dmgMul * bloodMul,
@@ -134,7 +147,8 @@ export function spawnZombie(forceType?: ZombieKind, atX?: number, atY?: number):
     hairKind: (type === 'boss' || type === 'exploder' || type === 'wolf') ? null : (['bald', 'hood', 'tuft'] as HairKind[])[Math.floor(rand(0, 3))],
     mouthKind: (['open', 'frown', 'grimace'] as MouthKind[])[Math.floor(rand(0, 3))],
     squishX: rand(0.92, 1.08), squishY: rand(0.92, 1.08),
-    skinColor: variant[0], skinColor2: variant[1], skinDark: variant[2], clothColor: cloth
+    skinColor: variant[0], skinColor2: variant[1], skinDark: variant[2], clothColor: cloth,
+    armor: armorVal
   };
   z.maxHp = z.hp;
   if (type === 'spitter') { z.projDamage = (6 + wave * 0.7) * bloodMul; }

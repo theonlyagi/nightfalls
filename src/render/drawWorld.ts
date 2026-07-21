@@ -2,12 +2,13 @@ import { Vec2, Resource, Crate, Structure, StructureKind } from '../types';
 import {
   WORLD_W, WORLD_H, TILE, BUILD_REACH, GRASS_DAY, GRASS_NIGHT,
   TUFT_DAY, TUFT_NIGHT, STRUCTURE_TIERS, BUILD_DEFS, POWERUP_DEFS,
-  MINIMAP_SIZE, MINIMAP_MARGIN
+  MINIMAP_SIZE, MINIMAP_MARGIN, TOWER_LEVELS
 } from '../constants';
 import {
   camera, terrainPatches, bloodDecals, decor, fireflies, stars,
   dayNight, bloodMoon, player, resources, crates, powerups, structures,
-  activeBoss, selectedBuild, shopOpen, manualBuildAngle, mouse
+  activeBoss, selectedBuild, shopOpen, manualBuildAngle, mouse,
+  fireZones, toxicClouds, teslaChains, sniperLasers
 } from '../state';
 import { mixHex, roundRectPath, dist, gridCellCenter, snapAngleToCardinal } from '../utils';
 import { findNearestShop } from '../systems/update';
@@ -42,7 +43,9 @@ export function getBuildTarget(): {
   const cell = gridCellCenter(tx, ty, TILE);
   const occupant = structureAtCell(cell.x, cell.y);
   const canUpgrade = !!occupant && occupant.type === build &&
-    (occupant.type === 'wall' || occupant.type === 'turret' || occupant.type === 'spike');
+    (occupant.type === 'wall' || occupant.type === 'spike' ||
+     occupant.type === 'cannon' || occupant.type === 'mortar' || occupant.type === 'sniper' ||
+     occupant.type === 'tesla' || occupant.type === 'frost' || occupant.type === 'toxic');
 
   const def = BUILD_DEFS[build];
   let blockedByResource = false;
@@ -414,7 +417,7 @@ export function drawResource(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEl
       // Deterministic size (scale) and rotation variation based on coordinates seed
       const seed = (Math.abs(Math.sin(r.x * 12.9898 + r.y * 78.233) * 43758.5453) % 1);
       const scaleMul = 0.88 + seed * 0.24; // ±12% scale variation
-      const rot = (seed - 0.5) * 0.45; // rotate a bit more for organic variety
+      const rot = seed * Math.PI * 2; // full 360 degree rotation to make every rock pile shape unique
 
       ctx.save();
       ctx.translate(s.x, s.y);
@@ -517,6 +520,8 @@ export function drawStructure(ctx: CanvasRenderingContext2D, st: Structure): voi
   const s = worldToScreen(st.x, st.y);
   drawShadow(ctx, s.x, s.y, st.radius);
   const ang = st.angle || 0;
+  const lvl = st.level || 1;
+
   if (st.type === 'wall') {
     const tierGray = ['#8f9498', '#a9aeb2', '#c3c8cc'];
     const col = tierGray[st.tier ?? 0];
@@ -566,24 +571,185 @@ export function drawStructure(ctx: CanvasRenderingContext2D, st: Structure): voi
     ctx.beginPath(); ctx.moveTo(-w / 2 + 4, -h * 0.15); ctx.lineTo(w / 2 - 4, -h * 0.15); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(-w / 2 + 4, h * 0.15); ctx.lineTo(w / 2 - 4, h * 0.15); ctx.stroke();
     ctx.restore();
-  } else if (st.type === 'turret') {
-    const turretTierColors = ['#4a5a5e', '#597b7f', '#6a9a9e'];
-    ctx.fillStyle = turretTierColors[st.tier ?? 0];
-    ctx.strokeStyle = '#1c2426'; ctx.lineWidth = 3.5;
-    ctx.beginPath(); ctx.arc(s.x, s.y, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#6b7a7e';
-    [[-6, -6], [6, -6], [-6, 6], [6, 6]].forEach(([ox, oy]) => {
-      ctx.beginPath(); ctx.arc(s.x + ox, s.y + oy, 2, 0, Math.PI * 2); ctx.fill();
-    });
-    const aimA = st.aimAngle ?? -Math.PI / 2;
+  } else if (st.type === 'cannon') {
     ctx.save();
     ctx.translate(s.x, s.y);
+    
+    const baseColors = ['#4a5a5e', '#597b7f', '#6a9a9e', '#3a7d8c', '#ffd76a'];
+    ctx.fillStyle = baseColors[lvl - 1];
+    ctx.strokeStyle = '#1c2426'; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    
+    ctx.fillStyle = '#ffffff';
+    for (let i = 0; i < lvl; i++) {
+      const aDots = (i * Math.PI * 2) / lvl;
+      ctx.beginPath(); ctx.arc(Math.cos(aDots) * (st.radius * 0.6), Math.sin(aDots) * (st.radius * 0.6), 2, 0, Math.PI * 2); ctx.fill();
+    }
+    
+    const aimA = st.aimAngle ?? -Math.PI / 2;
     ctx.rotate(aimA + Math.PI / 2);
     ctx.fillStyle = '#2f3a3c';
-    ctx.strokeStyle = '#1c2426'; ctx.lineWidth = 2;
-    ctx.fillRect(-4, -st.radius - 10, 8, 12);
-    ctx.strokeRect(-4, -st.radius - 10, 8, 12);
+    ctx.strokeStyle = '#1c2426'; ctx.lineWidth = 2.5;
+    ctx.fillRect(-5, -st.radius - 8, 10, 11);
+    ctx.strokeRect(-5, -st.radius - 8, 10, 11);
+    ctx.fillStyle = lvl === 5 ? '#e74c3c' : '#ffd76a';
+    ctx.fillRect(-6, -st.radius - 12, 12, 4);
+    ctx.strokeRect(-6, -st.radius - 12, 12, 4);
     ctx.restore();
+  } else if (st.type === 'mortar') {
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.fillStyle = '#34495e';
+    ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    
+    ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 2.5;
+    for (let i = 0; i < 8; i++) {
+      const edgeA = (i * Math.PI * 2) / 8;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(edgeA) * (st.radius - 3), Math.sin(edgeA) * (st.radius - 3));
+      ctx.lineTo(Math.cos(edgeA + 0.15) * st.radius, Math.sin(edgeA + 0.15) * st.radius);
+      ctx.stroke();
+    }
+
+    const aimA = st.aimAngle ?? -Math.PI / 2;
+    ctx.rotate(aimA + Math.PI / 2);
+    ctx.fillStyle = '#2c3e50';
+    ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 2;
+    ctx.fillRect(-7, -st.radius - 3, 14, 12);
+    ctx.strokeRect(-7, -st.radius - 3, 14, 12);
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(0, -st.radius - 1, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  } else if (st.type === 'sniper') {
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.fillStyle = '#7f8c8d';
+    ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    
+    ctx.fillStyle = '#34495e';
+    ctx.beginPath(); ctx.arc(0, 0, st.radius * 0.6, 0, Math.PI * 2); ctx.fill();
+    
+    const aimA = st.aimAngle ?? -Math.PI / 2;
+    ctx.rotate(aimA + Math.PI / 2);
+    ctx.fillStyle = '#333333';
+    ctx.strokeStyle = '#000000'; ctx.lineWidth = 1.5;
+    ctx.fillRect(-2, -st.radius - 16, 4, 18);
+    ctx.strokeRect(-2, -st.radius - 16, 4, 18);
+    ctx.fillStyle = '#e74c3c';
+    ctx.beginPath(); ctx.arc(0, -st.radius - 16, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  } else if (st.type === 'tesla') {
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    
+    ctx.fillStyle = '#d35400';
+    ctx.strokeStyle = '#873600'; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    
+    ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, 0, st.radius * 0.7, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, st.radius * 0.45, 0, Math.PI * 2); ctx.stroke();
+    
+    ctx.fillStyle = '#5dade2';
+    ctx.strokeStyle = '#2874a6'; ctx.lineWidth = 1.5;
+    const pulseRadius = (st.radius * 0.3) + Math.sin(performance.now() * 0.015) * 1.5;
+    ctx.beginPath(); ctx.arc(0, 0, pulseRadius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    
+    if (Math.random() < 0.35) {
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      const angleSpark = Math.random() * Math.PI * 2;
+      const sparkDist = st.radius * (0.4 + Math.random() * 0.45);
+      ctx.lineTo(Math.cos(angleSpark) * sparkDist, Math.sin(angleSpark) * sparkDist);
+      ctx.stroke();
+    }
+    ctx.restore();
+  } else if (st.type === 'frost') {
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    
+    const spec = TOWER_LEVELS.frost[lvl - 1];
+    ctx.fillStyle = 'rgba(165, 243, 252, 0.04)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.15)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(0, 0, spec.range, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    
+    ctx.fillStyle = '#a5f3fc';
+    ctx.strokeStyle = '#0284c7'; ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, st.radius, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    
+    ctx.fillStyle = '#e0f2fe';
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const shardA = (i * Math.PI * 2) / 6;
+      ctx.lineTo(Math.cos(shardA) * (st.radius * 0.8), Math.sin(shardA) * (st.radius * 0.8));
+    }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  } else if (st.type === 'toxic') {
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    
+    ctx.fillStyle = '#1e8449';
+    ctx.strokeStyle = '#145a32'; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    
+    ctx.fillStyle = '#2ecc71';
+    const nowBubble = performance.now();
+    [[-6, -6], [6, -6], [-6, 6], [6, 6]].forEach(([ox, oy], i) => {
+      const pRadius = 3 + Math.sin(nowBubble * 0.008 + i) * 1.0;
+      ctx.beginPath(); ctx.arc(ox, oy, pRadius, 0, Math.PI * 2); ctx.fill();
+    });
+    
+    const aimA = st.aimAngle ?? -Math.PI / 2;
+    ctx.rotate(aimA + Math.PI / 2);
+    ctx.fillStyle = '#27ae60';
+    ctx.strokeStyle = '#145a32'; ctx.lineWidth = 2.0;
+    ctx.fillRect(-4, -st.radius - 4, 8, 10);
+    ctx.strokeRect(-4, -st.radius - 4, 8, 10);
+    ctx.restore();
+  } else if (st.type === 'factory') {
+    const w = st.radius * 2.1, h = st.radius * 1.5;
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(ang + Math.PI / 2);
+    
+    ctx.fillStyle = '#c0392b';
+    ctx.strokeStyle = '#78281f'; ctx.lineWidth = 4.0;
+    roundRectPath(ctx, -w / 2, -h / 2, w, h, 6);
+    ctx.fill(); ctx.stroke();
+    
+    ctx.fillStyle = '#922b21';
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, -h / 2);
+    ctx.lineTo(-w / 4, -h / 2 - 8);
+    ctx.lineTo(-w / 4, -h / 2);
+    ctx.lineTo(0, -h / 2 - 8);
+    ctx.lineTo(0, -h / 2);
+    ctx.lineTo(w / 4, -h / 2 - 8);
+    ctx.lineTo(w / 4, -h / 2);
+    ctx.lineTo(w / 2, -h / 2 - 8);
+    ctx.lineTo(w / 2, -h / 2);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    
+    ctx.fillStyle = '#7f8c8d';
+    ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 2.0;
+    ctx.fillRect(-w * 0.3, -h / 2 - 14, 5, 12);
+    ctx.strokeRect(-w * 0.3, -h / 2 - 14, 5, 12);
+    ctx.fillRect(w * 0.2, -h / 2 - 14, 5, 12);
+    ctx.strokeRect(w * 0.2, -h / 2 - 14, 5, 12);
+    ctx.restore();
+    
+    if (Math.random() < 0.12) {
+      const smokeX = s.x + (Math.random() < 0.5 ? -w * 0.3 : w * 0.2);
+      const smokeY = s.y - h / 2 - 14;
+      // We can push directly to particles! But since update is handled, let's just make it float up!
+      // In drawWorld.ts, modifying particle array might cause race conditions during draw, so we can just draw small smoke puffs!
+    }
   } else if (st.type === 'campfire') {
     ctx.fillStyle = '#5c4530';
     ctx.strokeStyle = '#22190f'; ctx.lineWidth = 3;
@@ -623,6 +789,20 @@ export function drawStructure(ctx: CanvasRenderingContext2D, st: Structure): voi
     ctx.textAlign = 'center';
     ctx.fillText('$', s.x, s.y - st.radius * 0.1 + st.radius * 0.14);
   }
+
+  // Draw Level Badge Overlay
+  if (st.type === 'cannon' || st.type === 'mortar' || st.type === 'sniper' || st.type === 'tesla' || st.type === 'frost' || st.type === 'toxic') {
+    ctx.save();
+    ctx.fillStyle = 'rgba(10, 18, 14, 0.72)';
+    ctx.strokeStyle = 'rgba(255, 215, 106, 0.25)'; ctx.lineWidth = 1.0;
+    roundRectPath(ctx, s.x - 14, s.y - st.radius - 23, 28, 9, 2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ffd76a';
+    ctx.font = "bold 8px 'Share Tech Mono', monospace";
+    ctx.textAlign = 'center';
+    ctx.fillText('LV ' + lvl, s.x, s.y - st.radius - 16);
+    ctx.restore();
+  }
   if (st.hp < st.maxHp) {
     const w = st.radius * 2;
     ctx.fillStyle = '#00000088'; ctx.fillRect(s.x - w / 2, s.y - st.radius - 14, w, 5);
@@ -640,11 +820,27 @@ export function drawBuildPreview(ctx: CanvasRenderingContext2D): void {
   let color = '#8bd17c';
   let label = '';
 
-  if (target.occupant && target.canUpgrade && (target.occupant.type === 'wall' || target.occupant.type === 'turret' || target.occupant.type === 'spike')) {
-    const tiers = STRUCTURE_TIERS[target.occupant.type];
-    const next = tiers[(target.occupant.tier || 0) + 1];
-    if (next) { color = '#4ecdc4'; label = 'UPGRADE  ' + next.pointsCost + ' pts'; }
-    else { color = '#8bd17c'; label = 'MAX TIER'; }
+  if (target.occupant && target.canUpgrade) {
+    if (target.occupant.type === 'wall' || target.occupant.type === 'spike') {
+      const tiers = STRUCTURE_TIERS[target.occupant.type];
+      const next = tiers[(target.occupant.tier || 0) + 1];
+      if (next) { color = '#4ecdc4'; label = 'UPGRADE  ' + next.pointsCost + ' pts'; }
+      else { color = '#8bd17c'; label = 'MAX TIER'; }
+    } else if (target.occupant.type === 'cannon' || target.occupant.type === 'mortar' || target.occupant.type === 'sniper' || target.occupant.type === 'tesla' || target.occupant.type === 'frost' || target.occupant.type === 'toxic') {
+      const lvl = target.occupant.level || 1;
+      if (lvl < 5) {
+        const levels = TOWER_LEVELS[target.occupant.type];
+        const nextSpec = levels[lvl];
+        const costInfo = nextSpec.cost;
+        if (costInfo) {
+          color = '#ffd76a';
+          label = 'UPGRADE  ' + costInfo.amount + ' ' + costInfo.resource;
+        }
+      } else {
+        color = '#8bd17c';
+        label = 'MAX LEVEL';
+      }
+    }
   } else if (target.occupant) {
     color = '#ff5c5c'; label = 'occupied';
   } else if (target.blockedByResource) {
@@ -669,7 +865,10 @@ export function drawBuildPreview(ctx: CanvasRenderingContext2D): void {
     const def = BUILD_DEFS[selectedBuild];
     const ghostAngle = getPlacementAngle();
     const ghost: Structure = { type: selectedBuild, x: target.cx, y: target.cy, radius: def.radius, hp: def.hp, maxHp: def.hp, angle: ghostAngle };
-    if (selectedBuild === 'turret') ghost.aimAngle = ghostAngle;
+    if (selectedBuild === 'cannon' || selectedBuild === 'mortar' || selectedBuild === 'sniper' || selectedBuild === 'tesla' || selectedBuild === 'frost' || selectedBuild === 'toxic') {
+      ghost.aimAngle = ghostAngle;
+      ghost.level = 1;
+    }
     ctx.save();
     ctx.globalAlpha = 0.5;
     drawStructure(ctx, ghost);
@@ -758,4 +957,105 @@ export function drawMinimap(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEle
   ctx.font = "10px 'Orbitron', sans-serif";
   ctx.textAlign = 'center';
   ctx.fillText(dayNight.isNight ? 'MAP · NIGHT' : 'MAP', mapX + MINIMAP_SIZE / 2, mapY + MINIMAP_SIZE + 13);
+}
+
+export function drawFireZones(ctx: CanvasRenderingContext2D): void {
+  const now = performance.now();
+  ctx.save();
+  for (const fz of fireZones) {
+    const s = worldToScreen(fz.x, fz.y);
+    const pulse = 1 + 0.08 * Math.sin(now * 0.01 + fz.x);
+    const grad = ctx.createRadialGradient(s.x, s.y, fz.radius * 0.1, s.x, s.y, fz.radius * pulse);
+    grad.addColorStop(0, 'rgba(255, 100, 30, 0.42)');
+    grad.addColorStop(0.5, 'rgba(230, 70, 10, 0.22)');
+    grad.addColorStop(1, 'rgba(150, 20, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(s.x, s.y, fz.radius * pulse, 0, Math.PI * 2); ctx.fill();
+    
+    if (Math.random() < 0.15) {
+      const sparkA = Math.random() * Math.PI * 2;
+      const sparkD = Math.random() * fz.radius * 0.7;
+      ctx.fillStyle = '#ffcc00';
+      ctx.beginPath(); ctx.arc(s.x + Math.cos(sparkA) * sparkD, s.y + Math.sin(sparkA) * sparkD, 2, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+export function drawToxicClouds(ctx: CanvasRenderingContext2D): void {
+  const now = performance.now();
+  ctx.save();
+  for (const tc of toxicClouds) {
+    const s = worldToScreen(tc.x, tc.y);
+    const pulse = 1 + 0.05 * Math.sin(now * 0.007 + tc.x);
+    const grad = ctx.createRadialGradient(s.x, s.y, tc.radius * 0.2, s.x, s.y, tc.radius * pulse);
+    grad.addColorStop(0, 'rgba(46, 204, 113, 0.32)');
+    grad.addColorStop(0.6, 'rgba(39, 174, 96, 0.16)');
+    grad.addColorStop(1, 'rgba(20, 90, 50, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(s.x, s.y, tc.radius * pulse, 0, Math.PI * 2); ctx.fill();
+    
+    if (Math.random() < 0.1) {
+      const bubbleA = Math.random() * Math.PI * 2;
+      const bubbleD = Math.random() * tc.radius * 0.8;
+      ctx.fillStyle = 'rgba(46, 204, 113, 0.45)';
+      ctx.beginPath(); ctx.arc(s.x + Math.cos(bubbleA) * bubbleD, s.y + Math.sin(bubbleA) * bubbleD, 3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+export function drawSniperLasers(ctx: CanvasRenderingContext2D): void {
+  const now = performance.now();
+  ctx.save();
+  for (const sl of sniperLasers) {
+    const s = worldToScreen(sl.sx, sl.sy);
+    const t = worldToScreen(sl.tx, sl.ty);
+    const alpha = Math.max(0, (sl.endsAt - now) / 150);
+    
+    ctx.strokeStyle = `rgba(255, 92, 92, ${alpha * 0.65})`; ctx.lineWidth = 4.5;
+    ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(t.x, t.y); ctx.stroke();
+    
+    ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.95})`; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(t.x, t.y); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+export function drawTeslaChains(ctx: CanvasRenderingContext2D): void {
+  const now = performance.now();
+  ctx.save();
+  for (const tc of teslaChains) {
+    const alpha = Math.max(0, (tc.endsAt - now) / 100);
+    
+    ctx.strokeStyle = `rgba(137, 207, 240, ${alpha * 0.9})`; ctx.shadowColor = '#89cff0'; ctx.shadowBlur = 8;
+    for (const seg of tc.segments) {
+      const s = worldToScreen(seg.sx, seg.sy);
+      const t = worldToScreen(seg.tx, seg.ty);
+      
+      const dx = t.x - s.x;
+      const dy = t.y - s.y;
+      const len = Math.hypot(dx, dy);
+      const steps = Math.max(3, Math.floor(len / 15));
+      
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      for (let i = 1; i < steps; i++) {
+        const tVal = i / steps;
+        const px = s.x + dx * tVal;
+        const py = s.y + dy * tVal;
+        
+        const normalX = -dy / len;
+        const normalY = dx / len;
+        const offset = (Math.random() - 0.5) * 8.5;
+        
+        ctx.lineTo(px + normalX * offset, py + normalY * offset);
+      }
+      ctx.lineTo(t.x, t.y);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
 }

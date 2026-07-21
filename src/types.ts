@@ -7,7 +7,7 @@ export type MutationKind = 'vampire' | 'overclocked' | 'titan' | 'pyromaniac';
 export type ZombieKind = 'normal' | 'scout' | 'brute' | 'spitter' | 'exploder' | 'wolf' | 'boss' | 'spider' | 'witch';
 export type HairKind = 'bald' | 'hood' | 'tuft' | null;
 export type MouthKind = 'open' | 'frown' | 'grimace';
-export type StructureKind = 'wall' | 'spike' | 'turret' | 'campfire' | 'shop';
+export type StructureKind = 'wall' | 'spike' | 'campfire' | 'shop' | 'factory' | 'cannon' | 'mortar' | 'sniper' | 'tesla' | 'frost' | 'toxic';
 export type PowerupKind = 'nuke' | 'insta' | 'double' | 'heal';
 
 export interface PlayerState {
@@ -16,7 +16,7 @@ export interface PlayerState {
   maxSpeed: number; accel: number; friction: number;
   damage: number; bulletSpeed: number; bulletRadius: number; fireRate: number; lastShot: number;
   level: number; xp: number; xpToNext: number; statPoints: number;
-  points: number; wood: number; stone: number; kills: number; regen: number; alive: boolean;
+  points: number; wood: number; stone: number; iron: number; gold: number; kills: number; regen: number; alive: boolean;
   buildDiscount: number; resourceMul: number; fortuneMul: number;
   instaKillUntil: number; doubleXpUntil: number;
   speedBoostUntil: number; damageBoostUntil: number; fireRateBoostUntil: number; regenBoostUntil: number;
@@ -28,6 +28,7 @@ export interface PlayerState {
 }
 
 export interface Zombie {
+  id: number;
   type: ZombieKind; x: number; y: number; radius: number;
   hp: number; maxHp: number; speed: number; damage: number;
   hitCooldown: number; wobble: number; flash: number; lastShot: number; fuseStart: number | null;
@@ -36,6 +37,18 @@ export interface Zombie {
   spikeCd?: number; projDamage?: number; explodeDamage?: number; dead?: boolean;
   burnUntil?: number; burnDamagePerSec?: number;
   lastSummon?: number;
+  
+  // debuff and armor fields
+  armor: number;
+  stunUntil?: number;
+  slowedUntil?: number;
+  slowAmount?: number;
+  toxicUntil?: number;
+  toxicDmg?: number;
+  armorReduction?: number;
+  physVulnerability?: number;
+  dmgVulnerability?: number;
+  frozenTime?: number;
 }
 
 export interface Bullet {
@@ -43,6 +56,16 @@ export interface Bullet {
   owner: 'player' | 'turret' | 'zombie'; insta?: boolean; dead?: boolean;
   explosive?: boolean; explodeRadius?: number; burn?: boolean;
   slowProj?: boolean;
+
+  // tower bullet fields
+  mortarLevel?: number;
+  isMortar?: boolean;
+  isToxic?: boolean;
+  toxicRadius?: number;
+  toxicDmg?: number;
+  armorReduction?: number;
+  dmgVulnerability?: number;
+  armorPenetration?: number;
 }
 
 export interface Resource {
@@ -53,6 +76,11 @@ export interface Structure {
   type: StructureKind; x: number; y: number; radius: number; hp: number; maxHp: number; angle: number;
   tier?: number; range?: number; fireRate?: number; damage?: number; lastShot?: number;
   healRadius?: number; healRate?: number; aimAngle?: number;
+
+  // tower upgrade level and target tracking
+  level?: number;
+  consecutiveHits?: number;
+  lastTargetId?: number;
 }
 
 export interface Crate { x: number; y: number; radius: number; dead?: boolean; }
@@ -128,6 +156,9 @@ export interface StorageAPI {
   delete(key: string, shared?: boolean): Promise<{ key: string; deleted: boolean; shared: boolean } | null>;
   list(prefix?: string, shared?: boolean): Promise<{ keys: string[]; prefix?: string; shared: boolean } | null>;
 }
+
+export interface FireZone { x: number; y: number; radius: number; damagePerSec: number; endsAt: number; }
+export interface ToxicCloud { x: number; y: number; radius: number; damagePerSec: number; armorReduction: number; dmgVulnerability: number; endsAt: number; }
 
 declare global {
   interface Window { storage?: StorageAPI; }
