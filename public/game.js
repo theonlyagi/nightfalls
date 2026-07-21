@@ -4931,19 +4931,11 @@
     const wrap = byId("modeSelect");
     if (!wrap) return;
     wrap.innerHTML = "";
-    const modeInfo = {
-      solo: { title: "Singleplayer", icon: "\u{1F464}" },
-      team: { title: "Team Mode", icon: "\u{1F465}" }
-    };
     Object.keys(MODE_DEFS).forEach((key) => {
       const def = MODE_DEFS[key];
-      const info = modeInfo[key] || { title: def.label, icon: "\u2694\uFE0F" };
       const card = document.createElement("div");
-      card.className = "mode-card io-border io-shadow-solid-sm squishy-hover squishy" + (selectedMode === key ? " active" : "");
-      card.innerHTML = `
-      <b class="mode-title">${info.icon} ${info.title}</b>
-      <span class="mode-desc">${def.desc}</span>
-    `;
+      card.className = "class-card" + (selectedMode === key ? " active" : "");
+      card.innerHTML = `<b>${def.label}</b><span>${def.desc}</span>`;
       card.onclick = () => {
         setSelectedMode(key);
         renderModeSelect();
@@ -4995,47 +4987,6 @@
     renderModeSelect();
     renderClassSelect();
     renderLeaderboard();
-    const btnUpgrades = byId("btnMetaUpgrades");
-    const btnBonuses = byId("btnStartBonuses");
-    const btnSkins = byId("btnMetaSkins");
-    const tabUpgrades = byId("metaUpgrades");
-    const tabBonuses = byId("startBonuses");
-    const tabSkins = byId("metaSkins");
-    if (btnUpgrades && btnBonuses && btnSkins && tabUpgrades && tabBonuses && tabSkins) {
-      btnUpgrades.onclick = () => {
-        btnUpgrades.classList.add("active");
-        btnBonuses.classList.remove("active");
-        btnSkins.classList.remove("active");
-        tabUpgrades.classList.remove("hidden");
-        tabUpgrades.classList.add("active");
-        tabBonuses.classList.add("hidden");
-        tabBonuses.classList.remove("active");
-        tabSkins.classList.add("hidden");
-        tabSkins.classList.remove("active");
-      };
-      btnBonuses.onclick = () => {
-        btnBonuses.classList.add("active");
-        btnUpgrades.classList.remove("active");
-        btnSkins.classList.remove("active");
-        tabBonuses.classList.remove("hidden");
-        tabBonuses.classList.add("active");
-        tabUpgrades.classList.add("hidden");
-        tabUpgrades.classList.remove("active");
-        tabSkins.classList.add("hidden");
-        tabSkins.classList.remove("active");
-      };
-      btnSkins.onclick = () => {
-        btnSkins.classList.add("active");
-        btnUpgrades.classList.remove("active");
-        btnBonuses.classList.remove("active");
-        tabSkins.classList.remove("hidden");
-        tabSkins.classList.add("active");
-        tabUpgrades.classList.add("hidden");
-        tabUpgrades.classList.remove("active");
-        tabBonuses.classList.add("hidden");
-        tabBonuses.classList.remove("active");
-      };
-    }
   }
   function lobbyCheckAllReady() {
     if (lobby.players.length >= 2 && lobby.players.length <= 4 && lobby.players.every((p) => p.ready)) {
