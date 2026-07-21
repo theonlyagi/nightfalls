@@ -76,9 +76,9 @@ see `server/NOTICE.md`):**
 - `ui/metaUI.ts`'s lobby functions were rewired from the old fake-bot local
   simulation to real networking — `openLobby()` connects, `lobbySetReady()`
   sends a real ready packet, `renderLobby()` shows real players + a
-  live-ticking countdown. **This part (PR #8, branch
-  `multiplayer-lobby-networking`) is open and tested but not yet merged** —
-  check its status before assuming it's still pending.
+  live-ticking countdown. **PR #8 (`multiplayer-lobby-networking`) is
+  merged into `main`** (2026-07-21) — check current status before assuming
+  otherwise, but this part is done and live on `main`.
 - `net/matchSync.ts` (new, **not in a PR yet — see below**) — bridges server
   snapshots into actual gameplay once a match is active: `inNetMatch` flag
   in `state.ts` gates everything (solo play untouched). Sends throttled
@@ -93,13 +93,16 @@ see `server/NOTICE.md`):**
   entirely during a net match so they don't fight the server's snapshots.
 
 **⚠️ Current branch state — read before doing anything else:**
-- `multiplayer-lobby-networking` (pushed, **PR #8 open, not merged**) —
-  ready-up/countdown lobby. Complete and tested.
+- `multiplayer-lobby-networking` — **merged into `main` as of 2026-07-21**
+  (PR #8). Its job is done; the branch itself can be deleted once you've
+  confirmed nothing local still depends on it.
 - `multiplayer-full-sync-wip` (**local only, NOT pushed, NO PR** — explicit
   instruction from the user was not to open a PR until this is fully
-  complete) — contains the player/zombie/bullet sync described above, on
-  top of the lobby branch. Latest commit: `WIP: in-match player/zombie/
-  bullet sync (Phase 3/4, incomplete)`.
+  complete) — contains the player/zombie/bullet sync described above.
+  Latest commit is a merge of the current `main` (see below) on top of the
+  `WIP: in-match player/zombie/bullet sync (Phase 3/4, incomplete)` commit
+  — the sync work itself is still Phase 3/4, incomplete; only the
+  reconciliation-with-main part is newly done.
 - **Visually confirmed working (2026-07-21)**, with two real browser clients
   in the same active match: remote-player rendering (`drawRemotePlayer` —
   name tag + HP bar + facing wedge, confirmed via a zoomed canvas capture),
@@ -108,24 +111,30 @@ see `server/NOTICE.md`):**
   per `combat.ts`'s `tryShoot`). This was the one open item from the prior
   session — it's done, this phase is visually solid, not just "no console
   errors."
-- `main` has moved on **much more** than previously noted — it's not just a
-  resource-texture/terrain PR. Since this branch was cut, `main` picked up
-  a full tower-defense system (6 towers, Factory building, 5 upgrade
-  levels), a Structure Click Inspector UI, an Iron ore resource node, and a
-  **full UI redesign** ("Florr.io Neo-Brutalist theme" — bold borders, hard
-  shadows, rarity cards, bottom dock tabs). Expect a real rebase/merge
-  effort before this branch is mergeable — likely UI-layer conflicts
-  especially, since this branch's HTML/CSS predates the redesign.
+- `main` had moved on **much more** than originally noted before this was
+  caught and fixed — it wasn't just a resource-texture/terrain PR. Since
+  this branch was originally cut, `main` had picked up a full tower-defense
+  system (6 towers, Factory building, 5 upgrade levels), a Structure Click
+  Inspector UI, an Iron ore resource node, and a full UI redesign
+  ("Florr.io Neo-Brutalist theme"). **This has now been reconciled**: PR #8
+  was fixed up and merged first (only real conflict was the generated
+  `docs/index.html`, resolved by regenerating via `build:share` rather than
+  hand-merging), then `multiplayer-full-sync-wip` was merged against the
+  updated `main` (one small additive conflict in `systems/update.ts`, plus
+  a type fix in `net/matchSync.ts` — main added required `id`/`armor`
+  fields to `Zombie` for the new tower mechanics; synced zombies now reuse
+  their existing cosmetic hash as `id` and default `armor` to 0, matching
+  the documented "server doesn't model armor" gap). Verified after with a
+  typecheck, full rebuild, a DOM-id integrity check (every `byId()` target
+  still exists in the merged HTML), and a live 2-player match test.
 
 **Recommended next steps, in order:**
 1. ~~Finish visually verifying remote-player/zombie/bullet rendering~~ —
    done, see above.
-2. Decide whether to merge PR #8 (lobby) on its own first, or keep bundling
-   it with the fuller sync work — user hasn't been asked this directly.
-3. Given how far `main` has diverged (see above), consider whether to
-   rebase/reconcile against `main` now (before more sync work compounds the
-   conflict surface) or keep deferring it — worth asking the user rather
-   than assuming.
+2. ~~Decide whether to merge PR #8 now or bundle it with fuller sync~~ —
+   user chose to merge now; done, see above.
+3. ~~Reconcile `multiplayer-full-sync-wip` against `main`'s divergence~~ —
+   user chose to do this now rather than keep deferring; done, see above.
 4. Structures sync, then day/night + Blood Moon sync, then shop/weapon/
    mutation sync — each is its own real chunk (new packet types, new server
    state), test-as-you-go like every other phase so far.
