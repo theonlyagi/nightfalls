@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>NIGHTFALL.IO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <button id="hudSettingsBtn" class="gear-btn" title="Settings">⚙</button>
+  <div id="topbar">
+    <div id="topbarRow">
+      <div class="pill hud-font" id="waveLabel">WAVE 1</div>
+      <div class="pill" id="zLabel">zombies: 0</div>
+      <div class="pill hud-font day" id="phaseLabel">☀ DAY</div>
+    </div>
+    <div id="powerupStatus">
+      <div class="pu-pill" id="puInsta">⚡ INSTA-KILL 0s</div>
+      <div class="pu-pill" id="puDouble">2x POINTS 0s</div>
+      <div class="pu-pill" id="puSpeed">💨 SPEED 0s</div>
+      <div class="pu-pill" id="puDamage">🎯 DAMAGE 0s</div>
+      <div class="pu-pill" id="puRate">🔥 RAPID FIRE 0s</div>
+      <div class="pu-pill" id="puRegen">💚 REGEN 0s</div>
+      <div class="pu-pill" id="puHeat">🌡️ HEAT 0%</div>
+    </div>
+    <div id="bossBar">
+      <div id="bossName">BOSS</div>
+      <div id="bossTrack"><div id="bossFill"></div></div>
+    </div>
+  </div>
+
+  <div id="resources">
+    <div class="res-pill"><div class="swatch" style="background:var(--accent-wood)"></div>wood <span id="woodCount">0</span></div>
+    <div class="res-pill"><div class="swatch" style="background:var(--accent-stone)"></div>stone <span id="stoneCount">0</span></div>
+    <div class="res-pill"><div class="swatch" style="background:var(--accent-points)"></div>points <span id="pointsCount">0</span></div>
+  </div>
+
+  <div id="bottomHud">
+    <div id="levelTag">LEVEL 1</div>
+    <div class="bar-row">
+      <div class="bar-label">HP</div>
+      <div class="bar-track"><div class="bar-fill hp" id="hpFill" style="width:100%"></div><div class="bar-text" id="hpText">100/100</div></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">XP</div>
+      <div class="bar-track"><div class="bar-fill xp" id="xpFill" style="width:0%"></div><div class="bar-text" id="xpText">0/50</div></div>
+    </div>
+  </div>
+
+  <div id="upgradePanel"></div>
+  <div id="buildBar"></div>
+  <div id="shopHint">🛒 press <b>E</b> to open the shop</div>
+  <div id="rotateHint">🔄 press <b>R</b> to rotate</div>
+
+  <div id="waveBanner">WAVE 1<span>Zombies incoming</span></div>
+
+  <div id="hint">
+    <b>WASD</b> move &nbsp; <b>MOUSE</b> aim/shoot<br>
+    <b>1-5</b> select building &nbsp; <b>E</b> place / upgrade / shop &nbsp; <b>ESC</b> deselect<br>
+    <b>R</b> 🔄 rotate wall/spike &nbsp; watch out at night — zombies hit harder &amp; faster
+  </div>
+
+  <div id="touchOverlay" class="hidden">
+    <div id="stickLeftBase" class="stick-base"><div id="stickLeftKnob" class="stick-knob"></div></div>
+    <div id="stickRightBase" class="stick-base"><div id="stickRightKnob" class="stick-knob"></div></div>
+    <div id="touchActions">
+      <button id="touchBtnShop" class="touch-btn">🛒 SHOP (E)</button>
+      <button id="touchBtnRotate" class="touch-btn">🔄 ROTATE (R)</button>
+      <button id="touchBtnCancel" class="touch-btn">✖ CANCEL (ESC)</button>
+    </div>
+  </div>
+</div>
+
+<div id="shopPanel" class="overlay-anim hidden">
+  <div id="shopBox">
+    <h3>SHOP</h3>
+    <div id="shopBalance">SHOP CURRENCY: <b id="shopPointsVal">0</b> points</div>
+    <div id="shopItems"></div>
+    <button id="shopCloseBtn">CLOSE (E)</button>
+  </div>
+</div>
+
+<div id="weaponChoicePanel" class="overlay-anim hidden">
+  <div id="weaponChoiceBox">
+    <h3>LEVEL 15 — CHOOSE YOUR WEAPON</h3>
+    <div class="sub">This replaces your pistol for the rest of the run. Pick one.</div>
+    <div id="weaponChoiceItems"></div>
+  </div>
+</div>
+
+<div id="mutationChoicePanel" class="overlay-anim hidden">
+  <div id="mutationChoiceBox">
+    <h3>LEVEL 25 — CHOOSE YOUR MUTATION</h3>
+    <div class="sub">A permanent change to how you play, for the rest of the run. Pick one.</div>
+    <div id="mutationChoiceItems"></div>
+  </div>
+</div>
+
+<div id="debugPanel" class="overlay-anim hidden">
+  <div id="debugBox">
+    <h3>DEBUG CONSOLE</h3>
+    <div id="debugLockStep">
+      <div class="sub">this is a local testing tool, not a real security gate</div>
+      <input id="debugPassInput" type="password" placeholder="password" autocomplete="off">
+      <button id="debugUnlockBtn">UNLOCK</button>
+      <div id="debugLockMsg"></div>
+    </div>
+    <div id="debugControls" class="hidden">
+      <div class="debug-row">
+        <label>Level</label>
+        <input id="debugLevelInput" type="number" min="1" max="999" value="15">
+        <button id="debugSetLevelBtn">SET</button>
+      </div>
+      <div class="debug-row">
+        <label>Points</label>
+        <input id="debugPointsInput" type="number" min="0" value="500">
+        <button id="debugAddPointsBtn">ADD</button>
+        <button id="debugSetPointsBtn">SET</button>
+      </div>
+      <div class="debug-row">
+        <label>Wave</label>
+        <input id="debugWaveInput" type="number" min="1" max="999" value="10">
+        <button id="debugSetWaveBtn">SET</button>
+      </div>
+      <div class="debug-row">
+        <label>Wood/Stone</label>
+        <input id="debugResInput" type="number" min="0" value="500">
+        <button id="debugAddResBtn">ADD BOTH</button>
+      </div>
+      <div class="debug-row">
+        <button id="debugFullHealBtn">FULL HEAL</button>
+        <button id="debugGodBtn">GOD MODE: OFF</button>
+      </div>
+      <div class="debug-row">
+        <button id="debugBloodMoonBtn">TRIGGER BLOOD MOON</button>
+      </div>
+      <div class="debug-row">
+        <button id="debugAddFakePlayerBtn">ADD FAKE PLAYER (lobby)</button>
+      </div>
+    </div>
+    <button id="debugCloseBtn">CLOSE (HOME)</button>
+  </div>
+</div>
+
+<div id="overlay" class="overlay-anim hidden">
+  <h1>YOU DIED</h1>
+  <p>Wave reached: <span class="stat" id="finalWave">1</span></p>
+  <p>Zombies slain: <span class="stat" id="finalKills">0</span></p>
+  <p>Level: <span class="stat" id="finalLevel">1</span></p>
+  <div class="metaEarned" id="metaEarned">+0 meta points earned</div>
+  <button id="restartBtn">BACK TO MENU</button>
+</div>
+
+<div id="startOverlay">
+  <button id="startSettingsBtn" class="gear-btn" title="Settings">⚙</button>
+  <h1>NIGHTFALL.IO</h1>
+  <div class="sub">TOP-DOWN ZOMBIE SURVIVAL</div>
+  <div class="controls">
+    <b>WASD</b> move &nbsp;·&nbsp; <b>MOUSE</b> aim &nbsp;·&nbsp; <b>CLICK</b> shoot &nbsp;·&nbsp; <b>1-5 + E</b> build/upgrade/shop<br>
+    Day and night cycle as you survive — nights are faster and more dangerous. Boss every 10 waves. Build a Shop and spend points on powerups, boosts, and cosmetics. Meta progress carries over between runs.
+  </div>
+
+  <div class="panelBox">
+    <h3>GAME MODE</h3>
+    <div id="modeSelect"></div>
+  </div>
+
+  <div class="panelBox">
+    <h3>CHOOSE YOUR CLASS</h3>
+    <div id="classSelect"></div>
+  </div>
+
+  <div class="panelBox">
+    <h3>SURVIVOR NAME</h3>
+    <div id="nameRow">
+      <input id="nameInput" type="text" maxlength="14" placeholder="Survivor">
+    </div>
+    <div class="metaStatsRow" id="metaStatsRow">
+      <div>Meta Points<b id="metaPointsVal">0</b></div>
+      <div>Best Wave<b id="bestWaveVal">0</b></div>
+      <div>Lifetime Kills<b id="lifetimeKillsVal">0</b></div>
+      <div>Runs<b id="gamesPlayedVal">0</b></div>
+    </div>
+    <div id="metaUpgrades"></div>
+  </div>
+
+  <div class="panelBox">
+    <h3>PERMANENT PROGRESSION</h3>
+    <div class="shop-cat-title">STARTING BONUSES</div>
+    <div id="startBonuses" class="shop-row"></div>
+    <div class="shop-cat-title">SKINS</div>
+    <div id="metaSkins" class="shop-row"></div>
+  </div>
+
+  <div class="panelBox">
+    <h3>LEADERBOARD — TOP SURVIVORS</h3>
+    <div id="leaderboardList"><div class="lb-empty">loading...</div></div>
+  </div>
+
+  <button id="startBtn">ENTER THE FOREST</button>
+</div>
+
+<div id="lobbyOverlay" class="overlay-anim hidden">
+  <h1>TEAM MODE</h1>
+  <div class="sub">2-4 PLAYERS &middot; READY UP TO START</div>
+  <div id="lobbySlots"></div>
+  <div id="lobbyStatus">Waiting for players... (1/4)</div>
+  <button id="lobbyReadyBtn">READY</button>
+  <button id="lobbyLeaveBtn">LEAVE QUEUE</button>
+</div>
+
+<div id="settingsOverlay" class="overlay-anim hidden">
+  <h1>SETTINGS</h1>
+  <div class="sub">SAVED AUTOMATICALLY</div>
+  <div class="panelBox" id="settingsPanel">
+    <div class="setting-row">
+      <label>Screen Shake</label>
+      <button id="settingShakeBtn" class="toggle-btn">ON</button>
+    </div>
+    <div class="setting-row">
+      <label>Damage Numbers</label>
+      <button id="settingDamageNumBtn" class="toggle-btn">ON</button>
+    </div>
+    <div class="setting-row">
+      <label>UI Scale</label>
+      <div class="scale-btns">
+        <button id="scaleSmallBtn" class="scale-btn">SMALL</button>
+        <button id="scaleMediumBtn" class="scale-btn">MEDIUM</button>
+        <button id="scaleLargeBtn" class="scale-btn">LARGE</button>
+      </div>
+    </div>
+  </div>
+  <button id="settingsCloseBtn">CLOSE</button>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>

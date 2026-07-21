@@ -1,0 +1,20 @@
+{
+  "name": "nightfall-io",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Top-down browser zombie survival game.",
+  "scripts": {
+    "build": "esbuild src/game.ts --bundle --outfile=public/game.js --target=es2020",
+    "watch": "esbuild src/game.ts --bundle --outfile=public/game.js --watch --target=es2020",
+    "typecheck": "tsc --noEmit",
+    "build:scripts": "tsc -p scripts/tsconfig.json",
+    "build:share": "npm run build && npm run build:scripts && node scripts/build-share.js",
+    "serve": "npx --yes serve public -l 8080"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "esbuild": "^0.28.1",
+    "terser": "^5.49.0",
+    "typescript": "^5.4.5"
+  }
+}
