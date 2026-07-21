@@ -8,7 +8,7 @@ import {
   camera, terrainPatches, bloodDecals, decor, fireflies, stars,
   dayNight, bloodMoon, player, resources, crates, powerups, structures,
   activeBoss, selectedBuild, shopOpen, manualBuildAngle, mouse,
-  fireZones, toxicClouds, teslaChains, sniperLasers
+  fireZones, toxicClouds, teslaChains, sniperLasers, inspectedStructure
 } from '../state';
 import { mixHex, roundRectPath, dist, gridCellCenter, snapAngleToCardinal } from '../utils';
 import { findNearestShop } from '../systems/update';
@@ -835,6 +835,44 @@ export function drawStructure(ctx: CanvasRenderingContext2D, st: Structure): voi
     const w = st.radius * 2;
     ctx.fillStyle = '#00000088'; ctx.fillRect(s.x - w / 2, s.y - st.radius - 14, w, 5);
     ctx.fillStyle = '#e2b477'; ctx.fillRect(s.x - w / 2, s.y - st.radius - 14, w * (st.hp / st.maxHp), 5);
+  }
+
+  // Draw Selection Ring & Attack Range Overlay if inspected or hovered
+  const mp = mouseWorldPos();
+  const isHovered = dist(mp.x, mp.y, st.x, st.y) <= st.radius + 10;
+  const isSelected = st === inspectedStructure;
+
+  if (isSelected || isHovered) {
+    ctx.save();
+    // 1. Structure Selection Ring
+    ctx.strokeStyle = isSelected ? '#ffd76a' : '#4ecdc4';
+    ctx.lineWidth = 2.2;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.arc(s.x, s.y, st.radius + 6, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 2. Attack / Effect Range Circle
+    let range: number | null = null;
+    if (st.type === 'cannon' || st.type === 'mortar' || st.type === 'sniper' || st.type === 'tesla' || st.type === 'frost' || st.type === 'toxic') {
+      const currentLevel = st.level || 1;
+      const specList = TOWER_LEVELS[st.type];
+      if (specList && specList[currentLevel - 1]) {
+        range = specList[currentLevel - 1].range;
+      }
+    } else if (st.type === 'campfire') {
+      range = st.healRadius || 150;
+    }
+
+    if (range) {
+      ctx.strokeStyle = isSelected ? 'rgba(255, 215, 106, 0.75)' : 'rgba(78, 205, 196, 0.55)';
+      ctx.lineWidth = 1.8;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.arc(s.x, s.y, range, 0, Math.PI * 2); ctx.stroke();
+
+      ctx.fillStyle = isSelected ? 'rgba(255, 215, 106, 0.06)' : 'rgba(78, 205, 196, 0.04)';
+      ctx.beginPath(); ctx.arc(s.x, s.y, range, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
   }
 }
 

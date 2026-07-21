@@ -12,6 +12,7 @@ export const upgrades: { key: string; label: string; desc: string; apply: () => 
 import {
   player, structures, selectedBuild, setSelectedBuild, manualBuildAngle,
   setManualBuildAngle, shopOpen, setShopOpen, factoryOpen, setFactoryOpen,
+  inspectedStructure, setInspectedStructure,
   weaponChoiceOpen, setWeaponChoiceOpen,
   mutationChoiceOpen, setMutationChoiceOpen, zombies, zombiesToSpawn, wave
 } from '../state';
@@ -573,6 +574,8 @@ export function updateHud(): void {
   byId('hpText').textContent = Math.round(Math.max(0, player.hp)) + '/' + player.maxHp;
   byId('xpFill').style.width = (player.xp / player.xpToNext * 100) + '%';
   byId('xpText').textContent = Math.round(player.xp) + '/' + player.xpToNext;
+
+  if (inspectedStructure) renderStructureInspector();
 }
 
 export const ADVANCED_TOWERS: StructureKind[] = ['tesla', 'frost', 'toxic'];
@@ -639,5 +642,168 @@ export function toggleFactory(): void {
     byId('factoryPanel')?.classList.remove('hidden');
   } else {
     byId('factoryPanel')?.classList.add('hidden');
+  }
+}
+
+export function closeStructureInspector(): void {
+  setInspectedStructure(null);
+  byId('structureInspector')?.classList.add('hidden');
+}
+
+export function renderStructureInspector(): void {
+  const panel = byId('structureInspector');
+  if (!panel) return;
+
+  if (!inspectedStructure || inspectedStructure.hp <= 0) {
+    panel.classList.add('hidden');
+    return;
+  }
+
+  const st = inspectedStructure;
+  panel.classList.remove('hidden');
+
+  const def = BUILD_DEFS[st.type];
+  const nameEl = byId('inspectorName');
+  const lvlEl = byId('inspectorLvl');
+  const hpFill = byId('inspectorHpFill');
+  const hpText = byId('inspectorHpText');
+  const statsWrap = byId('inspectorStats');
+  const costText = byId('inspectorCostText');
+  const upgradeBtn = byId<HTMLButtonElement>('inspectorUpgradeBtn');
+
+  if (nameEl) nameEl.textContent = def ? def.label.toUpperCase() : st.type.toUpperCase();
+  
+  if (st.type === 'cannon' || st.type === 'mortar' || st.type === 'sniper' || st.type === 'tesla' || st.type === 'frost' || st.type === 'toxic') {
+    if (lvlEl) lvlEl.textContent = 'LV. ' + (st.level || 1);
+  } else if (st.type === 'wall' || st.type === 'spike') {
+    if (lvlEl) lvlEl.textContent = 'TIER ' + ((st.tier || 0) + 1);
+  } else {
+    if (lvlEl) lvlEl.textContent = 'UTILITY';
+  }
+
+  const hpPct = Math.max(0, Math.min(100, (st.hp / st.maxHp) * 100));
+  if (hpFill) hpFill.style.width = hpPct + '%';
+  if (hpText) hpText.textContent = Math.round(Math.max(0, st.hp)) + '/' + st.maxHp + ' HP';
+
+  // Stats Breakdown
+  if (statsWrap) {
+    statsWrap.innerHTML = '';
+    let statsHtml = '';
+
+    if (st.type === 'cannon' || st.type === 'mortar' || st.type === 'sniper' || st.type === 'tesla' || st.type === 'frost' || st.type === 'toxic') {
+      const curLvl = st.level || 1;
+      const spec = TOWER_LEVELS[st.type][curLvl - 1];
+      if (spec) {
+        if (spec.damage) statsHtml += `<div class="inspector-stat-row"><span>Damage</span><b>${spec.damage}</b></div>`;
+        if (spec.fireRate) statsHtml += `<div class="inspector-stat-row"><span>Fire Rate</span><b>${spec.fireRate}/s</b></div>`;
+        if (spec.range) statsHtml += `<div class="inspector-stat-row"><span>Range</span><b>${spec.range} px</b></div>`;
+        if (spec.specialValue) statsHtml += `<div class="inspector-stat-row" style="color:var(--col-teal-light);"><span>Special</span><b>${spec.specialValue}</b></div>`;
+      }
+    } else if (st.type === 'wall') {
+      const tierInfo = STRUCTURE_TIERS.wall[st.tier || 0];
+      statsHtml += `<div class="inspector-stat-row"><span>Wall HP</span><b>${st.maxHp}</b></div>`;
+      if (tierInfo) statsHtml += `<div class="inspector-stat-row"><span>Grade</span><b>${tierInfo.name}</b></div>`;
+    } else if (st.type === 'spike') {
+      const tierInfo = STRUCTURE_TIERS.spike[st.tier || 0];
+      statsHtml += `<div class="inspector-stat-row"><span>Spike Dmg</span><b>${st.damage || 15}</b></div>`;
+      if (tierInfo) statsHtml += `<div class="inspector-stat-row"><span>Grade</span><b>${tierInfo.name}</b></div>`;
+    } else if (st.type === 'campfire') {
+      statsHtml += `<div class="inspector-stat-row"><span>Heal Rate</span><b>${st.healRate || 5} HP/s</b></div>`;
+      statsHtml += `<div class="inspector-stat-row"><span>Heal Radius</span><b>${st.healRadius || 150} px</b></div>`;
+    } else if (st.type === 'factory') {
+      statsHtml += `<div class="inspector-stat-row"><span>Function</span><b>Crafts Advanced Towers</b></div>`;
+    }
+    statsWrap.innerHTML = statsHtml;
+  }
+
+  // Upgrade Box
+  if (st.type === 'cannon' || st.type === 'mortar' || st.type === 'sniper' || st.type === 'tesla' || st.type === 'frost' || st.type === 'toxic') {
+    const curLvl = st.level || 1;
+    if (curLvl < 5) {
+      const nextSpec = TOWER_LEVELS[st.type][curLvl];
+      const costInfo = nextSpec.cost;
+      if (costInfo) {
+        const canAfford = player[costInfo.resource] >= costInfo.amount;
+        if (costText) costText.textContent = `UPGRADE TO LV.${curLvl + 1}: ${costInfo.amount} ${costInfo.resource.toUpperCase()}`;
+        if (upgradeBtn) {
+          upgradeBtn.disabled = !canAfford;
+          upgradeBtn.textContent = canAfford ? `UPGRADE TO LV.${curLvl + 1}` : `NEED ${costInfo.amount} ${costInfo.resource.toUpperCase()}`;
+        }
+      }
+    } else {
+      if (costText) costText.textContent = 'MAX LEVEL REACHED (LV.5)';
+      if (upgradeBtn) { upgradeBtn.disabled = true; upgradeBtn.textContent = 'MAX LEVEL'; }
+    }
+  } else if (st.type === 'wall' || st.type === 'spike') {
+    const curTier = st.tier || 0;
+    const tiers = STRUCTURE_TIERS[st.type];
+    const next = tiers[curTier + 1];
+    if (next) {
+      const canAfford = player.points >= next.pointsCost;
+      if (costText) costText.textContent = `UPGRADE TO TIER ${curTier + 2}: ${next.pointsCost} POINTS`;
+      if (upgradeBtn) {
+        upgradeBtn.disabled = !canAfford;
+        upgradeBtn.textContent = canAfford ? `UPGRADE TO TIER ${curTier + 2}` : `NEED ${next.pointsCost} POINTS`;
+      }
+    } else {
+      if (costText) costText.textContent = 'MAX TIER REACHED';
+      if (upgradeBtn) { upgradeBtn.disabled = true; upgradeBtn.textContent = 'MAX TIER'; }
+    }
+  } else {
+    if (costText) costText.textContent = 'UTILITY STRUCTURE (NO UPGRADES)';
+    if (upgradeBtn) { upgradeBtn.disabled = true; upgradeBtn.textContent = 'MAX LEVEL'; }
+  }
+}
+
+export function upgradeInspectedStructure(): void {
+  if (!inspectedStructure) return;
+  const st = inspectedStructure;
+
+  if (st.type === 'cannon' || st.type === 'mortar' || st.type === 'sniper' || st.type === 'tesla' || st.type === 'frost' || st.type === 'toxic') {
+    const curLvl = st.level || 1;
+    if (curLvl >= 5) {
+      spawnParticle(st.x, st.y - 30, 'MAX LEVEL', '#8bd17c');
+      return;
+    }
+    const levels = TOWER_LEVELS[st.type];
+    const nextSpec = levels[curLvl];
+    const costInfo = nextSpec.cost;
+    if (costInfo) {
+      const res = costInfo.resource;
+      const amt = costInfo.amount;
+      if (player[res] >= amt) {
+        player[res] -= amt;
+        st.level = curLvl + 1;
+        const hpFactor = 1.0 + (st.level - 1) * 0.50;
+        const baseHp = BUILD_DEFS[st.type].hp;
+        st.maxHp = Math.round(baseHp * hpFactor);
+        st.hp = st.maxHp;
+
+        spawnParticle(st.x, st.y - 30, 'Lv.' + st.level + ' ' + st.type.toUpperCase() + '!', '#ffd76a');
+        spawnBurst(st.x, st.y, '#ffd76a', 12);
+        renderStructureInspector();
+      } else {
+        spawnParticle(player.x, player.y - 30, 'need ' + amt + ' ' + res, '#ff8080');
+      }
+    }
+  } else if (st.type === 'wall' || st.type === 'spike') {
+    const curTier = st.tier || 0;
+    const tiers = STRUCTURE_TIERS[st.type];
+    const next = tiers[curTier + 1];
+    if (next) {
+      if (player.points >= next.pointsCost) {
+        player.points -= next.pointsCost;
+        st.tier = curTier + 1;
+        st.maxHp = next.hpMax;
+        st.hp = next.hpMax;
+        if (st.type === 'spike') st.damage = next.damage;
+        spawnParticle(st.x, st.y - 30, next.name.toUpperCase() + ' ' + st.type.toUpperCase(), '#c7cfd2');
+        renderStructureInspector();
+      } else {
+        spawnParticle(player.x, player.y - 30, 'need ' + next.pointsCost + ' points', '#ff8080');
+      }
+    } else {
+      spawnParticle(st.x, st.y - 30, 'MAX TIER', '#8bd17c');
+    }
   }
 }

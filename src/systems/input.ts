@@ -1,5 +1,5 @@
-import { keys, mouse, selectedBuild, setSelectedBuild, manualBuildAngle, setManualBuildAngle, player } from '../state';
-import { snapAngleToCardinal } from '../utils';
+import { keys, mouse, selectedBuild, setSelectedBuild, manualBuildAngle, setManualBuildAngle, player, structures, setInspectedStructure, camera } from '../state';
+import { snapAngleToCardinal, dist } from '../utils';
 import { StructureKind } from '../types';
 
 export function setupInputListeners(
@@ -63,7 +63,27 @@ export function setupInputListeners(
       if (selectedBuild) {
         onTryBuildOrUpgrade();
       } else {
-        mouse.down = true;
+        const mx = mouse.x + camera.x;
+        const my = mouse.y + camera.y;
+        let clickedStructure = null;
+        for (const s of structures) {
+          if (dist(mx, my, s.x, s.y) <= s.radius + 12) {
+            clickedStructure = s;
+            break;
+          }
+        }
+
+        if (clickedStructure) {
+          if (clickedStructure.type === 'factory' || clickedStructure.type === 'shop') {
+            onTryBuildOrUpgrade();
+          } else {
+            setInspectedStructure(clickedStructure);
+          }
+          mouse.down = false;
+        } else {
+          setInspectedStructure(null);
+          mouse.down = true;
+        }
       }
     } else if (e.button === 2) { // Right Click
       if (selectedBuild) {

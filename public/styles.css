@@ -966,3 +966,53 @@
     transition: background var(--dur) var(--ease);
   }
   #factoryCloseBtn:hover { background: var(--col-red-light); }
+
+  /* ── STRUCTURE INSPECTOR MODAL ── */
+  #structureInspector {
+    position: fixed; bottom: 24px; right: 24px; z-index: 25; pointer-events: auto;
+    background: var(--menu-card); backdrop-filter: blur(14px);
+    border: 1px solid var(--menu-border-active); border-radius: 12px;
+    padding: 16px 20px; width: 280px; box-shadow: var(--menu-shadow);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  #structureInspector.hidden { display: none !important; }
+  
+  .inspector-header { display: flex; justify-content: space-between; align-items: center; }
+  .inspector-title b { font-family: 'Ubuntu', sans-serif; font-size: 16px; font-weight: 700; color: var(--col-text); }
+  .inspector-title span { font-family: 'Share Tech Mono', monospace; font-size: 11px; font-weight: 700; color: var(--accent-gold); margin-left: 6px; }
+  #inspectorCloseBtn {
+    background: none; border: none; color: var(--col-muted); font-size: 14px; cursor: pointer; padding: 2px 6px;
+    transition: color var(--dur) var(--ease);
+  }
+  #inspectorCloseBtn:hover { color: var(--col-red); }
+
+  .inspector-hp-bar {
+    position: relative; height: 14px; background: rgba(0,0,0,0.4); border-radius: 7px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center;
+  }
+  .inspector-hp-bar .fill {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: var(--accent-hp);
+    transition: width 0.2s ease;
+  }
+  .inspector-hp-bar span {
+    position: relative; z-index: 2; font-size: 9px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px #000;
+  }
+
+  .inspector-stats {
+    display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--col-text-dim);
+    background: rgba(0,0,0,0.2); border-radius: 6px; padding: 8px 10px; border: 1px solid rgba(255,255,255,0.04);
+  }
+  .inspector-stat-row { display: flex; justify-content: space-between; align-items: center; }
+  .inspector-stat-row b { color: var(--col-text); }
+
+  .inspector-upgrade-box { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+  .inspector-upgrade-box .cost-text { font-size: 11px; font-weight: 700; color: var(--accent-gold); text-align: center; }
+  
+  .upgrade-btn-action {
+    font-family: 'Ubuntu', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 1px;
+    background: var(--accent-gold); color: #1c1504; border: none; border-radius: 6px;
+    padding: 8px 14px; cursor: pointer; text-transform: uppercase;
+    transition: background var(--dur) var(--ease), transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  }
+  .upgrade-btn-action:hover { background: #ffe082; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255,215,106,0.3); }
+  .upgrade-btn-action:disabled { background: var(--line); color: var(--col-muted); cursor: not-allowed; transform: none; box-shadow: none; }

@@ -164,6 +164,9 @@ export function setShopOpen(val: boolean): void { shopOpen = val; }
 export let factoryOpen = false;
 export function setFactoryOpen(val: boolean): void { factoryOpen = val; }
 
+export let inspectedStructure: Structure | null = null;
+export function setInspectedStructure(val: Structure | null): void { inspectedStructure = val; }
+
 export let debugUnlocked = false;
 export function setDebugUnlocked(val: boolean): void { debugUnlocked = val; }
 
