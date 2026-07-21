@@ -133,16 +133,30 @@ export function updateStartBtnLabel(): void {
   if (btn) btn.textContent = selectedMode === 'team' ? 'QUEUE UP' : 'ENTER THE FOREST';
 }
 
-export function renderClassSelect(): void {
+export function renderClassSelect(onConfirm?: () => void): void {
   const wrap = byId('classSelect');
   if (!wrap) return;
   wrap.innerHTML = '';
+  const classIcons: Record<string, string> = { gunner: '🔫', builder: '🔨', scavenger: '🎒' };
   Object.keys(CLASS_DEFS).forEach((key: string) => {
     const def = CLASS_DEFS[key];
+    const icon = classIcons[key] || '⚔️';
     const card = document.createElement('div');
-    card.className = 'class-card' + (selectedClass === key ? ' active' : '');
-    card.innerHTML = `<b>${def.label}</b><span>${def.desc}</span>`;
-    card.onclick = () => { setSelectedClass(key); renderClassSelect(); };
+    card.className = 'class-card-modal' + (selectedClass === key ? ' active' : '');
+    card.innerHTML = `
+      <div class="class-img-slot">
+        <span class="class-icon">${icon}</span>
+        <span class="img-label">IMAGE SLOT</span>
+      </div>
+      <b class="class-name">${def.label}</b>
+      <div class="class-perk">${def.desc}</div>
+      <button class="class-pick-btn">CHOOSE ${def.label.toUpperCase()}</button>
+    `;
+    card.onclick = () => {
+      setSelectedClass(key);
+      renderClassSelect(onConfirm);
+      if (onConfirm) onConfirm();
+    };
     wrap.appendChild(card);
   });
 }

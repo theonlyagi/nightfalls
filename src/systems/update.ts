@@ -397,6 +397,34 @@ export function updateZombies(dt: number, dayNightFactor: number): void {
       }
     }
   }
+
+  // Zombie-to-Zombie Soft Separation Physics (Prevents Horde Stacking / Clumping)
+  for (let i = 0; i < zombies.length; i++) {
+    const z1 = zombies[i];
+    if (z1.dead) continue;
+    for (let j = i + 1; j < zombies.length; j++) {
+      const z2 = zombies[j];
+      if (z2.dead) continue;
+      let dx = z2.x - z1.x;
+      let dy = z2.y - z1.y;
+      let d = Math.hypot(dx, dy);
+      const minDist = z1.radius + z2.radius;
+      if (d < minDist) {
+        if (d === 0) {
+          dx = Math.random() - 0.5;
+          dy = Math.random() - 0.5;
+          d = Math.hypot(dx, dy) || 1;
+        }
+        const overlap = (minDist - d);
+        const pushX = (dx / d) * overlap * 0.45;
+        const pushY = (dy / d) * overlap * 0.45;
+        z1.x = clamp(z1.x - pushX, z1.radius, WORLD_W - z1.radius);
+        z1.y = clamp(z1.y - pushY, z1.radius, WORLD_H - z1.radius);
+        z2.x = clamp(z2.x + pushX, z2.radius, WORLD_W - z2.radius);
+        z2.y = clamp(z2.y + pushY, z2.radius, WORLD_H - z2.radius);
+      }
+    }
+  }
 }
 
 export function updateParticles(dt: number): void {

@@ -167,13 +167,28 @@ byId('startBtn').onclick = () => {
   try {
     const nameVal = byId<HTMLInputElement>('nameInput').value.trim();
     setPlayerName(nameVal || 'Survivor');
-    if (selectedMode === 'team') {
-      byId('startOverlay').style.display = 'none';
-      openLobby();
-      return;
+
+    const modal = byId('classSelectModal');
+    if (modal) {
+      renderClassSelect(() => {
+        modal.classList.add('hidden');
+        byId('startOverlay').style.display = 'none';
+        if (selectedMode === 'team') {
+          openLobby();
+        } else {
+          resetGame();
+        }
+      });
+      modal.classList.remove('hidden');
+    } else {
+      if (selectedMode === 'team') {
+        byId('startOverlay').style.display = 'none';
+        openLobby();
+      } else {
+        byId('startOverlay').style.display = 'none';
+        resetGame();
+      }
     }
-    byId('startOverlay').style.display = 'none';
-    resetGame();
   } catch (err) { showFatalError(err); }
 };
 

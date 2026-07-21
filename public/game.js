@@ -1336,6 +1336,32 @@
         }
       }
     }
+    for (let i = 0; i < zombies.length; i++) {
+      const z1 = zombies[i];
+      if (z1.dead) continue;
+      for (let j = i + 1; j < zombies.length; j++) {
+        const z2 = zombies[j];
+        if (z2.dead) continue;
+        let dx = z2.x - z1.x;
+        let dy = z2.y - z1.y;
+        let d = Math.hypot(dx, dy);
+        const minDist = z1.radius + z2.radius;
+        if (d < minDist) {
+          if (d === 0) {
+            dx = Math.random() - 0.5;
+            dy = Math.random() - 0.5;
+            d = Math.hypot(dx, dy) || 1;
+          }
+          const overlap = minDist - d;
+          const pushX = dx / d * overlap * 0.45;
+          const pushY = dy / d * overlap * 0.45;
+          z1.x = clamp(z1.x - pushX, z1.radius, WORLD_W - z1.radius);
+          z1.y = clamp(z1.y - pushY, z1.radius, WORLD_H - z1.radius);
+          z2.x = clamp(z2.x + pushX, z2.radius, WORLD_W - z2.radius);
+          z2.y = clamp(z2.y + pushY, z2.radius, WORLD_H - z2.radius);
+        }
+      }
+    }
   }
   function updateParticles(dt) {
     particles.forEach((p) => {
@@ -3096,18 +3122,29 @@
     const btn = byId("startBtn");
     if (btn) btn.textContent = selectedMode === "team" ? "QUEUE UP" : "ENTER THE FOREST";
   }
-  function renderClassSelect() {
+  function renderClassSelect(onConfirm) {
     const wrap = byId("classSelect");
     if (!wrap) return;
     wrap.innerHTML = "";
+    const classIcons = { gunner: "\u{1F52B}", builder: "\u{1F528}", scavenger: "\u{1F392}" };
     Object.keys(CLASS_DEFS).forEach((key) => {
       const def = CLASS_DEFS[key];
+      const icon = classIcons[key] || "\u2694\uFE0F";
       const card = document.createElement("div");
-      card.className = "class-card" + (selectedClass === key ? " active" : "");
-      card.innerHTML = `<b>${def.label}</b><span>${def.desc}</span>`;
+      card.className = "class-card-modal" + (selectedClass === key ? " active" : "");
+      card.innerHTML = `
+      <div class="class-img-slot">
+        <span class="class-icon">${icon}</span>
+        <span class="img-label">IMAGE SLOT</span>
+      </div>
+      <b class="class-name">${def.label}</b>
+      <div class="class-perk">${def.desc}</div>
+      <button class="class-pick-btn">CHOOSE ${def.label.toUpperCase()}</button>
+    `;
       card.onclick = () => {
         setSelectedClass(key);
-        renderClassSelect();
+        renderClassSelect(onConfirm);
+        if (onConfirm) onConfirm();
       };
       wrap.appendChild(card);
     });
@@ -3847,13 +3884,27 @@
     try {
       const nameVal = byId("nameInput").value.trim();
       setPlayerName(nameVal || "Survivor");
-      if (selectedMode === "team") {
-        byId("startOverlay").style.display = "none";
-        openLobby();
-        return;
+      const modal = byId("classSelectModal");
+      if (modal) {
+        renderClassSelect(() => {
+          modal.classList.add("hidden");
+          byId("startOverlay").style.display = "none";
+          if (selectedMode === "team") {
+            openLobby();
+          } else {
+            resetGame();
+          }
+        });
+        modal.classList.remove("hidden");
+      } else {
+        if (selectedMode === "team") {
+          byId("startOverlay").style.display = "none";
+          openLobby();
+        } else {
+          byId("startOverlay").style.display = "none";
+          resetGame();
+        }
       }
-      byId("startOverlay").style.display = "none";
-      resetGame();
     } catch (err) {
       showFatalError(err);
     }

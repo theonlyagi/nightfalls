@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>NIGHTFALL.IO</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Ubuntu+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -18,16 +18,16 @@
     <div id="topbarRow">
       <div class="pill hud-font" id="waveLabel">WAVE 1</div>
       <div class="pill" id="zLabel">zombies: 0</div>
-      <div class="pill hud-font day" id="phaseLabel">☀ DAY</div>
+      <div class="pill hud-font day" id="phaseLabel">DAY</div>
     </div>
     <div id="powerupStatus">
-      <div class="pu-pill" id="puInsta">⚡ INSTA-KILL 0s</div>
+      <div class="pu-pill" id="puInsta">INSTA-KILL 0s</div>
       <div class="pu-pill" id="puDouble">2x POINTS 0s</div>
-      <div class="pu-pill" id="puSpeed">💨 SPEED 0s</div>
-      <div class="pu-pill" id="puDamage">🎯 DAMAGE 0s</div>
-      <div class="pu-pill" id="puRate">🔥 RAPID FIRE 0s</div>
-      <div class="pu-pill" id="puRegen">💚 REGEN 0s</div>
-      <div class="pu-pill" id="puHeat">🌡️ HEAT 0%</div>
+      <div class="pu-pill" id="puSpeed">SPEED 0s</div>
+      <div class="pu-pill" id="puDamage">DMG BOOST 0s</div>
+      <div class="pu-pill" id="puRate">RAPID FIRE 0s</div>
+      <div class="pu-pill" id="puRegen">REGEN 0s</div>
+      <div class="pu-pill" id="puHeat">HEAT 0%</div>
     </div>
     <div id="bossBar">
       <div id="bossName">BOSS</div>
@@ -55,25 +55,25 @@
 
   <div id="upgradePanel"></div>
   <div id="buildBar"></div>
-  <div id="shopHint">🛒 press <b>E</b> to open the shop</div>
-  <div id="rotateHint">🔄 press <b>R</b> to rotate</div>
+  <div id="shopHint">press <b>E</b> to open shop</div>
+  <div id="rotateHint">press <b>R</b> to rotate</div>
 
   <div id="waveBanner">WAVE 1<span>Zombies incoming</span></div>
 
   <div id="hint">
-    <b>WASD</b> move &nbsp; <b>MOUSE</b> aim/shoot<br>
-    <b>1-5</b> select building &nbsp; <b>E</b> place / upgrade / shop &nbsp; <b>ESC</b> deselect<br>
-    <b>R</b> 🔄 rotate wall/spike &nbsp; watch out at night — zombies hit harder &amp; faster
+    <b>WASD</b> move &nbsp; <b>MOUSE</b> aim / shoot<br>
+    <b>1-5</b> select building &nbsp; <b>E</b> place / shop &nbsp; <b>ESC</b> deselect<br>
+    <b>R</b> rotate structure &nbsp;&mdash;&nbsp; zombies hit harder at night
   </div>
 
   <div id="touchOverlay" class="hidden">
     <div id="stickLeftBase" class="stick-base"><div id="stickLeftKnob" class="stick-knob"></div></div>
     <div id="stickRightBase" class="stick-base"><div id="stickRightKnob" class="stick-knob"></div></div>
-    <div id="touchActions">
-      <button id="touchBtnShop" class="touch-btn">🛒 SHOP (E)</button>
-      <button id="touchBtnRotate" class="touch-btn">🔄 ROTATE (R)</button>
-      <button id="touchBtnCancel" class="touch-btn">✖ CANCEL (ESC)</button>
-    </div>
+      <div id="touchActions">
+        <button id="touchBtnShop" class="touch-btn">SHOP [E]</button>
+        <button id="touchBtnRotate" class="touch-btn">ROTATE [R]</button>
+        <button id="touchBtnCancel" class="touch-btn">CANCEL [ESC]</button>
+      </div>
   </div>
 </div>
 
@@ -157,53 +157,119 @@
   <button id="restartBtn">BACK TO MENU</button>
 </div>
 
-<div id="startOverlay">
-  <button id="startSettingsBtn" class="gear-btn" title="Settings">⚙</button>
-  <h1>NIGHTFALL.IO</h1>
-  <div class="sub">TOP-DOWN ZOMBIE SURVIVAL</div>
-  <div class="controls">
-    <b>WASD</b> move &nbsp;·&nbsp; <b>MOUSE</b> aim &nbsp;·&nbsp; <b>CLICK</b> shoot &nbsp;·&nbsp; <b>1-5 + E</b> build/upgrade/shop<br>
-    Day and night cycle as you survive — nights are faster and more dangerous. Boss every 10 waves. Build a Shop and spend points on powerups, boosts, and cosmetics. Meta progress carries over between runs.
-  </div>
-
-  <div class="panelBox">
-    <h3>GAME MODE</h3>
-    <div id="modeSelect"></div>
-  </div>
-
-  <div class="panelBox">
-    <h3>CHOOSE YOUR CLASS</h3>
+<!-- CLASS SELECT MODAL POPUP -->
+<div id="classSelectModal" class="overlay-anim hidden">
+  <div id="classSelectBox">
+    <h2>CHOOSE YOUR CLASS</h2>
+    <div class="sub">Select your survivor specialization for this run</div>
     <div id="classSelect"></div>
   </div>
+</div>
 
-  <div class="panelBox">
-    <h3>SURVIVOR NAME</h3>
-    <div id="nameRow">
-      <input id="nameInput" type="text" maxlength="14" placeholder="Survivor">
-    </div>
-    <div class="metaStatsRow" id="metaStatsRow">
-      <div>Meta Points<b id="metaPointsVal">0</b></div>
-      <div>Best Wave<b id="bestWaveVal">0</b></div>
-      <div>Lifetime Kills<b id="lifetimeKillsVal">0</b></div>
-      <div>Runs<b id="gamesPlayedVal">0</b></div>
-    </div>
-    <div id="metaUpgrades"></div>
+<!-- REDESIGNED MAIN MENU OVERLAY (NO SCROLLING - 3 COLUMN LAYOUT) -->
+<div id="startOverlay">
+  <button id="startSettingsBtn" class="gear-btn" title="Settings">S</button>
+
+  <header id="menuHeader">
+    <h1 class="logo">NIGHTFALL<span class="logo-io">.IO</span></h1>
+    <div class="tagline">TOP-DOWN ZOMBIE SURVIVAL ARENA</div>
+  </header>
+
+  <div id="menuGrid">
+    <!-- LEFT PANEL: CREATORS & CREDITS -->
+    <aside id="leftPanel" class="menu-side-panel">
+      <div class="side-box">
+        <h3>COMMUNITY</h3>
+        <div class="creator-list">
+          <div class="creator-item">
+            <div class="creator-badge">DC</div>
+            <div>
+              <b>Official Discord</b>
+              <span class="sub-text">Join the community server</span>
+            </div>
+          </div>
+          <div class="creator-item">
+            <div class="creator-badge">YT</div>
+            <div>
+              <b>Content Creators</b>
+              <span class="sub-text">Watch strategy & highlight videos</span>
+            </div>
+          </div>
+          <div class="creator-item">
+            <div class="creator-badge">GD</div>
+            <div>
+              <b>Survival Guide</b>
+              <span class="sub-text">Build defenses & defeat Nightfall bosses</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="side-box credits-box">
+        <h3>CREDITS</h3>
+        <p class="credits-desc">Built with TypeScript &amp; HTML5 Canvas. Modular ES Modules architecture.</p>
+        <div class="version-tag">v1.0.0 &nbsp;&mdash;&nbsp; ES Modules Build</div>
+      </div>
+    </aside>
+
+    <!-- CENTER PANEL: SURVIVOR NAME + STATS + META UPGRADES + SKINS -->
+    <main id="centerPanel" class="menu-main-panel">
+      <div class="profile-header">
+        <label for="nameInput">SURVIVOR NAME</label>
+        <input id="nameInput" type="text" maxlength="14" placeholder="Enter name" autocomplete="off">
+      </div>
+
+      <div class="metaStatsRow" id="metaStatsRow">
+        <div class="stat-card">
+          <span class="lbl">Meta Points</span>
+          <b id="metaPointsVal">0</b>
+        </div>
+        <div class="stat-card">
+          <span class="lbl">Best Wave</span>
+          <b id="bestWaveVal">0</b>
+        </div>
+        <div class="stat-card">
+          <span class="lbl">Lifetime Kills</span>
+          <b id="lifetimeKillsVal">0</b>
+        </div>
+        <div class="stat-card">
+          <span class="lbl">Total Runs</span>
+          <b id="gamesPlayedVal">0</b>
+        </div>
+      </div>
+
+      <div class="meta-section">
+        <h4>PERMANENT UPGRADES</h4>
+        <div id="metaUpgrades"></div>
+      </div>
+
+      <div class="meta-two-col">
+        <div class="meta-sub-section">
+          <h4>STARTING BONUSES</h4>
+          <div id="startBonuses" class="shop-row"></div>
+        </div>
+        <div class="meta-sub-section">
+          <h4>SKINS</h4>
+          <div id="metaSkins" class="shop-row"></div>
+        </div>
+      </div>
+
+      <div class="mode-selector-wrap">
+        <div class="mode-label">SELECT MODE</div>
+        <div id="modeSelect"></div>
+      </div>
+
+      <button id="startBtn">ENTER THE ZONE</button>
+    </main>
+
+    <!-- RIGHT PANEL: LEADERBOARD -->
+    <aside id="rightPanel" class="menu-side-panel">
+      <div class="side-box lb-box">
+        <h3>LEADERBOARD</h3>
+        <div id="leaderboardList"><div class="lb-empty">Loading...</div></div>
+      </div>
+    </aside>
   </div>
-
-  <div class="panelBox">
-    <h3>PERMANENT PROGRESSION</h3>
-    <div class="shop-cat-title">STARTING BONUSES</div>
-    <div id="startBonuses" class="shop-row"></div>
-    <div class="shop-cat-title">SKINS</div>
-    <div id="metaSkins" class="shop-row"></div>
-  </div>
-
-  <div class="panelBox">
-    <h3>LEADERBOARD — TOP SURVIVORS</h3>
-    <div id="leaderboardList"><div class="lb-empty">loading...</div></div>
-  </div>
-
-  <button id="startBtn">ENTER THE FOREST</button>
 </div>
 
 <div id="lobbyOverlay" class="overlay-anim hidden">
