@@ -19,7 +19,7 @@ import {
 import { byId, snapAngleToCardinal } from '../utils';
 import { applyPowerup, showBanner, spawnParticle, spawnBurst } from '../systems/combat';
 import { findNearestShop, findNearestFactory } from '../systems/update';
-import { getBuildTarget, getPlacementAngle } from '../render/drawWorld';
+import { getBuildTarget, getPlacementAngle, worldToScreen } from '../render/drawWorld';
 
 const imgCannonBase = new Image();
 imgCannonBase.src = 'assets/structures/cannon_base.png';
@@ -35,6 +35,9 @@ const imgSniperBase = new Image();
 imgSniperBase.src = 'assets/structures/sniper_base.png';
 const imgSniperTurret = new Image();
 imgSniperTurret.src = 'assets/structures/sniper_turret.png';
+
+const imgWallWood = new Image();
+imgWallWood.src = 'assets/structures/wall_wood.png';
 
 export function createShopItems(): ShopItemDef[] {
   return [
@@ -135,25 +138,18 @@ function drawBuildPreview(canvas: HTMLCanvasElement, key: StructureKind): void {
   if (key === 'wall') {
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.rotate(Math.PI / 6);
-    ctx.fillStyle = '#a9aeb2';
-    ctx.strokeStyle = '#2a2d30';
-    ctx.lineWidth = 2.0;
-    
-    const w = 26, h = 9;
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-w/2, -h/2, w, h, 2.5);
-    else ctx.rect(-w/2, -h/2, w, h);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.moveTo(-w/2 + w/3, -h/2); ctx.lineTo(-w/2 + w/3, h/2);
-    ctx.moveTo(w/2 - w/3, -h/2); ctx.lineTo(w/2 - w/3, h/2);
-    ctx.moveTo(-w/2, 0); ctx.lineTo(w/2, 0);
-    ctx.stroke();
+    const size = 26;
+    if (imgWallWood.complete && imgWallWood.naturalWidth !== 0) {
+      ctx.drawImage(imgWallWood, -size / 2, -size / 2, size, size);
+    } else {
+      ctx.fillStyle = '#c9a668';
+      ctx.strokeStyle = '#2a2d30';
+      ctx.lineWidth = 2.0;
+      const w = 26, h = 9;
+      if (ctx.roundRect) ctx.roundRect(-w/2, -h/2, w, h, 2.5);
+      else ctx.rect(-w/2, -h/2, w, h);
+      ctx.fill(); ctx.stroke();
+    }
     ctx.restore();
   } else if (key === 'spike') {
     ctx.save();
@@ -695,6 +691,22 @@ export function renderStructureInspector(): void {
   const st = inspectedStructure;
   panel.classList.remove('hidden');
 
+  // Position modal right above the clicked structure in screen space
+  const s = worldToScreen(st.x, st.y);
+  const panelW = 260;
+  const panelH = 210;
+  let left = s.x - panelW / 2;
+  let top = s.y - st.radius - panelH - 12;
+
+  // Clamp within viewport padding
+  left = Math.max(16, Math.min(window.innerWidth - panelW - 16, left));
+  top = Math.max(16, Math.min(window.innerHeight - panelH - 16, top));
+
+  panel.style.left = `${left}px`;
+  panel.style.top = `${top}px`;
+  panel.style.bottom = 'auto';
+  panel.style.right = 'auto';
+
   const def = BUILD_DEFS[st.type];
   const nameEl = byId('inspectorName');
   const lvlEl = byId('inspectorLvl');
@@ -839,4 +851,23 @@ export function upgradeInspectedStructure(): void {
       spawnParticle(st.x, st.y - 30, 'MAX TIER', '#8bd17c');
     }
   }
+}
+
+export function removeInspectedStructure(): void {
+  if (!inspectedStructure) return;
+  const st = inspectedStructure;
+  const idx = structures.indexOf(st);
+  if (idx !== -1) {
+    structures.splice(idx, 1);
+    const def = BUILD_DEFS[st.type];
+    if (def) {
+      const wRefund = Math.floor(def.wood * 0.5);
+      const sRefund = Math.floor(def.stone * 0.5);
+      if (wRefund > 0) player.wood += wRefund;
+      if (sRefund > 0) player.stone += sRefund;
+      spawnParticle(st.x, st.y - 20, `+${wRefund} W  +${sRefund} S`, '#8bd17c');
+    }
+    spawnBurst(st.x, st.y, '#ff5c5c', 16);
+  }
+  closeStructureInspector();
 }

@@ -1123,31 +1123,32 @@
   }
   #factoryCloseBtn:hover { background: var(--col-red-light); }
 
-  /* ── STRUCTURE INSPECTOR MODAL ── */
+  /* ── STRUCTURE INSPECTOR MODAL (FLOATING OVERLAY) ── */
   #structureInspector {
-    position: fixed; bottom: 24px; right: 24px; z-index: 25; pointer-events: auto;
-    background: var(--menu-card); backdrop-filter: blur(14px);
-    border: 1px solid var(--menu-border-active); border-radius: 12px;
-    padding: 16px 20px; width: 280px; box-shadow: var(--menu-shadow);
-    display: flex; flex-direction: column; gap: 10px;
+    position: fixed; z-index: 25; pointer-events: auto;
+    background: rgba(14, 20, 32, 0.92); backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 215, 106, 0.35); border-radius: 16px;
+    padding: 14px 18px; width: 260px; box-shadow: 0 12px 36px rgba(0,0,0,0.65), 0 0 20px rgba(255,215,106,0.12);
+    display: flex; flex-direction: column; gap: 8px;
+    transition: left 0.05s linear, top 0.05s linear;
   }
   #structureInspector.hidden { display: none !important; }
   
   .inspector-header { display: flex; justify-content: space-between; align-items: center; }
-  .inspector-title b { font-family: 'Ubuntu', sans-serif; font-size: 16px; font-weight: 700; color: var(--col-text); }
-  .inspector-title span { font-family: 'Share Tech Mono', monospace; font-size: 11px; font-weight: 700; color: var(--accent-gold); margin-left: 6px; }
+  .inspector-title b { font-family: 'Ubuntu', sans-serif; font-size: 15px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+  .inspector-title span { font-family: 'Share Tech Mono', monospace; font-size: 11px; font-weight: 700; color: var(--accent-gold); margin-left: 6px; background: rgba(255,215,106,0.15); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(255,215,106,0.3); }
   #inspectorCloseBtn {
-    background: none; border: none; color: var(--col-muted); font-size: 14px; cursor: pointer; padding: 2px 6px;
-    transition: color var(--dur) var(--ease);
+    background: rgba(255,255,255,0.08); border: none; color: var(--col-muted); font-size: 13px; cursor: pointer; padding: 3px 8px; border-radius: 6px;
+    transition: all var(--dur) var(--ease);
   }
-  #inspectorCloseBtn:hover { color: var(--col-red); }
+  #inspectorCloseBtn:hover { background: rgba(255,92,92,0.25); color: #ff8080; }
 
   .inspector-hp-bar {
-    position: relative; height: 14px; background: rgba(0,0,0,0.4); border-radius: 7px; overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center;
+    position: relative; height: 12px; background: rgba(0,0,0,0.5); border-radius: 6px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;
   }
   .inspector-hp-bar .fill {
-    position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: var(--accent-hp);
+    position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: linear-gradient(90deg, #2ecc71, #27ae60);
     transition: width 0.2s ease;
   }
   .inspector-hp-bar span {
@@ -1155,23 +1156,33 @@
   }
 
   .inspector-stats {
-    display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--col-text-dim);
-    background: rgba(0,0,0,0.2); border-radius: 6px; padding: 8px 10px; border: 1px solid rgba(255,255,255,0.04);
+    display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #a0aec0;
+    background: rgba(0,0,0,0.3); border-radius: 8px; padding: 6px 10px; border: 1px solid rgba(255,255,255,0.05);
   }
   .inspector-stat-row { display: flex; justify-content: space-between; align-items: center; }
-  .inspector-stat-row b { color: var(--col-text); }
+  .inspector-stat-row b { color: #edf2f7; font-weight: 600; }
 
   .inspector-upgrade-box { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
-  .inspector-upgrade-box .cost-text { font-size: 11px; font-weight: 700; color: var(--accent-gold); text-align: center; }
+  .inspector-upgrade-box .cost-text { font-size: 10px; font-weight: 700; color: var(--accent-gold); text-align: center; letter-spacing: 0.5px; }
   
+  .inspector-actions { display: flex; gap: 6px; }
+
   .upgrade-btn-action {
-    font-family: 'Ubuntu', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 1px;
-    background: var(--accent-gold); color: #1c1504; border: none; border-radius: 6px;
-    padding: 8px 14px; cursor: pointer; text-transform: uppercase;
-    transition: background var(--dur) var(--ease), transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+    flex: 1; font-family: 'Ubuntu', sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 0.5px;
+    background: linear-gradient(135deg, #ffd76a, #f1c40f); color: #1a1202; border: none; border-radius: 8px;
+    padding: 8px 10px; cursor: pointer; text-transform: uppercase;
+    transition: all var(--dur) var(--ease); box-shadow: 0 2px 8px rgba(241,196,15,0.25);
   }
-  .upgrade-btn-action:hover { background: #ffe082; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255,215,106,0.3); }
-  .upgrade-btn-action:disabled { background: var(--line); color: var(--col-muted); cursor: not-allowed; transform: none; box-shadow: none; }
+  .upgrade-btn-action:hover { background: linear-gradient(135deg, #ffe082, #f39c12); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(241,196,15,0.4); }
+  .upgrade-btn-action:disabled { background: rgba(255,255,255,0.1); color: #718096; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .remove-btn-action {
+    font-family: 'Ubuntu', sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 0.5px;
+    background: rgba(231, 76, 60, 0.18); color: #ff6b6b; border: 1px solid rgba(231, 76, 60, 0.4); border-radius: 8px;
+    padding: 8px 10px; cursor: pointer; white-space: nowrap;
+    transition: all var(--dur) var(--ease);
+  }
+  .remove-btn-action:hover { background: rgba(231, 76, 60, 0.35); color: #fff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(231,76,60,0.3); }
 
   /* ─────────────────────────────────────────────────────────────
      FLORR.IO NEO-BRUTALIST MAIN MENU DESIGN SYSTEM

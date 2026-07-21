@@ -88,7 +88,13 @@ export function render(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement)
   for (const r of resources) drawResource(ctx, canvas, r);
   for (const c of crates) drawCrate(ctx, c);
   for (const p of powerups) drawPowerup(ctx, canvas, p);
-  for (const st of structures) drawStructure(ctx, st);
+  // Render ground structures (walls & spikes) first, then towers on top
+  for (const st of structures) {
+    if (st.type === 'wall' || st.type === 'spike') drawStructure(ctx, st);
+  }
+  for (const st of structures) {
+    if (st.type !== 'wall' && st.type !== 'spike') drawStructure(ctx, st);
+  }
   drawBuildPreview(ctx);
   for (const z of zombies) drawZombie(ctx, canvas, z);
   drawBullets(ctx);

@@ -2,8 +2,8 @@
   // src/constants.ts
   var WORLD_W = 4200;
   var WORLD_H = 4200;
-  var TILE = 64;
-  var BUILD_REACH = TILE * 3;
+  var TILE = 32;
+  var BUILD_REACH = TILE * 6;
   var WS_URL = "ws://localhost:8081/ws";
   var BASE_STATS = {
     radius: 22,
@@ -106,8 +106,8 @@
     } }
   };
   var BUILD_DEFS = {
-    wall: { label: "Wall", wood: 15, stone: 0, hp: 80, radius: 26, color: ["#c9a668", "#9aa3a6", "#c7cfd2"] },
-    spike: { label: "Spike", wood: 10, stone: 5, hp: 40, radius: 18, damage: 9 },
+    wall: { label: "Wall", wood: 15, stone: 0, hp: 80, radius: 14, color: ["#c9a668", "#9aa3a6", "#c7cfd2"] },
+    spike: { label: "Spike", wood: 10, stone: 5, hp: 40, radius: 10, damage: 9 },
     campfire: { label: "Campfire", wood: 20, stone: 0, hp: 50, radius: 20, healRadius: 150, healRate: 5 },
     shop: { label: "Shop", wood: 40, stone: 35, hp: 120, radius: 24 },
     factory: { label: "Factory", wood: 50, stone: 40, hp: 150, radius: 28 },
@@ -2380,6 +2380,12 @@
   imgSniperBase.src = "assets/structures/sniper_base.png";
   var imgSniperTurret = new Image();
   imgSniperTurret.src = "assets/structures/sniper_turret.png";
+  var imgWallWood = new Image();
+  imgWallWood.src = "assets/structures/wall_wood.png";
+  var imgWallStone = new Image();
+  imgWallStone.src = "assets/structures/wall_stone.png";
+  var imgWallIron = new Image();
+  imgWallIron.src = "assets/structures/wall_iron.png";
   function worldToScreen(x, y) {
     return { x: x - camera.x, y: y - camera.y };
   }
@@ -2854,37 +2860,24 @@
     const ang = st.angle || 0;
     const lvl = st.level || 1;
     if (st.type === "wall") {
-      const tierGray = ["#8f9498", "#a9aeb2", "#c3c8cc"];
-      const col = tierGray[st.tier ?? 0];
-      const w = st.radius * 2.3, h = st.radius * 1;
+      const tierImgs = [imgWallWood, imgWallStone, imgWallIron];
+      const curImg = tierImgs[st.tier ?? 0];
+      const w = TILE, h = TILE;
       ctx2.save();
       ctx2.translate(s.x, s.y);
-      ctx2.rotate(ang + Math.PI / 2);
-      ctx2.fillStyle = col;
-      ctx2.strokeStyle = "#2a2d30";
-      ctx2.lineWidth = 4;
-      roundRectPath(ctx2, -w / 2, -h / 2, w, h, 5);
-      ctx2.fill();
-      ctx2.stroke();
-      ctx2.strokeStyle = "rgba(0,0,0,0.32)";
-      ctx2.lineWidth = 2.5;
-      for (let i = 1; i < 3; i++) {
-        const dx = -w / 2 + i * (w / 3);
-        ctx2.beginPath();
-        ctx2.moveTo(dx, -h / 2 + 3);
-        ctx2.lineTo(dx, h / 2 - 3);
+      ctx2.rotate(ang);
+      if (curImg && curImg.complete && curImg.naturalWidth !== 0) {
+        ctx2.drawImage(curImg, -w / 2, -h / 2, w, h);
+      } else {
+        const tierGray = ["#c9a668", "#9aa3a6", "#c7cfd2"];
+        const col = tierGray[st.tier ?? 0];
+        ctx2.fillStyle = col;
+        ctx2.strokeStyle = "#2a2d30";
+        ctx2.lineWidth = 4;
+        roundRectPath(ctx2, -w / 2, -h / 2, w, h, 5);
+        ctx2.fill();
         ctx2.stroke();
       }
-      ctx2.beginPath();
-      ctx2.moveTo(-w / 2 + 3, 0);
-      ctx2.lineTo(w / 2 - 3, 0);
-      ctx2.stroke();
-      ctx2.strokeStyle = "rgba(255,255,255,0.22)";
-      ctx2.lineWidth = 2;
-      ctx2.beginPath();
-      ctx2.moveTo(-w / 2 + 5, -h / 2 + 3);
-      ctx2.lineTo(w / 2 - 5, -h / 2 + 3);
-      ctx2.stroke();
       ctx2.restore();
     } else if (st.type === "spike") {
       const w = st.radius * 2.4, h = st.radius * 0.62;
@@ -2933,26 +2926,31 @@
       ctx2.save();
       ctx2.translate(s.x, s.y);
       const size = st.radius * 2.8;
-      const levelColors = ["#8e9eab", "#2ecc71", "#3498db", "#9b59b6", "#f1c40f"];
+      const levelColors = [null, "#a06d3b", "#8f9498", "#597b7f", "#ffd76a"];
       const lvlColor = levelColors[Math.min(lvl - 1, 4)];
       const bSize = size + 6;
-      ctx2.save();
-      ctx2.strokeStyle = "#000000";
-      ctx2.lineWidth = 6;
-      roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
-      ctx2.stroke();
-      ctx2.strokeStyle = lvlColor;
-      ctx2.lineWidth = 3.5;
-      roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
-      ctx2.stroke();
-      ctx2.fillStyle = "#000000";
-      const cOff = bSize / 2 - 4;
-      [[-cOff, -cOff], [cOff, -cOff], [-cOff, cOff], [cOff, cOff]].forEach(([cx, cy]) => {
-        ctx2.beginPath();
-        ctx2.arc(cx, cy, 2.5, 0, Math.PI * 2);
+      if (lvlColor) {
+        ctx2.save();
+        ctx2.fillStyle = lvlColor + "33";
+        roundRectPath(ctx2, -bSize / 2 - 2, -bSize / 2 - 2, bSize + 4, bSize + 4, 10);
         ctx2.fill();
-      });
-      ctx2.restore();
+        ctx2.strokeStyle = "#000000";
+        ctx2.lineWidth = 6;
+        roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+        ctx2.stroke();
+        ctx2.strokeStyle = lvlColor;
+        ctx2.lineWidth = 3.5;
+        roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+        ctx2.stroke();
+        ctx2.fillStyle = "#000000";
+        const cOff = bSize / 2 - 4;
+        [[-cOff, -cOff], [cOff, -cOff], [-cOff, cOff], [cOff, cOff]].forEach(([cx, cy]) => {
+          ctx2.beginPath();
+          ctx2.arc(cx, cy, 2.5, 0, Math.PI * 2);
+          ctx2.fill();
+        });
+        ctx2.restore();
+      }
       if (imgCannonBase.complete && imgCannonBase.naturalWidth !== 0) {
         ctx2.drawImage(imgCannonBase, -size / 2, -size / 2, size, size);
       } else {
@@ -2990,26 +2988,31 @@
       ctx2.save();
       ctx2.translate(s.x, s.y);
       const size = st.radius * 2.8;
-      const levelColors = ["#8e9eab", "#2ecc71", "#3498db", "#9b59b6", "#f1c40f"];
+      const levelColors = [null, "#a06d3b", "#8f9498", "#597b7f", "#ffd76a"];
       const lvlColor = levelColors[Math.min(lvl - 1, 4)];
       const bSize = size + 6;
-      ctx2.save();
-      ctx2.strokeStyle = "#000000";
-      ctx2.lineWidth = 6;
-      roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
-      ctx2.stroke();
-      ctx2.strokeStyle = lvlColor;
-      ctx2.lineWidth = 3.5;
-      roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
-      ctx2.stroke();
-      ctx2.fillStyle = "#000000";
-      const cOff = bSize / 2 - 4;
-      [[-cOff, -cOff], [cOff, -cOff], [-cOff, cOff], [cOff, cOff]].forEach(([cx, cy]) => {
-        ctx2.beginPath();
-        ctx2.arc(cx, cy, 2.5, 0, Math.PI * 2);
+      if (lvlColor) {
+        ctx2.save();
+        ctx2.fillStyle = lvlColor + "33";
+        roundRectPath(ctx2, -bSize / 2 - 2, -bSize / 2 - 2, bSize + 4, bSize + 4, 10);
         ctx2.fill();
-      });
-      ctx2.restore();
+        ctx2.strokeStyle = "#000000";
+        ctx2.lineWidth = 6;
+        roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+        ctx2.stroke();
+        ctx2.strokeStyle = lvlColor;
+        ctx2.lineWidth = 3.5;
+        roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+        ctx2.stroke();
+        ctx2.fillStyle = "#000000";
+        const cOff = bSize / 2 - 4;
+        [[-cOff, -cOff], [cOff, -cOff], [-cOff, cOff], [cOff, cOff]].forEach(([cx, cy]) => {
+          ctx2.beginPath();
+          ctx2.arc(cx, cy, 2.5, 0, Math.PI * 2);
+          ctx2.fill();
+        });
+        ctx2.restore();
+      }
       if (imgMortarBase.complete && imgMortarBase.naturalWidth !== 0) {
         ctx2.drawImage(imgMortarBase, -size / 2, -size / 2, size, size);
       } else {
@@ -3036,26 +3039,31 @@
       ctx2.save();
       ctx2.translate(s.x, s.y);
       const size = st.radius * 2.8;
-      const levelColors = ["#8e9eab", "#2ecc71", "#3498db", "#9b59b6", "#f1c40f"];
+      const levelColors = [null, "#a06d3b", "#8f9498", "#597b7f", "#ffd76a"];
       const lvlColor = levelColors[Math.min(lvl - 1, 4)];
       const bSize = size + 6;
-      ctx2.save();
-      ctx2.strokeStyle = "#000000";
-      ctx2.lineWidth = 6;
-      roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
-      ctx2.stroke();
-      ctx2.strokeStyle = lvlColor;
-      ctx2.lineWidth = 3.5;
-      roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
-      ctx2.stroke();
-      ctx2.fillStyle = "#000000";
-      const cOff = bSize / 2 - 4;
-      [[-cOff, -cOff], [cOff, -cOff], [-cOff, cOff], [cOff, cOff]].forEach(([cx, cy]) => {
-        ctx2.beginPath();
-        ctx2.arc(cx, cy, 2.5, 0, Math.PI * 2);
+      if (lvlColor) {
+        ctx2.save();
+        ctx2.fillStyle = lvlColor + "33";
+        roundRectPath(ctx2, -bSize / 2 - 2, -bSize / 2 - 2, bSize + 4, bSize + 4, 10);
         ctx2.fill();
-      });
-      ctx2.restore();
+        ctx2.strokeStyle = "#000000";
+        ctx2.lineWidth = 6;
+        roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+        ctx2.stroke();
+        ctx2.strokeStyle = lvlColor;
+        ctx2.lineWidth = 3.5;
+        roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+        ctx2.stroke();
+        ctx2.fillStyle = "#000000";
+        const cOff = bSize / 2 - 4;
+        [[-cOff, -cOff], [cOff, -cOff], [-cOff, cOff], [cOff, cOff]].forEach(([cx, cy]) => {
+          ctx2.beginPath();
+          ctx2.arc(cx, cy, 2.5, 0, Math.PI * 2);
+          ctx2.fill();
+        });
+        ctx2.restore();
+      }
       if (imgSniperBase.complete && imgSniperBase.naturalWidth !== 0) {
         ctx2.drawImage(imgSniperBase, -size / 2, -size / 2, size, size);
       } else {
@@ -3326,7 +3334,9 @@
     if (!player.alive || shopOpen || !selectedBuild || findNearestShop(80)) return;
     const target = getBuildTarget();
     const s = worldToScreen(target.cx, target.cy);
-    const half = TILE / 2;
+    const isTowerOrBuilding = selectedBuild !== "wall" && selectedBuild !== "spike";
+    const tileSize = isTowerOrBuilding ? TILE * 2 : TILE;
+    const half = tileSize / 2;
     let color = "#8bd17c";
     let label = "";
     if (target.occupant && target.canUpgrade) {
@@ -3369,11 +3379,11 @@
     ctx2.strokeStyle = color;
     ctx2.lineWidth = 2;
     ctx2.setLineDash([5, 4]);
-    ctx2.strokeRect(s.x - half, s.y - half, TILE, TILE);
+    ctx2.strokeRect(s.x - half, s.y - half, tileSize, tileSize);
     ctx2.setLineDash([]);
     ctx2.globalAlpha = 0.12;
     ctx2.fillStyle = color;
-    ctx2.fillRect(s.x - half, s.y - half, TILE, TILE);
+    ctx2.fillRect(s.x - half, s.y - half, tileSize, tileSize);
     ctx2.globalAlpha = 1;
     ctx2.restore();
     if (!target.occupant && !target.blockedByResource) {
@@ -4874,7 +4884,12 @@
     for (const r of resources) drawResource(ctx2, canvas2, r);
     for (const c of crates) drawCrate(ctx2, c);
     for (const p of powerups) drawPowerup(ctx2, canvas2, p);
-    for (const st of structures) drawStructure(ctx2, st);
+    for (const st of structures) {
+      if (st.type === "wall" || st.type === "spike") drawStructure(ctx2, st);
+    }
+    for (const st of structures) {
+      if (st.type !== "wall" && st.type !== "spike") drawStructure(ctx2, st);
+    }
     drawBuildPreview(ctx2);
     for (const z of zombies) drawZombie(ctx2, canvas2, z);
     drawBullets(ctx2);
@@ -5290,6 +5305,8 @@
   imgSniperBase2.src = "assets/structures/sniper_base.png";
   var imgSniperTurret2 = new Image();
   imgSniperTurret2.src = "assets/structures/sniper_turret.png";
+  var imgWallWood2 = new Image();
+  imgWallWood2.src = "assets/structures/wall_wood.png";
   function createShopItems() {
     return [
       { key: "buy_insta", category: "powerup", label: "Insta-Kill", desc: "20s of one-shot kills", cost: 80, apply: () => applyPowerup("insta") },
@@ -5431,26 +5448,19 @@
     if (key === "wall") {
       ctx2.save();
       ctx2.translate(cx, cy);
-      ctx2.rotate(Math.PI / 6);
-      ctx2.fillStyle = "#a9aeb2";
-      ctx2.strokeStyle = "#2a2d30";
-      ctx2.lineWidth = 2;
-      const w = 26, h = 9;
-      ctx2.beginPath();
-      if (ctx2.roundRect) ctx2.roundRect(-w / 2, -h / 2, w, h, 2.5);
-      else ctx2.rect(-w / 2, -h / 2, w, h);
-      ctx2.fill();
-      ctx2.stroke();
-      ctx2.strokeStyle = "rgba(0,0,0,0.2)";
-      ctx2.lineWidth = 0.8;
-      ctx2.beginPath();
-      ctx2.moveTo(-w / 2 + w / 3, -h / 2);
-      ctx2.lineTo(-w / 2 + w / 3, h / 2);
-      ctx2.moveTo(w / 2 - w / 3, -h / 2);
-      ctx2.lineTo(w / 2 - w / 3, h / 2);
-      ctx2.moveTo(-w / 2, 0);
-      ctx2.lineTo(w / 2, 0);
-      ctx2.stroke();
+      const size = 26;
+      if (imgWallWood2.complete && imgWallWood2.naturalWidth !== 0) {
+        ctx2.drawImage(imgWallWood2, -size / 2, -size / 2, size, size);
+      } else {
+        ctx2.fillStyle = "#c9a668";
+        ctx2.strokeStyle = "#2a2d30";
+        ctx2.lineWidth = 2;
+        const w = 26, h = 9;
+        if (ctx2.roundRect) ctx2.roundRect(-w / 2, -h / 2, w, h, 2.5);
+        else ctx2.rect(-w / 2, -h / 2, w, h);
+        ctx2.fill();
+        ctx2.stroke();
+      }
       ctx2.restore();
     } else if (key === "spike") {
       ctx2.save();
@@ -5984,6 +5994,17 @@
     }
     const st = inspectedStructure;
     panel.classList.remove("hidden");
+    const s = worldToScreen(st.x, st.y);
+    const panelW = 260;
+    const panelH = 210;
+    let left = s.x - panelW / 2;
+    let top = s.y - st.radius - panelH - 12;
+    left = Math.max(16, Math.min(window.innerWidth - panelW - 16, left));
+    top = Math.max(16, Math.min(window.innerHeight - panelH - 16, top));
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+    panel.style.bottom = "auto";
+    panel.style.right = "auto";
     const def = BUILD_DEFS[st.type];
     const nameEl = byId("inspectorName");
     const lvlEl = byId("inspectorLvl");
@@ -6126,6 +6147,24 @@
         spawnParticle(st.x, st.y - 30, "MAX TIER", "#8bd17c");
       }
     }
+  }
+  function removeInspectedStructure() {
+    if (!inspectedStructure) return;
+    const st = inspectedStructure;
+    const idx = structures.indexOf(st);
+    if (idx !== -1) {
+      structures.splice(idx, 1);
+      const def = BUILD_DEFS[st.type];
+      if (def) {
+        const wRefund = Math.floor(def.wood * 0.5);
+        const sRefund = Math.floor(def.stone * 0.5);
+        if (wRefund > 0) player.wood += wRefund;
+        if (sRefund > 0) player.stone += sRefund;
+        spawnParticle(st.x, st.y - 20, `+${wRefund} W  +${sRefund} S`, "#8bd17c");
+      }
+      spawnBurst(st.x, st.y, "#ff5c5c", 16);
+    }
+    closeStructureInspector();
   }
 
   // src/ui/settingsUI.ts
@@ -7141,6 +7180,13 @@
   byId("inspectorUpgradeBtn").onclick = () => {
     try {
       upgradeInspectedStructure();
+    } catch (err) {
+      showFatalError(err);
+    }
+  };
+  byId("inspectorRemoveBtn").onclick = () => {
+    try {
+      removeInspectedStructure();
     } catch (err) {
       showFatalError(err);
     }
