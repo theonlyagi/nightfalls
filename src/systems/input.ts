@@ -1,5 +1,5 @@
-import { keys, mouse, selectedBuild, setSelectedBuild, manualBuildAngle, setManualBuildAngle, player } from '../state';
-import { snapAngleToCardinal } from '../utils';
+import { keys, mouse, selectedBuild, setSelectedBuild, manualBuildAngle, setManualBuildAngle, player, structures, setInspectedStructure, camera } from '../state';
+import { snapAngleToCardinal, dist } from '../utils';
 import { StructureKind } from '../types';
 
 export function setupInputListeners(
@@ -15,16 +15,23 @@ export function setupInputListeners(
     if (k === 'e') onTryBuildOrUpgrade();
     if (k === '1') onSelectBuild('wall');
     if (k === '2') onSelectBuild('spike');
-    if (k === '3') onSelectBuild('turret');
-    if (k === '4') onSelectBuild('campfire');
-    if (k === '5') onSelectBuild('shop');
+    if (k === '3') onSelectBuild('cannon');
+    if (k === '4') onSelectBuild('mortar');
+    if (k === '5') onSelectBuild('sniper');
+    if (k === '6') onSelectBuild('campfire');
+    if (k === '7') onSelectBuild('shop');
+    if (k === '8') onSelectBuild('factory');
     if (k === 'r' && (selectedBuild === 'wall' || selectedBuild === 'spike')) {
       const base = manualBuildAngle !== null ? manualBuildAngle : snapAngleToCardinal(player.angle);
       setManualBuildAngle((base + Math.PI / 2) % (Math.PI * 2));
     }
-    if (k === 'escape' && selectedBuild) {
-      setSelectedBuild(null);
-      onRenderBuildBar();
+    if (k === 'escape') {
+      if (selectedBuild) {
+        setSelectedBuild(null);
+        onRenderBuildBar();
+      } else {
+        onTryBuildOrUpgrade();
+      }
     }
     if (k === 'home') {
       e.preventDefault();
@@ -56,7 +63,27 @@ export function setupInputListeners(
       if (selectedBuild) {
         onTryBuildOrUpgrade();
       } else {
-        mouse.down = true;
+        const mx = mouse.x + camera.x;
+        const my = mouse.y + camera.y;
+        let clickedStructure = null;
+        for (const s of structures) {
+          if (dist(mx, my, s.x, s.y) <= s.radius + 12) {
+            clickedStructure = s;
+            break;
+          }
+        }
+
+        if (clickedStructure) {
+          if (clickedStructure.type === 'factory' || clickedStructure.type === 'shop') {
+            onTryBuildOrUpgrade();
+          } else {
+            setInspectedStructure(clickedStructure);
+          }
+          mouse.down = false;
+        } else {
+          setInspectedStructure(null);
+          mouse.down = true;
+        }
       }
     } else if (e.button === 2) { // Right Click
       if (selectedBuild) {

@@ -2,7 +2,7 @@ import {
   PlayerState, Zombie, Bullet, Resource, Structure, Crate, PowerUpEntity,
   TextParticle, Burst, BloodDecal, DecorTuft, TerrainPatch, Firefly, StarDot,
   MetaProgress, DayNightState, BloodMoonState, CameraState, GameSettings, ShakeState,
-  LobbyPlayer, StructureKind, Vec2
+  LobbyPlayer, StructureKind, Vec2, FireZone, ToxicCloud
 } from './types';
 import { WORLD_W, WORLD_H, BASE_STATS } from './constants';
 
@@ -54,7 +54,7 @@ export const player: PlayerState = {
   damage: BASE_STATS.damage, bulletSpeed: BASE_STATS.bulletSpeed, bulletRadius: BASE_STATS.bulletRadius,
   fireRate: BASE_STATS.fireRate, lastShot: 0,
   level: 1, xp: 0, xpToNext: 50, statPoints: 0,
-  points: 0, wood: 0, stone: 0, kills: 0, regen: BASE_STATS.regen, alive: true,
+  points: 0, wood: 0, stone: 0, iron: 0, gold: 0, kills: 0, regen: BASE_STATS.regen, alive: true,
   buildDiscount: 1, resourceMul: 1, fortuneMul: 1,
   instaKillUntil: 0, doubleXpUntil: 0, speedBoostUntil: 0, damageBoostUntil: 0,
   fireRateBoostUntil: 0, regenBoostUntil: 0, secondChance: false, skinTint: null,
@@ -161,6 +161,12 @@ export function setMutationChoiceOpen(val: boolean): void { mutationChoiceOpen =
 export let shopOpen = false;
 export function setShopOpen(val: boolean): void { shopOpen = val; }
 
+export let factoryOpen = false;
+export function setFactoryOpen(val: boolean): void { factoryOpen = val; }
+
+export let inspectedStructure: Structure | null = null;
+export function setInspectedStructure(val: Structure | null): void { inspectedStructure = val; }
+
 export let debugUnlocked = false;
 export function setDebugUnlocked(val: boolean): void { debugUnlocked = val; }
 
@@ -172,3 +178,15 @@ export function setGodMode(val: boolean): void { godMode = val; }
 
 export let debugSpeedMultiplier = 1;
 export function setDebugSpeedMultiplier(val: number): void { debugSpeedMultiplier = val; }
+
+export let fireZones: FireZone[] = [];
+export function setFireZones(val: FireZone[]): void { fireZones = val; }
+
+export let toxicClouds: ToxicCloud[] = [];
+export function setToxicClouds(val: ToxicCloud[]): void { toxicClouds = val; }
+
+export let teslaChains: any[] = [];
+export function setTeslaChains(val: any[]): void { teslaChains = val; }
+
+export let sniperLasers: any[] = [];
+export function setSniperLasers(val: any[]): void { sniperLasers = val; }
