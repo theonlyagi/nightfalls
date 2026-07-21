@@ -22,6 +22,15 @@ imgStone.src = 'assets/stone.png';
 const imgIron = new Image();
 imgIron.src = 'assets/iron.png';
 
+const imgCannon = new Image();
+imgCannon.src = 'assets/structures/cannon.png';
+
+const imgMortar = new Image();
+imgMortar.src = 'assets/structures/mortar.png';
+
+const imgSniper = new Image();
+imgSniper.src = 'assets/structures/sniper.png';
+
 export function worldToScreen(x: number, y: number): Vec2 {
   return { x: x - camera.x, y: y - camera.y };
 }
@@ -602,71 +611,52 @@ export function drawStructure(ctx: CanvasRenderingContext2D, st: Structure): voi
   } else if (st.type === 'cannon') {
     ctx.save();
     ctx.translate(s.x, s.y);
-    
-    const baseColors = ['#4a5a5e', '#597b7f', '#6a9a9e', '#3a7d8c', '#ffd76a'];
-    ctx.fillStyle = baseColors[lvl - 1];
-    ctx.strokeStyle = '#1c2426'; ctx.lineWidth = 3.5;
-    ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    
-    ctx.fillStyle = '#ffffff';
-    for (let i = 0; i < lvl; i++) {
-      const aDots = (i * Math.PI * 2) / lvl;
-      ctx.beginPath(); ctx.arc(Math.cos(aDots) * (st.radius * 0.6), Math.sin(aDots) * (st.radius * 0.6), 2, 0, Math.PI * 2); ctx.fill();
-    }
-    
     const aimA = st.aimAngle ?? -Math.PI / 2;
     ctx.rotate(aimA + Math.PI / 2);
-    ctx.fillStyle = '#2f3a3c';
-    ctx.strokeStyle = '#1c2426'; ctx.lineWidth = 2.5;
-    ctx.fillRect(-5, -st.radius - 8, 10, 11);
-    ctx.strokeRect(-5, -st.radius - 8, 10, 11);
-    ctx.fillStyle = lvl === 5 ? '#e74c3c' : '#ffd76a';
-    ctx.fillRect(-6, -st.radius - 12, 12, 4);
-    ctx.strokeRect(-6, -st.radius - 12, 12, 4);
+    if (imgCannon.complete && imgCannon.naturalWidth !== 0) {
+      const size = st.radius * 2.8;
+      ctx.drawImage(imgCannon, -size / 2, -size / 2, size, size);
+    } else {
+      const baseColors = ['#4a5a5e', '#597b7f', '#6a9a9e', '#3a7d8c', '#ffd76a'];
+      ctx.fillStyle = baseColors[lvl - 1];
+      ctx.strokeStyle = '#1c2426'; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#2f3a3c'; ctx.strokeStyle = '#1c2426'; ctx.lineWidth = 2.5;
+      ctx.fillRect(-5, -st.radius - 8, 10, 11); ctx.strokeRect(-5, -st.radius - 8, 10, 11);
+    }
+    ctx.fillStyle = '#ffd76a';
+    for (let i = 0; i < lvl; i++) {
+      const aDots = (i * Math.PI * 2) / lvl;
+      ctx.beginPath(); ctx.arc(Math.cos(aDots) * (st.radius * 0.7), Math.sin(aDots) * (st.radius * 0.7), 2.5, 0, Math.PI * 2); ctx.fill();
+    }
     ctx.restore();
   } else if (st.type === 'mortar') {
     ctx.save();
     ctx.translate(s.x, s.y);
-    ctx.fillStyle = '#34495e';
-    ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    
-    ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 2.5;
-    for (let i = 0; i < 8; i++) {
-      const edgeA = (i * Math.PI * 2) / 8;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(edgeA) * (st.radius - 3), Math.sin(edgeA) * (st.radius - 3));
-      ctx.lineTo(Math.cos(edgeA + 0.15) * st.radius, Math.sin(edgeA + 0.15) * st.radius);
-      ctx.stroke();
-    }
-
     const aimA = st.aimAngle ?? -Math.PI / 2;
     ctx.rotate(aimA + Math.PI / 2);
-    ctx.fillStyle = '#2c3e50';
-    ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 2;
-    ctx.fillRect(-7, -st.radius - 3, 14, 12);
-    ctx.strokeRect(-7, -st.radius - 3, 14, 12);
-    ctx.fillStyle = '#111';
-    ctx.beginPath(); ctx.arc(0, -st.radius - 1, 5, 0, Math.PI * 2); ctx.fill();
+    if (imgMortar.complete && imgMortar.naturalWidth !== 0) {
+      const size = st.radius * 2.8;
+      ctx.drawImage(imgMortar, -size / 2, -size / 2, size, size);
+    } else {
+      ctx.fillStyle = '#34495e'; ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#2c3e50'; ctx.fillRect(-7, -st.radius - 3, 14, 12);
+    }
     ctx.restore();
   } else if (st.type === 'sniper') {
     ctx.save();
     ctx.translate(s.x, s.y);
-    ctx.fillStyle = '#7f8c8d';
-    ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 3.5;
-    ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    
-    ctx.fillStyle = '#34495e';
-    ctx.beginPath(); ctx.arc(0, 0, st.radius * 0.6, 0, Math.PI * 2); ctx.fill();
-    
     const aimA = st.aimAngle ?? -Math.PI / 2;
     ctx.rotate(aimA + Math.PI / 2);
-    ctx.fillStyle = '#333333';
-    ctx.strokeStyle = '#000000'; ctx.lineWidth = 1.5;
-    ctx.fillRect(-2, -st.radius - 16, 4, 18);
-    ctx.strokeRect(-2, -st.radius - 16, 4, 18);
-    ctx.fillStyle = '#e74c3c';
-    ctx.beginPath(); ctx.arc(0, -st.radius - 16, 2.5, 0, Math.PI * 2); ctx.fill();
+    if (imgSniper.complete && imgSniper.naturalWidth !== 0) {
+      const size = st.radius * 2.8;
+      ctx.drawImage(imgSniper, -size / 2, -size / 2, size, size);
+    } else {
+      ctx.fillStyle = '#7f8c8d'; ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#333333'; ctx.fillRect(-2, -st.radius - 16, 4, 18);
+    }
     ctx.restore();
   } else if (st.type === 'tesla') {
     ctx.save();

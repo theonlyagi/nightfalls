@@ -2368,6 +2368,12 @@
   imgStone.src = "assets/stone.png";
   var imgIron = new Image();
   imgIron.src = "assets/iron.png";
+  var imgCannon = new Image();
+  imgCannon.src = "assets/structures/cannon.png";
+  var imgMortar = new Image();
+  imgMortar.src = "assets/structures/mortar.png";
+  var imgSniper = new Image();
+  imgSniper.src = "assets/structures/sniper.png";
   function worldToScreen(x, y) {
     return { x: x - camera.x, y: y - camera.y };
   }
@@ -2920,88 +2926,73 @@
     } else if (st.type === "cannon") {
       ctx2.save();
       ctx2.translate(s.x, s.y);
-      const baseColors = ["#4a5a5e", "#597b7f", "#6a9a9e", "#3a7d8c", "#ffd76a"];
-      ctx2.fillStyle = baseColors[lvl - 1];
-      ctx2.strokeStyle = "#1c2426";
-      ctx2.lineWidth = 3.5;
-      ctx2.beginPath();
-      ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
-      ctx2.fill();
-      ctx2.stroke();
-      ctx2.fillStyle = "#ffffff";
+      const aimA = st.aimAngle ?? -Math.PI / 2;
+      ctx2.rotate(aimA + Math.PI / 2);
+      if (imgCannon.complete && imgCannon.naturalWidth !== 0) {
+        const size = st.radius * 2.8;
+        ctx2.drawImage(imgCannon, -size / 2, -size / 2, size, size);
+      } else {
+        const baseColors = ["#4a5a5e", "#597b7f", "#6a9a9e", "#3a7d8c", "#ffd76a"];
+        ctx2.fillStyle = baseColors[lvl - 1];
+        ctx2.strokeStyle = "#1c2426";
+        ctx2.lineWidth = 3.5;
+        ctx2.beginPath();
+        ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.stroke();
+        ctx2.fillStyle = "#2f3a3c";
+        ctx2.strokeStyle = "#1c2426";
+        ctx2.lineWidth = 2.5;
+        ctx2.fillRect(-5, -st.radius - 8, 10, 11);
+        ctx2.strokeRect(-5, -st.radius - 8, 10, 11);
+      }
+      ctx2.fillStyle = "#ffd76a";
       for (let i = 0; i < lvl; i++) {
         const aDots = i * Math.PI * 2 / lvl;
         ctx2.beginPath();
-        ctx2.arc(Math.cos(aDots) * (st.radius * 0.6), Math.sin(aDots) * (st.radius * 0.6), 2, 0, Math.PI * 2);
+        ctx2.arc(Math.cos(aDots) * (st.radius * 0.7), Math.sin(aDots) * (st.radius * 0.7), 2.5, 0, Math.PI * 2);
         ctx2.fill();
       }
-      const aimA = st.aimAngle ?? -Math.PI / 2;
-      ctx2.rotate(aimA + Math.PI / 2);
-      ctx2.fillStyle = "#2f3a3c";
-      ctx2.strokeStyle = "#1c2426";
-      ctx2.lineWidth = 2.5;
-      ctx2.fillRect(-5, -st.radius - 8, 10, 11);
-      ctx2.strokeRect(-5, -st.radius - 8, 10, 11);
-      ctx2.fillStyle = lvl === 5 ? "#e74c3c" : "#ffd76a";
-      ctx2.fillRect(-6, -st.radius - 12, 12, 4);
-      ctx2.strokeRect(-6, -st.radius - 12, 12, 4);
       ctx2.restore();
     } else if (st.type === "mortar") {
       ctx2.save();
       ctx2.translate(s.x, s.y);
-      ctx2.fillStyle = "#34495e";
-      ctx2.strokeStyle = "#1a252f";
-      ctx2.lineWidth = 4;
-      ctx2.beginPath();
-      ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
-      ctx2.fill();
-      ctx2.stroke();
-      ctx2.strokeStyle = "#f1c40f";
-      ctx2.lineWidth = 2.5;
-      for (let i = 0; i < 8; i++) {
-        const edgeA = i * Math.PI * 2 / 8;
-        ctx2.beginPath();
-        ctx2.moveTo(Math.cos(edgeA) * (st.radius - 3), Math.sin(edgeA) * (st.radius - 3));
-        ctx2.lineTo(Math.cos(edgeA + 0.15) * st.radius, Math.sin(edgeA + 0.15) * st.radius);
-        ctx2.stroke();
-      }
       const aimA = st.aimAngle ?? -Math.PI / 2;
       ctx2.rotate(aimA + Math.PI / 2);
-      ctx2.fillStyle = "#2c3e50";
-      ctx2.strokeStyle = "#1a252f";
-      ctx2.lineWidth = 2;
-      ctx2.fillRect(-7, -st.radius - 3, 14, 12);
-      ctx2.strokeRect(-7, -st.radius - 3, 14, 12);
-      ctx2.fillStyle = "#111";
-      ctx2.beginPath();
-      ctx2.arc(0, -st.radius - 1, 5, 0, Math.PI * 2);
-      ctx2.fill();
+      if (imgMortar.complete && imgMortar.naturalWidth !== 0) {
+        const size = st.radius * 2.8;
+        ctx2.drawImage(imgMortar, -size / 2, -size / 2, size, size);
+      } else {
+        ctx2.fillStyle = "#34495e";
+        ctx2.strokeStyle = "#1a252f";
+        ctx2.lineWidth = 4;
+        ctx2.beginPath();
+        ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.stroke();
+        ctx2.fillStyle = "#2c3e50";
+        ctx2.fillRect(-7, -st.radius - 3, 14, 12);
+      }
       ctx2.restore();
     } else if (st.type === "sniper") {
       ctx2.save();
       ctx2.translate(s.x, s.y);
-      ctx2.fillStyle = "#7f8c8d";
-      ctx2.strokeStyle = "#2c3e50";
-      ctx2.lineWidth = 3.5;
-      ctx2.beginPath();
-      ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
-      ctx2.fill();
-      ctx2.stroke();
-      ctx2.fillStyle = "#34495e";
-      ctx2.beginPath();
-      ctx2.arc(0, 0, st.radius * 0.6, 0, Math.PI * 2);
-      ctx2.fill();
       const aimA = st.aimAngle ?? -Math.PI / 2;
       ctx2.rotate(aimA + Math.PI / 2);
-      ctx2.fillStyle = "#333333";
-      ctx2.strokeStyle = "#000000";
-      ctx2.lineWidth = 1.5;
-      ctx2.fillRect(-2, -st.radius - 16, 4, 18);
-      ctx2.strokeRect(-2, -st.radius - 16, 4, 18);
-      ctx2.fillStyle = "#e74c3c";
-      ctx2.beginPath();
-      ctx2.arc(0, -st.radius - 16, 2.5, 0, Math.PI * 2);
-      ctx2.fill();
+      if (imgSniper.complete && imgSniper.naturalWidth !== 0) {
+        const size = st.radius * 2.8;
+        ctx2.drawImage(imgSniper, -size / 2, -size / 2, size, size);
+      } else {
+        ctx2.fillStyle = "#7f8c8d";
+        ctx2.strokeStyle = "#2c3e50";
+        ctx2.lineWidth = 3.5;
+        ctx2.beginPath();
+        ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.stroke();
+        ctx2.fillStyle = "#333333";
+        ctx2.fillRect(-2, -st.radius - 16, 4, 18);
+      }
       ctx2.restore();
     } else if (st.type === "tesla") {
       ctx2.save();
