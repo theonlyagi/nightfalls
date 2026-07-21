@@ -4,7 +4,7 @@ export interface Vec2 { x: number; y: number; }
 
 export type WeaponKind = 'pistol' | 'dualguns' | 'machinegun' | 'shotgun' | 'grenadelauncher';
 export type MutationKind = 'vampire' | 'overclocked' | 'titan' | 'pyromaniac';
-export type ZombieKind = 'normal' | 'scout' | 'brute' | 'spitter' | 'exploder' | 'boss';
+export type ZombieKind = 'normal' | 'scout' | 'brute' | 'spitter' | 'exploder' | 'wolf' | 'boss';
 export type HairKind = 'bald' | 'hood' | 'tuft' | null;
 export type MouthKind = 'open' | 'frown' | 'grimace';
 export type StructureKind = 'wall' | 'spike' | 'turret' | 'campfire' | 'shop';
