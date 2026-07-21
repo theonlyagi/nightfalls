@@ -118,11 +118,19 @@ export function renderModeSelect(): void {
   const wrap = byId('modeSelect');
   if (!wrap) return;
   wrap.innerHTML = '';
+  const modeInfo: Record<string, { title: string; icon: string }> = {
+    solo: { title: 'Singleplayer', icon: '👤' },
+    team: { title: 'Team Mode', icon: '👥' }
+  };
   (Object.keys(MODE_DEFS) as ('solo' | 'team')[]).forEach(key => {
     const def = MODE_DEFS[key];
+    const info = modeInfo[key] || { title: def.label, icon: '⚔️' };
     const card = document.createElement('div');
-    card.className = 'class-card' + (selectedMode === key ? ' active' : '');
-    card.innerHTML = `<b>${def.label}</b><span>${def.desc}</span>`;
+    card.className = 'mode-card io-border io-shadow-solid-sm squishy-hover squishy' + (selectedMode === key ? ' active' : '');
+    card.innerHTML = `
+      <b class="mode-title">${info.icon} ${info.title}</b>
+      <span class="mode-desc">${def.desc}</span>
+    `;
     card.onclick = () => { setSelectedMode(key); renderModeSelect(); updateStartBtnLabel(); };
     wrap.appendChild(card);
   });

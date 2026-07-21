@@ -4931,11 +4931,19 @@
     const wrap = byId("modeSelect");
     if (!wrap) return;
     wrap.innerHTML = "";
+    const modeInfo = {
+      solo: { title: "Singleplayer", icon: "\u{1F464}" },
+      team: { title: "Team Mode", icon: "\u{1F465}" }
+    };
     Object.keys(MODE_DEFS).forEach((key) => {
       const def = MODE_DEFS[key];
+      const info = modeInfo[key] || { title: def.label, icon: "\u2694\uFE0F" };
       const card = document.createElement("div");
-      card.className = "class-card" + (selectedMode === key ? " active" : "");
-      card.innerHTML = `<b>${def.label}</b><span>${def.desc}</span>`;
+      card.className = "mode-card io-border io-shadow-solid-sm squishy-hover squishy" + (selectedMode === key ? " active" : "");
+      card.innerHTML = `
+      <b class="mode-title">${info.icon} ${info.title}</b>
+      <span class="mode-desc">${def.desc}</span>
+    `;
       card.onclick = () => {
         setSelectedMode(key);
         renderModeSelect();
