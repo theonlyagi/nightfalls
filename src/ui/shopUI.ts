@@ -21,6 +21,21 @@ import { applyPowerup, showBanner, spawnParticle, spawnBurst } from '../systems/
 import { findNearestShop, findNearestFactory } from '../systems/update';
 import { getBuildTarget, getPlacementAngle } from '../render/drawWorld';
 
+const imgCannonBase = new Image();
+imgCannonBase.src = 'assets/structures/cannon_base.png';
+const imgCannonTurret = new Image();
+imgCannonTurret.src = 'assets/structures/cannon_turret.png';
+
+const imgMortarBase = new Image();
+imgMortarBase.src = 'assets/structures/mortar_base.png';
+const imgMortarTurret = new Image();
+imgMortarTurret.src = 'assets/structures/mortar_turret.png';
+
+const imgSniperBase = new Image();
+imgSniperBase.src = 'assets/structures/sniper_base.png';
+const imgSniperTurret = new Image();
+imgSniperTurret.src = 'assets/structures/sniper_turret.png';
+
 export function createShopItems(): ShopItemDef[] {
   return [
     { key: 'buy_insta',  category: 'powerup', label: 'Insta-Kill',    desc: '20s of one-shot kills',    cost: 80,  apply: () => applyPowerup('insta') },
@@ -170,35 +185,35 @@ function drawBuildPreview(canvas: HTMLCanvasElement, key: StructureKind): void {
   } else if (key === 'cannon') {
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.fillStyle = '#6a9a9e';
-    ctx.strokeStyle = '#1c2426';
-    ctx.lineWidth = 2.0;
-    ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#2f3a3c';
-    ctx.fillRect(-2, -12, 4, 7);
-    ctx.strokeRect(-2, -12, 4, 7);
+    const size = 26;
+    if (imgCannonBase.complete && imgCannonBase.naturalWidth !== 0) {
+      ctx.drawImage(imgCannonBase, -size / 2, -size / 2, size, size);
+    }
+    if (imgCannonTurret.complete && imgCannonTurret.naturalWidth !== 0) {
+      ctx.drawImage(imgCannonTurret, -size / 2, -size / 2, size, size);
+    }
     ctx.restore();
   } else if (key === 'mortar') {
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.fillStyle = '#34495e';
-    ctx.strokeStyle = '#2c3e50';
-    ctx.lineWidth = 2.0;
-    ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#1a252f';
-    ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
+    const size = 26;
+    if (imgMortarBase.complete && imgMortarBase.naturalWidth !== 0) {
+      ctx.drawImage(imgMortarBase, -size / 2, -size / 2, size, size);
+    }
+    if (imgMortarTurret.complete && imgMortarTurret.naturalWidth !== 0) {
+      ctx.drawImage(imgMortarTurret, -size / 2, -size / 2, size, size);
+    }
     ctx.restore();
   } else if (key === 'sniper') {
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.fillStyle = '#7f8c8d';
-    ctx.strokeStyle = '#bdc3c7';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#333';
-    ctx.fillRect(-1, -14, 2, 10);
-    ctx.fillStyle = '#e74c3c';
-    ctx.beginPath(); ctx.arc(0, -14, 1.5, 0, Math.PI * 2); ctx.fill();
+    const size = 26;
+    if (imgSniperBase.complete && imgSniperBase.naturalWidth !== 0) {
+      ctx.drawImage(imgSniperBase, -size / 2, -size / 2, size, size);
+    }
+    if (imgSniperTurret.complete && imgSniperTurret.naturalWidth !== 0) {
+      ctx.drawImage(imgSniperTurret, -size / 2, -size / 2, size, size);
+    }
     ctx.restore();
   } else if (key === 'tesla') {
     ctx.save();

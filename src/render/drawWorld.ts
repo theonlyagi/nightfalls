@@ -22,14 +22,20 @@ imgStone.src = 'assets/stone.png';
 const imgIron = new Image();
 imgIron.src = 'assets/iron.png';
 
-const imgCannon = new Image();
-imgCannon.src = 'assets/structures/cannon.png';
+const imgCannonBase = new Image();
+imgCannonBase.src = 'assets/structures/cannon_base.png';
+const imgCannonTurret = new Image();
+imgCannonTurret.src = 'assets/structures/cannon_turret.png';
 
-const imgMortar = new Image();
-imgMortar.src = 'assets/structures/mortar.png';
+const imgMortarBase = new Image();
+imgMortarBase.src = 'assets/structures/mortar_base.png';
+const imgMortarTurret = new Image();
+imgMortarTurret.src = 'assets/structures/mortar_turret.png';
 
-const imgSniper = new Image();
-imgSniper.src = 'assets/structures/sniper.png';
+const imgSniperBase = new Image();
+imgSniperBase.src = 'assets/structures/sniper_base.png';
+const imgSniperTurret = new Image();
+imgSniperTurret.src = 'assets/structures/sniper_turret.png';
 
 export function worldToScreen(x: number, y: number): Vec2 {
   return { x: x - camera.x, y: y - camera.y };
@@ -611,19 +617,54 @@ export function drawStructure(ctx: CanvasRenderingContext2D, st: Structure): voi
   } else if (st.type === 'cannon') {
     ctx.save();
     ctx.translate(s.x, s.y);
-    const aimA = st.aimAngle ?? -Math.PI / 2;
-    ctx.rotate(aimA + Math.PI / 2);
-    if (imgCannon.complete && imgCannon.naturalWidth !== 0) {
-      const size = st.radius * 2.8;
-      ctx.drawImage(imgCannon, -size / 2, -size / 2, size, size);
+    const size = st.radius * 2.8;
+
+    // 0. Level Square Border (레벨별 사각형 테두리)
+    const levelColors = ['#8e9eab', '#2ecc71', '#3498db', '#9b59b6', '#f1c40f'];
+    const lvlColor = levelColors[Math.min(lvl - 1, 4)];
+    const bSize = size + 6;
+    
+    ctx.save();
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 6;
+    roundRectPath(ctx, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+    ctx.stroke();
+
+    ctx.strokeStyle = lvlColor;
+    ctx.lineWidth = 3.5;
+    roundRectPath(ctx, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+    ctx.stroke();
+
+    ctx.fillStyle = '#000000';
+    const cOff = bSize / 2 - 4;
+    [[-cOff, -cOff], [cOff, -cOff], [-cOff, cOff], [cOff, cOff]].forEach(([cx, cy]) => {
+      ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.restore();
+
+    // 1. Base (Fixed)
+    if (imgCannonBase.complete && imgCannonBase.naturalWidth !== 0) {
+      ctx.drawImage(imgCannonBase, -size / 2, -size / 2, size, size);
     } else {
       const baseColors = ['#4a5a5e', '#597b7f', '#6a9a9e', '#3a7d8c', '#ffd76a'];
       ctx.fillStyle = baseColors[lvl - 1];
       ctx.strokeStyle = '#1c2426'; ctx.lineWidth = 3.5;
       ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+
+    // 2. Turret/Barrel (Rotated)
+    ctx.save();
+    const aimA = st.aimAngle ?? -Math.PI / 2;
+    ctx.rotate(aimA + Math.PI / 2);
+    if (imgCannonTurret.complete && imgCannonTurret.naturalWidth !== 0) {
+      ctx.drawImage(imgCannonTurret, -size / 2, -size / 2, size, size);
+    } else {
       ctx.fillStyle = '#2f3a3c'; ctx.strokeStyle = '#1c2426'; ctx.lineWidth = 2.5;
       ctx.fillRect(-5, -st.radius - 8, 10, 11); ctx.strokeRect(-5, -st.radius - 8, 10, 11);
     }
+    ctx.restore();
+
+    // Level Dots
     ctx.fillStyle = '#ffd76a';
     for (let i = 0; i < lvl; i++) {
       const aDots = (i * Math.PI * 2) / lvl;
@@ -633,30 +674,96 @@ export function drawStructure(ctx: CanvasRenderingContext2D, st: Structure): voi
   } else if (st.type === 'mortar') {
     ctx.save();
     ctx.translate(s.x, s.y);
-    const aimA = st.aimAngle ?? -Math.PI / 2;
-    ctx.rotate(aimA + Math.PI / 2);
-    if (imgMortar.complete && imgMortar.naturalWidth !== 0) {
-      const size = st.radius * 2.8;
-      ctx.drawImage(imgMortar, -size / 2, -size / 2, size, size);
+    const size = st.radius * 2.8;
+
+    // 0. Level Square Border (레벨별 사각형 테두리)
+    const levelColors = ['#8e9eab', '#2ecc71', '#3498db', '#9b59b6', '#f1c40f'];
+    const lvlColor = levelColors[Math.min(lvl - 1, 4)];
+    const bSize = size + 6;
+    
+    ctx.save();
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 6;
+    roundRectPath(ctx, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+    ctx.stroke();
+
+    ctx.strokeStyle = lvlColor;
+    ctx.lineWidth = 3.5;
+    roundRectPath(ctx, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+    ctx.stroke();
+
+    ctx.fillStyle = '#000000';
+    const cOff = bSize / 2 - 4;
+    [[-cOff, -cOff], [cOff, -cOff], [-cOff, cOff], [cOff, cOff]].forEach(([cx, cy]) => {
+      ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.restore();
+
+    // 1. Base (Fixed)
+    if (imgMortarBase.complete && imgMortarBase.naturalWidth !== 0) {
+      ctx.drawImage(imgMortarBase, -size / 2, -size / 2, size, size);
     } else {
       ctx.fillStyle = '#34495e'; ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 4;
       ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+
+    // 2. Turret/Barrel (Rotated)
+    ctx.save();
+    const aimA = st.aimAngle ?? -Math.PI / 2;
+    ctx.rotate(aimA + Math.PI / 2);
+    if (imgMortarTurret.complete && imgMortarTurret.naturalWidth !== 0) {
+      ctx.drawImage(imgMortarTurret, -size / 2, -size / 2, size, size);
+    } else {
       ctx.fillStyle = '#2c3e50'; ctx.fillRect(-7, -st.radius - 3, 14, 12);
     }
+    ctx.restore();
     ctx.restore();
   } else if (st.type === 'sniper') {
     ctx.save();
     ctx.translate(s.x, s.y);
-    const aimA = st.aimAngle ?? -Math.PI / 2;
-    ctx.rotate(aimA + Math.PI / 2);
-    if (imgSniper.complete && imgSniper.naturalWidth !== 0) {
-      const size = st.radius * 2.8;
-      ctx.drawImage(imgSniper, -size / 2, -size / 2, size, size);
+    const size = st.radius * 2.8;
+
+    // 0. Level Square Border (레벨별 사각형 테두리)
+    const levelColors = ['#8e9eab', '#2ecc71', '#3498db', '#9b59b6', '#f1c40f'];
+    const lvlColor = levelColors[Math.min(lvl - 1, 4)];
+    const bSize = size + 6;
+    
+    ctx.save();
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 6;
+    roundRectPath(ctx, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+    ctx.stroke();
+
+    ctx.strokeStyle = lvlColor;
+    ctx.lineWidth = 3.5;
+    roundRectPath(ctx, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+    ctx.stroke();
+
+    ctx.fillStyle = '#000000';
+    const cOff = bSize / 2 - 4;
+    [[-cOff, -cOff], [cOff, -cOff], [-cOff, cOff], [cOff, cOff]].forEach(([cx, cy]) => {
+      ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.restore();
+
+    // 1. Base (Fixed)
+    if (imgSniperBase.complete && imgSniperBase.naturalWidth !== 0) {
+      ctx.drawImage(imgSniperBase, -size / 2, -size / 2, size, size);
     } else {
       ctx.fillStyle = '#7f8c8d'; ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 3.5;
       ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+
+    // 2. Turret/Barrel (Rotated)
+    ctx.save();
+    const aimA = st.aimAngle ?? -Math.PI / 2;
+    ctx.rotate(aimA + Math.PI / 2);
+    if (imgSniperTurret.complete && imgSniperTurret.naturalWidth !== 0) {
+      ctx.drawImage(imgSniperTurret, -size / 2, -size / 2, size, size);
+    } else {
       ctx.fillStyle = '#333333'; ctx.fillRect(-2, -st.radius - 16, 4, 18);
     }
+    ctx.restore();
     ctx.restore();
   } else if (st.type === 'tesla') {
     ctx.save();

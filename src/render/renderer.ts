@@ -69,8 +69,10 @@ export function drawFlashlight(ctx: CanvasRenderingContext2D, canvas: HTMLCanvas
 }
 
 export function render(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement): void {
-  camera.x = clamp(player.x - canvas.width / 2, 0, WORLD_W - canvas.width);
-  camera.y = clamp(player.y - canvas.height / 2, 0, WORLD_H - canvas.height);
+  // Center camera directly on player to preserve true FOV and mouse alignment
+  camera.x = player.x - canvas.width / 2;
+  camera.y = player.y - canvas.height / 2;
+
   if (shake.time > 0) {
     camera.x += rand(-shake.mag, shake.mag);
     camera.y += rand(-shake.mag, shake.mag);
