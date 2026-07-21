@@ -112,7 +112,7 @@ function drawBuildPreview(canvas: HTMLCanvasElement, key: StructureKind): void {
   // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.18)';
   ctx.beginPath();
-  ctx.ellipse(cx, cy + 8, 16, 5, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, cy + 6, 12, 4, 0, 0, Math.PI * 2);
   ctx.fill();
 
   if (key === 'wall') {
@@ -121,17 +121,17 @@ function drawBuildPreview(canvas: HTMLCanvasElement, key: StructureKind): void {
     ctx.rotate(Math.PI / 6);
     ctx.fillStyle = '#a9aeb2';
     ctx.strokeStyle = '#2a2d30';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.0;
     
-    const w = 32, h = 11;
+    const w = 26, h = 9;
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-w/2, -h/2, w, h, 3);
+    if (ctx.roundRect) ctx.roundRect(-w/2, -h/2, w, h, 2.5);
     else ctx.rect(-w/2, -h/2, w, h);
     ctx.fill();
     ctx.stroke();
 
     ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 0.8;
     ctx.beginPath();
     ctx.moveTo(-w/2 + w/3, -h/2); ctx.lineTo(-w/2 + w/3, h/2);
     ctx.moveTo(w/2 - w/3, -h/2); ctx.lineTo(w/2 - w/3, h/2);
@@ -140,27 +140,27 @@ function drawBuildPreview(canvas: HTMLCanvasElement, key: StructureKind): void {
     ctx.restore();
   } else if (key === 'spike') {
     ctx.save();
-    ctx.translate(cx, cy + 2);
+    ctx.translate(cx, cy + 1);
     ctx.fillStyle = '#d8e0e4';
     ctx.strokeStyle = '#1a1208';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.2;
 
-    const w = 30, h = 7;
+    const w = 24, h = 6;
     for (let i = 0; i < 4; i++) {
       const px = -w/2 + (i + 0.5) * (w / 4);
       ctx.beginPath();
-      ctx.moveTo(px - 3, -h/2);
-      ctx.lineTo(px, -h/2 - 7);
-      ctx.lineTo(px + 3, -h/2);
+      ctx.moveTo(px - 2, -h/2);
+      ctx.lineTo(px, -h/2 - 5);
+      ctx.lineTo(px + 2, -h/2);
       ctx.closePath();
       ctx.fill(); ctx.stroke();
     }
 
     ctx.fillStyle = '#7a5230';
     ctx.strokeStyle = '#2a1c0e';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-w/2, -h/2, w, h, 2);
+    if (ctx.roundRect) ctx.roundRect(-w/2, -h/2, w, h, 1.5);
     else ctx.rect(-w/2, -h/2, w, h);
     ctx.fill();
     ctx.stroke();
@@ -171,18 +171,18 @@ function drawBuildPreview(canvas: HTMLCanvasElement, key: StructureKind): void {
     
     ctx.fillStyle = '#597b7f';
     ctx.strokeStyle = '#1c2426';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.0;
     ctx.beginPath();
-    ctx.arc(0, 0, 10, 0, Math.PI * 2);
+    ctx.arc(0, 0, 8, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
     ctx.rotate(-Math.PI / 4);
     ctx.fillStyle = '#2f3a3c';
     ctx.strokeStyle = '#1c2426';
-    ctx.lineWidth = 1.5;
-    ctx.fillRect(-2, -17, 4, 9);
-    ctx.strokeRect(-2, -17, 4, 9);
+    ctx.lineWidth = 1.2;
+    ctx.fillRect(-1.5, -13, 3, 7);
+    ctx.strokeRect(-1.5, -13, 3, 7);
     ctx.restore();
   } else if (key === 'campfire') {
     ctx.save();
@@ -190,32 +190,32 @@ function drawBuildPreview(canvas: HTMLCanvasElement, key: StructureKind): void {
     
     ctx.fillStyle = '#5c4530';
     ctx.strokeStyle = '#22190f';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.arc(0, 2, 10, 0, Math.PI * 2);
+    ctx.arc(0, 1.5, 8, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
     ctx.fillStyle = '#ff9f43';
     ctx.beginPath();
-    ctx.arc(0, -1, 5, 0, Math.PI * 2);
+    ctx.arc(0, -0.5, 4, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#ffe066';
     ctx.beginPath();
-    ctx.arc(0, -3, 2.5, 0, Math.PI * 2);
+    ctx.arc(0, -2, 2, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   } else if (key === 'shop') {
     ctx.save();
-    ctx.translate(cx, cy + 2);
+    ctx.translate(cx, cy + 1);
     
-    const w = 30, h = 16;
+    const w = 24, h = 13;
     ctx.fillStyle = '#7a5230';
     ctx.strokeStyle = '#2a1c0e';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.0;
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-w/2, -h/2, w, h, 3);
+    if (ctx.roundRect) ctx.roundRect(-w/2, -h/2, w, h, 2);
     else ctx.rect(-w/2, -h/2, w, h);
     ctx.fill();
     ctx.stroke();
@@ -227,8 +227,8 @@ function drawBuildPreview(canvas: HTMLCanvasElement, key: StructureKind): void {
       ctx.beginPath();
       ctx.moveTo(sx, -h/2);
       ctx.lineTo(sx + w/stripes, -h/2);
-      ctx.lineTo(sx + w/stripes * 0.8, -h/2 - 5);
-      ctx.lineTo(sx + w/stripes * 0.2, -h/2 - 5);
+      ctx.lineTo(sx + w/stripes * 0.8, -h/2 - 4);
+      ctx.lineTo(sx + w/stripes * 0.2, -h/2 - 4);
       ctx.closePath();
       ctx.fill();
     }
@@ -259,8 +259,8 @@ export function renderBuildBar(): void {
     const canvasWrap = document.createElement('div');
     canvasWrap.className = 'build-canvas-wrap';
     const canvas = document.createElement('canvas');
-    canvas.width = 60;
-    canvas.height = 48;
+    canvas.width = 50;
+    canvas.height = 36;
     canvasWrap.appendChild(canvas);
     slot.appendChild(canvasWrap);
     

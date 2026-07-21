@@ -120,18 +120,18 @@
     letter-spacing: 0.5px;
   }
 
-  #buildBar{ position:absolute; bottom:96px; left:50%; transform:translateX(-50%); display:flex; gap:12px; pointer-events:auto; }
+  #buildBar{ position:absolute; bottom:84px; left:50%; transform:translateX(-50%); display:flex; gap:8px; pointer-events:auto; }
   .build-slot{
     background: rgba(18, 36, 28, 0.88);
     backdrop-filter: blur(12px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
     border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 10px;
-    padding: 8px;
+    border-radius: 8px;
+    padding: 6px;
     font-size: 10px;
     text-align: center;
-    width: 90px;
-    height: 108px;
+    width: 76px;
+    height: 80px;
     cursor: pointer;
     position: relative;
     display: flex;
@@ -141,21 +141,21 @@
     transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), background var(--dur) var(--ease);
   }
   .build-slot:hover{
-    transform: translateY(-4px);
+    transform: translateY(-3px);
     border-color: var(--col-amber-light);
     background: rgba(26, 44, 33, 0.95);
-    box-shadow: 0 12px 32px rgba(0,0,0,0.6), 0 0 14px rgba(212, 133, 58, 0.25);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6), 0 0 10px rgba(212, 133, 58, 0.25);
   }
   .build-slot.active{
     border-color: var(--col-amber);
     background: rgba(212, 133, 58, 0.1);
-    box-shadow: 0 0 16px rgba(212, 133, 58, 0.35);
+    box-shadow: 0 0 12px rgba(212, 133, 58, 0.3);
   }
   .build-slot b{
     display: block;
     font-family: 'Ubuntu', sans-serif;
     font-weight: 700;
-    font-size: 12px;
+    font-size: 11px;
     color: var(--col-text);
     margin-top: auto;
   }
@@ -167,25 +167,25 @@
   }
   .build-key-badge {
     position: absolute;
-    top: 6px;
-    left: 6px;
+    top: 4px;
+    left: 4px;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 4px;
+    border-radius: 3px;
     color: var(--col-text);
     font-family: 'Ubuntu Mono', monospace;
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 700;
-    padding: 1px 4px;
+    padding: 1px 3px;
     line-height: 1;
   }
   .build-canvas-wrap {
-    width: 60px;
-    height: 48px;
+    width: 50px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-top: 14px;
+    margin-top: 6px;
   }
 
   #waveBanner{ position:absolute; top:38%; left:50%; transform:translate(-50%,-50%) scale(.92); font-family:'Ubuntu',sans-serif; font-weight:700; font-size:40px; color:var(--accent-warn); text-shadow:0 0 18px rgba(255,159,67,.6); opacity:0; transition:opacity .4s var(--ease), transform .4s var(--ease); text-align:center; letter-spacing:3px; }
