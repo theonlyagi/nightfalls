@@ -18,6 +18,16 @@ still outstanding** — the stuff a new session wouldn't otherwise know.
   from branch → `main` → `/docs`), so the published site is always the
   obfuscated single-file bundle, never source.
 - Live site: `https://theonlyagi.github.io/nightfalls/`
+- ⚠️ **`npm run build` does NOT update `docs/`.** It only rebuilds
+  `public/game.js`. The live site only updates after `npm run build:share`
+  (which reruns build, then regenerates+minifies `docs/index.html`) — there
+  is no CI to do this automatically. **Already bit us once**: three merged
+  PRs (tree/rock visuals, wolf zombie, double XP) all verified fine locally
+  but never reached the published site because only `npm run build` was run
+  before committing, not `npm run build:share`. Fixed in a follow-up PR
+  that just reran `build:share` with no source changes. **Going forward:
+  before committing any gameplay/client change, run `npm run build:share`
+  and stage `docs/index.html` too, not just `public/game.js`.**
 - Client build now uses **esbuild** (`npm run build` → bundles `src/game.ts`
   into `public/game.js`), not raw `tsc`. `src/` is split into
   `constants.ts`, `game.ts`, `render/`, `state.ts`, `systems/`, `ui/`,
