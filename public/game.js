@@ -4,6 +4,7 @@
   var WORLD_H = 4200;
   var TILE = 64;
   var BUILD_REACH = TILE * 3;
+  var WS_URL = "ws://localhost:8081/ws";
   var BASE_STATS = {
     radius: 22,
     maxHp: 100,
@@ -347,13 +348,11 @@
   }
   var lobby = {
     players: [],
+    phase: "waiting",
+    countdownEndsAt: null,
     onPlayersChanged: null,
     onMatchStart: null
   };
-  var lobbyFakePlayerCount = 0;
-  function setLobbyFakePlayerCount(val) {
-    lobbyFakePlayerCount = val;
-  }
   function defaultSettings() {
     return { screenShake: true, damageNumbers: true, uiScale: "medium" };
   }
@@ -3537,6 +3536,96 @@
     drawMinimap(ctx2, canvas2);
   }
 
+  // src/net/socket.ts
+  var SESSION_TOKEN_KEY = "nightfall_session_token";
+  var socket = null;
+  var myId = null;
+  var myRoomId = null;
+  var net = {
+    onWelcome: null,
+    onLobby: null,
+    onPlayers: null,
+    onZombies: null,
+    onBullets: null,
+    onDisconnected: null
+  };
+  function getMyId() {
+    return myId;
+  }
+  function getSavedToken() {
+    try {
+      return localStorage.getItem(SESSION_TOKEN_KEY) || "";
+    } catch {
+      return "";
+    }
+  }
+  function saveToken(token) {
+    try {
+      localStorage.setItem(SESSION_TOKEN_KEY, token);
+    } catch {
+    }
+  }
+  function connect(name) {
+    if (socket) disconnect();
+    const token = getSavedToken();
+    const params = new URLSearchParams();
+    if (token) params.set("token", token);
+    params.set("name", name);
+    const url = WS_URL + "?" + params.toString();
+    socket = new WebSocket(url);
+    socket.onmessage = (e) => {
+      let msg;
+      try {
+        msg = JSON.parse(e.data);
+      } catch {
+        return;
+      }
+      switch (msg.type) {
+        case "welcome":
+          myId = msg.id;
+          myRoomId = msg.roomId;
+          saveToken(msg.sessionToken);
+          net.onWelcome?.(msg);
+          break;
+        case "lobby":
+          net.onLobby?.(msg);
+          break;
+        case "players":
+          net.onPlayers?.(msg);
+          break;
+        case "zombies":
+          net.onZombies?.(msg);
+          break;
+        case "bullets":
+          net.onBullets?.(msg);
+          break;
+      }
+    };
+    socket.onclose = () => {
+      socket = null;
+      myId = null;
+      myRoomId = null;
+      net.onDisconnected?.();
+    };
+  }
+  function disconnect() {
+    if (socket) {
+      socket.onclose = null;
+      socket.close();
+      socket = null;
+    }
+    myId = null;
+    myRoomId = null;
+  }
+  function send(payload) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(payload));
+    }
+  }
+  function sendReady(ready) {
+    send({ type: "ready", ready });
+  }
+
   // src/ui/metaUI.ts
   function costFor(key) {
     const def = PERM_DEFS[key];
@@ -3706,37 +3795,41 @@
     renderClassSelect();
     renderLeaderboard();
   }
-  function lobbyCheckAllReady() {
-    if (lobby.players.length >= 2 && lobby.players.length <= 4 && lobby.players.every((p) => p.ready)) {
+  var countdownTickTimer;
+  function stopCountdownTicker() {
+    if (countdownTickTimer) {
+      clearInterval(countdownTickTimer);
+      countdownTickTimer = void 0;
+    }
+  }
+  function applyLobbyMessage(msg) {
+    const myId2 = getMyId();
+    lobby.players = msg.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, isLocal: p.id === myId2 }));
+    lobby.phase = msg.phase;
+    lobby.countdownEndsAt = msg.countdownEndsAt;
+    lobby.onPlayersChanged?.();
+    stopCountdownTicker();
+    if (msg.phase === "countdown") {
+      countdownTickTimer = setInterval(() => lobby.onPlayersChanged?.(), 200);
+    } else if (msg.phase === "active") {
       lobby.onMatchStart?.();
     }
   }
-  function lobbyJoin(name) {
-    lobby.players = [{ id: "local", name, ready: false, isLocal: true }];
-    setLobbyFakePlayerCount(0);
-    lobby.onPlayersChanged?.();
-  }
+  net.onLobby = applyLobbyMessage;
   function lobbySetReady(ready) {
-    const me = lobby.players.find((p) => p.isLocal);
-    if (me) me.ready = ready;
-    lobby.onPlayersChanged?.();
-    lobbyCheckAllReady();
+    sendReady(ready);
   }
   function lobbyLeave() {
+    stopCountdownTicker();
+    disconnect();
     lobby.players = [];
+    lobby.phase = "waiting";
+    lobby.countdownEndsAt = null;
     lobby.onPlayersChanged?.();
-  }
-  function lobbySimulateJoin() {
-    if (lobby.players.length >= 4) return;
-    const count = lobbyFakePlayerCount + 1;
-    setLobbyFakePlayerCount(count);
-    lobby.players.push({ id: "bot" + count, name: "Bot " + count, ready: true, isLocal: false });
-    lobby.onPlayersChanged?.();
-    lobbyCheckAllReady();
   }
   function openLobby() {
     byId("lobbyOverlay").classList.remove("hidden");
-    lobbyJoin(playerName);
+    connect(playerName);
   }
   function renderLobby() {
     const wrap = byId("lobbySlots");
@@ -3758,9 +3851,16 @@
     const readyCount = lobby.players.filter((p) => p.ready).length;
     const statusEl = byId("lobbyStatus");
     if (statusEl) {
-      if (total < 2) statusEl.textContent = `Waiting for players... (${total}/4)`;
-      else if (readyCount < total) statusEl.textContent = `Waiting for everyone to ready up (${readyCount} ready / ${total} joined)`;
-      else statusEl.textContent = "All ready \u2014 starting...";
+      if (lobby.phase === "countdown" && lobby.countdownEndsAt) {
+        const secsLeft = Math.max(0, Math.ceil((lobby.countdownEndsAt - Date.now()) / 1e3));
+        statusEl.textContent = `All ready \u2014 starting in ${secsLeft}s...`;
+      } else if (lobby.phase === "active") {
+        statusEl.textContent = "Starting...";
+      } else if (total < 2) {
+        statusEl.textContent = `Waiting for players... (${total}/4)`;
+      } else {
+        statusEl.textContent = `Waiting for everyone to ready up (${readyCount} ready / ${total} joined)`;
+      }
     }
     const me = lobby.players.find((p) => p.isLocal);
     const readyBtn = byId("lobbyReadyBtn");
@@ -4409,9 +4509,6 @@
       bloodMoon.active = true;
       bloodMoon.endsAt = performance.now() + BLOOD_MOON_DURATION_MS;
       showBanner("BLOOD MOON RISING", "Zombies spawn faster and hit harder...", "blood");
-    };
-    byId("debugAddFakePlayerBtn").onclick = () => {
-      lobbySimulateJoin();
     };
   }
 

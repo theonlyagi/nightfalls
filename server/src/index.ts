@@ -1,6 +1,6 @@
 import uWS from 'uWebSockets.js';
 import crypto from 'node:crypto';
-import { PROTOCOL_VERSION, SESSION_GRACE_MS, isMovePacket, isShootPacket } from './protocol.js';
+import { PROTOCOL_VERSION, SESSION_GRACE_MS, isMovePacket, isShootPacket, isReadyPacket } from './protocol.js';
 import { ConnectionData, PlayerState } from './Room.js';
 import { RoomManager, SessionStore } from './RoomManager.js';
 
@@ -48,6 +48,10 @@ app.ws<ConnectionData>('/ws', {
     }
 
     const token = req.getQuery('token') || '';
+    // Trim, cap length, and fall back to a default rather than trusting the
+    // client's name outright — it's display-only, but still user input.
+    const rawName = (req.getQuery('name') || '').trim().slice(0, 20);
+    const name = rawName || 'Survivor';
     const secWebSocketKey = req.getHeader('sec-websocket-key');
     const secWebSocketProtocol = req.getHeader('sec-websocket-protocol');
     const secWebSocketExtensions = req.getHeader('sec-websocket-extensions');
@@ -78,7 +82,7 @@ app.ws<ConnectionData>('/ws', {
     pendingRestore.set(playerId, restored);
 
     res.upgrade<ConnectionData>(
-      { id: playerId, sessionToken, connectedAt: Date.now(), roomId },
+      { id: playerId, name, sessionToken, connectedAt: Date.now(), roomId },
       secWebSocketKey, secWebSocketProtocol, secWebSocketExtensions,
       context
     );
@@ -90,7 +94,7 @@ app.ws<ConnectionData>('/ws', {
     const restored = pendingRestore.get(data.id);
     pendingRestore.delete(data.id);
 
-    room.addConnection(ws, data.id, restored);
+    room.addConnection(ws, data.id, data.name, restored);
     console.log(`[join] ${data.id} connected to ${room.id} (${room.size} in room, ${roomManager.roomCount} rooms total)`);
 
     ws.send(JSON.stringify({
@@ -120,6 +124,10 @@ app.ws<ConnectionData>('/ws', {
     }
     if (isShootPacket(parsed)) {
       room.handleShoot(data.id, parsed.angle);
+      return;
+    }
+    if (isReadyPacket(parsed)) {
+      room.handleReady(data.id, parsed.ready);
       return;
     }
   },

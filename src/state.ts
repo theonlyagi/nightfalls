@@ -137,11 +137,11 @@ export function setMeta(val: MetaProgress): void { meta = val; }
 
 export const lobby = {
   players: [] as LobbyPlayer[],
+  phase: 'waiting' as 'waiting' | 'countdown' | 'active',
+  countdownEndsAt: null as number | null,
   onPlayersChanged: null as (() => void) | null,
   onMatchStart: null as (() => void) | null
 };
-export let lobbyFakePlayerCount = 0;
-export function setLobbyFakePlayerCount(val: number): void { lobbyFakePlayerCount = val; }
 
 export function defaultSettings(): GameSettings {
   return { screenShake: true, damageNumbers: true, uiScale: 'medium' };

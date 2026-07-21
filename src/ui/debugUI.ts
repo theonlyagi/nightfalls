@@ -8,7 +8,6 @@ import { byId, clamp } from '../utils';
 import { startWave } from '../systems/wave';
 import { openWeaponChoice, openMutationChoice, renderUpgradePanel } from './shopUI';
 import { showBanner, zombieDied } from '../systems/combat';
-import { lobbySimulateJoin } from './metaUI';
 
 export function toggleDebugPanel(): void {
   const lobbyOpen = !byId('lobbyOverlay').classList.contains('hidden');
@@ -118,5 +117,4 @@ export function setupDebugUI(): void {
     bloodMoon.endsAt = performance.now() + BLOOD_MOON_DURATION_MS;
     showBanner('BLOOD MOON RISING', 'Zombies spawn faster and hit harder...', 'blood');
   };
-  byId('debugAddFakePlayerBtn').onclick = () => { lobbySimulateJoin(); };
 }
