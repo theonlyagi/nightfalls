@@ -19,6 +19,9 @@ imgTree.src = 'assets/tree.png';
 const imgStone = new Image();
 imgStone.src = 'assets/stone.png';
 
+const imgIron = new Image();
+imgIron.src = 'assets/iron.png';
+
 export function worldToScreen(x: number, y: number): Vec2 {
   return { x: x - camera.x, y: y - camera.y };
 }
@@ -411,6 +414,31 @@ export function drawResource(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEl
         ctx.arc(s.x + b.dx + b.rr * 0.15, s.y + b.dy + b.rr * 0.15, b.rr * 0.5, Math.PI * 0.75, Math.PI * 1.25);
         ctx.stroke();
       }
+    }
+  } else if (r.type === 'iron') {
+    if (imgIron.complete && imgIron.naturalWidth !== 0) {
+      const seed = (Math.abs(Math.sin(r.x * 12.9898 + r.y * 78.233) * 43758.5453) % 1);
+      const scaleMul = 0.88 + seed * 0.24;
+      const rot = seed * Math.PI * 2;
+
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(rot);
+      ctx.scale(scaleMul, scaleMul);
+
+      const dw = r.radius * 2.8;
+      const dh = dw * (imgIron.naturalHeight / imgIron.naturalWidth);
+      ctx.drawImage(imgIron, -dw / 2, -dh * 0.58, dw, dh);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = 'rgba(10, 18, 14, 0.38)';
+      ctx.beginPath();
+      ctx.ellipse(s.x, s.y + r.radius * 0.4, r.radius * 1.1, r.radius * 0.45, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#708090';
+      ctx.strokeStyle = '#2d3748'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(s.x, s.y, r.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
   } else {
     if (imgStone.complete && imgStone.naturalWidth !== 0) {

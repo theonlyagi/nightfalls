@@ -33,6 +33,12 @@ export function generateWorld(): void {
     while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
     newResources.push({ type: 'rock' as const, x, y, radius: 21, hp: 50, maxHp: 50 });
   }
+  for (let i = 0; i < 45; i++) {
+    let x: number, y: number;
+    do { x = rand(80, WORLD_W - 80); y = rand(80, WORLD_H - 80); }
+    while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
+    newResources.push({ type: 'iron' as const, x, y, radius: 23, hp: 110, maxHp: 110 });
+  }
   for (let i = 0; i < 260; i++) {
     newDecor.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), a: rand(0, Math.PI * 2), s: rand(0.7, 1.3) });
   }

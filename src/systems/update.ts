@@ -316,12 +316,30 @@ export function updateBullets(dt: number): void {
           b.dead = true;
           if (r.hp <= 0) {
             r.dead = true;
-            spawnBurst(r.x, r.y, r.type === 'tree' ? '#356b43' : '#8b9599', 8);
+            const burstColor = r.type === 'tree' ? '#356b43' : (r.type === 'iron' ? '#708090' : '#8b9599');
+            spawnBurst(r.x, r.y, burstColor, 8);
             if (r.type === 'tree') {
               const amt = Math.round((8 + Math.random() * 6) * (player.resourceMul || 1));
               player.wood += amt;
               spawnParticle(r.x, r.y, '+' + amt + ' wood', '#c98b4a');
               gainXp(Math.round(3 * (player.resourceMul || 1)));
+            } else if (r.type === 'iron') {
+              const ironAmt = Math.round((4 + Math.random() * 4) * (player.resourceMul || 1));
+              player.iron += ironAmt;
+              spawnParticle(r.x, r.y, '+' + ironAmt + ' iron', '#708090');
+
+              const stoneAmt = Math.round((2 + Math.random() * 3) * (player.resourceMul || 1));
+              player.stone += stoneAmt;
+              setTimeout(() => spawnParticle(r.x, r.y - 15, '+' + stoneAmt + ' stone', '#9aa7ac'), 150);
+
+              // 20% chance to get 1-2 Gold
+              if (Math.random() < 0.20) {
+                const goldAmt = Math.round((1 + Math.floor(Math.random() * 2)) * (player.resourceMul || 1));
+                player.gold += goldAmt;
+                setTimeout(() => spawnParticle(r.x, r.y - 30, '+' + goldAmt + ' gold', '#ffd76a'), 300);
+              }
+
+              gainXp(Math.round(6 * (player.resourceMul || 1)));
             } else {
               const amt = Math.round((6 + Math.random() * 4) * (player.resourceMul || 1));
               player.stone += amt;

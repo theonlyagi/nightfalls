@@ -1127,6 +1127,14 @@
       } while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
       newResources.push({ type: "rock", x, y, radius: 21, hp: 50, maxHp: 50 });
     }
+    for (let i = 0; i < 45; i++) {
+      let x, y;
+      do {
+        x = rand(80, WORLD_W - 80);
+        y = rand(80, WORLD_H - 80);
+      } while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
+      newResources.push({ type: "iron", x, y, radius: 23, hp: 110, maxHp: 110 });
+    }
     for (let i = 0; i < 260; i++) {
       newDecor.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), a: rand(0, Math.PI * 2), s: rand(0.7, 1.3) });
     }
@@ -1666,12 +1674,26 @@
             b.dead = true;
             if (r.hp <= 0) {
               r.dead = true;
-              spawnBurst(r.x, r.y, r.type === "tree" ? "#356b43" : "#8b9599", 8);
+              const burstColor = r.type === "tree" ? "#356b43" : r.type === "iron" ? "#708090" : "#8b9599";
+              spawnBurst(r.x, r.y, burstColor, 8);
               if (r.type === "tree") {
                 const amt = Math.round((8 + Math.random() * 6) * (player.resourceMul || 1));
                 player.wood += amt;
                 spawnParticle(r.x, r.y, "+" + amt + " wood", "#c98b4a");
                 gainXp(Math.round(3 * (player.resourceMul || 1)));
+              } else if (r.type === "iron") {
+                const ironAmt = Math.round((4 + Math.random() * 4) * (player.resourceMul || 1));
+                player.iron += ironAmt;
+                spawnParticle(r.x, r.y, "+" + ironAmt + " iron", "#708090");
+                const stoneAmt = Math.round((2 + Math.random() * 3) * (player.resourceMul || 1));
+                player.stone += stoneAmt;
+                setTimeout(() => spawnParticle(r.x, r.y - 15, "+" + stoneAmt + " stone", "#9aa7ac"), 150);
+                if (Math.random() < 0.2) {
+                  const goldAmt = Math.round((1 + Math.floor(Math.random() * 2)) * (player.resourceMul || 1));
+                  player.gold += goldAmt;
+                  setTimeout(() => spawnParticle(r.x, r.y - 30, "+" + goldAmt + " gold", "#ffd76a"), 300);
+                }
+                gainXp(Math.round(6 * (player.resourceMul || 1)));
               } else {
                 const amt = Math.round((6 + Math.random() * 4) * (player.resourceMul || 1));
                 player.stone += amt;
@@ -2310,6 +2332,8 @@
   imgTree.src = "assets/tree.png";
   var imgStone = new Image();
   imgStone.src = "assets/stone.png";
+  var imgIron = new Image();
+  imgIron.src = "assets/iron.png";
   function worldToScreen(x, y) {
     return { x: x - camera.x, y: y - camera.y };
   }
@@ -2658,6 +2682,32 @@
           ctx2.arc(s.x + b.dx + b.rr * 0.15, s.y + b.dy + b.rr * 0.15, b.rr * 0.5, Math.PI * 0.75, Math.PI * 1.25);
           ctx2.stroke();
         }
+      }
+    } else if (r.type === "iron") {
+      if (imgIron.complete && imgIron.naturalWidth !== 0) {
+        const seed = Math.abs(Math.sin(r.x * 12.9898 + r.y * 78.233) * 43758.5453) % 1;
+        const scaleMul = 0.88 + seed * 0.24;
+        const rot = seed * Math.PI * 2;
+        ctx2.save();
+        ctx2.translate(s.x, s.y);
+        ctx2.rotate(rot);
+        ctx2.scale(scaleMul, scaleMul);
+        const dw = r.radius * 2.8;
+        const dh = dw * (imgIron.naturalHeight / imgIron.naturalWidth);
+        ctx2.drawImage(imgIron, -dw / 2, -dh * 0.58, dw, dh);
+        ctx2.restore();
+      } else {
+        ctx2.fillStyle = "rgba(10, 18, 14, 0.38)";
+        ctx2.beginPath();
+        ctx2.ellipse(s.x, s.y + r.radius * 0.4, r.radius * 1.1, r.radius * 0.45, 0, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.fillStyle = "#708090";
+        ctx2.strokeStyle = "#2d3748";
+        ctx2.lineWidth = 3;
+        ctx2.beginPath();
+        ctx2.arc(s.x, s.y, r.radius, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.stroke();
       }
     } else {
       if (imgStone.complete && imgStone.naturalWidth !== 0) {
