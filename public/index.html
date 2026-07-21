@@ -1,70 +1,71 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>NIGHTFALL.IO</title>
+<title>NIGHTFALL SURVIVAL .IO</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Ubuntu+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,400;0,500;0,700;1,700;1,800&family=Ubuntu+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="bg-on-background min-h-screen flex flex-col font-body-md text-body-md text-white relative overflow-x-hidden">
 
 <canvas id="game"></canvas>
 
+<!-- IN-GAME HUD -->
 <div id="hud">
-  <button id="hudSettingsBtn" class="gear-btn" title="Settings">⚙</button>
+  <button id="hudSettingsBtn" class="gear-btn io-border io-shadow-solid-sm squishy" title="Settings">⚙</button>
   <div id="topbar">
     <div id="topbarRow">
-      <div class="pill hud-font" id="waveLabel">WAVE 1</div>
-      <div class="pill" id="zLabel">zombies: 0</div>
-      <div class="pill hud-font day" id="phaseLabel">DAY</div>
+      <div class="pill hud-font io-border" id="waveLabel">WAVE 1</div>
+      <div class="pill io-border" id="zLabel">zombies: 0</div>
+      <div class="pill hud-font day io-border" id="phaseLabel">DAY</div>
     </div>
     <div id="powerupStatus">
-      <div class="pu-pill" id="puInsta">INSTA-KILL 0s</div>
-      <div class="pu-pill" id="puDouble">2x XP 0s</div>
-      <div class="pu-pill" id="puSpeed">SPEED 0s</div>
-      <div class="pu-pill" id="puDamage">DMG BOOST 0s</div>
-      <div class="pu-pill" id="puRate">RAPID FIRE 0s</div>
-      <div class="pu-pill" id="puRegen">REGEN 0s</div>
-      <div class="pu-pill" id="puHeat">HEAT 0%</div>
+      <div class="pu-pill io-border" id="puInsta">INSTA-KILL 0s</div>
+      <div class="pu-pill io-border" id="puDouble">2x XP 0s</div>
+      <div class="pu-pill io-border" id="puSpeed">SPEED 0s</div>
+      <div class="pu-pill io-border" id="puDamage">DMG BOOST 0s</div>
+      <div class="pu-pill io-border" id="puRate">RAPID FIRE 0s</div>
+      <div class="pu-pill io-border" id="puRegen">REGEN 0s</div>
+      <div class="pu-pill io-border" id="puHeat">HEAT 0%</div>
     </div>
-    <div id="bossBar">
+    <div id="bossBar" class="io-border">
       <div id="bossName">BOSS</div>
       <div id="bossTrack"><div id="bossFill"></div></div>
     </div>
   </div>
 
   <div id="resources">
-    <div class="res-pill"><div class="swatch" style="background:var(--accent-wood)"></div>wood <span id="woodCount">0</span></div>
-    <div class="res-pill"><div class="swatch" style="background:var(--accent-stone)"></div>stone <span id="stoneCount">0</span></div>
-    <div class="res-pill"><div class="swatch" style="background:var(--accent-iron)"></div>iron <span id="ironCount">0</span></div>
-    <div class="res-pill"><div class="swatch" style="background:var(--accent-gold)"></div>gold <span id="goldCount">0</span></div>
-    <div class="res-pill"><div class="swatch" style="background:var(--accent-points)"></div>points <span id="pointsCount">0</span></div>
+    <div class="res-pill io-border"><div class="swatch" style="background:var(--accent-wood)"></div>wood <span id="woodCount">0</span></div>
+    <div class="res-pill io-border"><div class="swatch" style="background:var(--accent-stone)"></div>stone <span id="stoneCount">0</span></div>
+    <div class="res-pill io-border"><div class="swatch" style="background:var(--accent-iron)"></div>iron <span id="ironCount">0</span></div>
+    <div class="res-pill io-border"><div class="swatch" style="background:var(--accent-gold)"></div>gold <span id="goldCount">0</span></div>
+    <div class="res-pill io-border"><div class="swatch" style="background:var(--accent-points)"></div>points <span id="pointsCount">0</span></div>
   </div>
 
   <div id="bottomHud">
-    <div id="levelTag">LEVEL 1</div>
+    <div id="levelTag" class="io-border">LEVEL 1</div>
     <div class="bar-row">
       <div class="bar-label">HP</div>
-      <div class="bar-track"><div class="bar-fill hp" id="hpFill" style="width:100%"></div><div class="bar-text" id="hpText">100/100</div></div>
+      <div class="bar-track io-border"><div class="bar-fill hp" id="hpFill" style="width:100%"></div><div class="bar-text" id="hpText">100/100</div></div>
     </div>
     <div class="bar-row">
       <div class="bar-label">XP</div>
-      <div class="bar-track"><div class="bar-fill xp" id="xpFill" style="width:0%"></div><div class="bar-text" id="xpText">0/50</div></div>
+      <div class="bar-track io-border"><div class="bar-fill xp" id="xpFill" style="width:0%"></div><div class="bar-text" id="xpText">0/50</div></div>
     </div>
   </div>
 
   <div id="upgradePanel"></div>
   <div id="buildBar"></div>
-  <div id="shopHint">press <b>E</b> to open shop</div>
-  <div id="factoryHint">press <b>E</b> to open factory</div>
-  <div id="rotateHint">press <b>R</b> to rotate</div>
+  <div id="shopHint" class="io-border">press <b>E</b> to open shop</div>
+  <div id="factoryHint" class="io-border">press <b>E</b> to open factory</div>
+  <div id="rotateHint" class="io-border">press <b>R</b> to rotate</div>
 
   <div id="waveBanner">WAVE 1<span>Zombies incoming</span></div>
 
   <div id="helpContainer">
-    <div id="hint" class="hidden">
+    <div id="hint" class="hidden io-border io-shadow-solid">
       <div class="help-title">Controls &amp; Guide</div>
       <div class="help-row"><span>Move Character</span><b>WASD</b></div>
       <div class="help-row"><span>Aim &amp; Shoot</span><b>MOUSE</b></div>
@@ -75,41 +76,44 @@
       <div class="help-note">Zombies hit harder and move faster during the night.</div>
     </div>
     <div class="help-buttons-row">
-      <button id="codexBtn" title="Bestiary & Codex">📖 Codex</button>
-      <button id="helpBtn">? How to Play</button>
+      <button id="codexBtn" class="io-border squishy" title="Bestiary & Codex">📖 Codex</button>
+      <button id="helpBtn" class="io-border squishy">? How to Play</button>
     </div>
   </div>
 
   <div id="touchOverlay" class="hidden">
     <div id="stickLeftBase" class="stick-base"><div id="stickLeftKnob" class="stick-knob"></div></div>
     <div id="stickRightBase" class="stick-base"><div id="stickRightKnob" class="stick-knob"></div></div>
-      <div id="touchActions">
-        <button id="touchBtnShop" class="touch-btn">SHOP [E]</button>
-        <button id="touchBtnRotate" class="touch-btn">ROTATE [R]</button>
-        <button id="touchBtnCancel" class="touch-btn">CANCEL [ESC]</button>
-      </div>
+    <div id="touchActions">
+      <button id="touchBtnShop" class="touch-btn io-border">SHOP [E]</button>
+      <button id="touchBtnRotate" class="touch-btn io-border">ROTATE [R]</button>
+      <button id="touchBtnCancel" class="touch-btn io-border">CANCEL [ESC]</button>
+    </div>
   </div>
 </div>
 
+<!-- SHOP MODAL -->
 <div id="shopPanel" class="overlay-anim hidden">
-  <div id="shopBox">
+  <div id="shopBox" class="io-border io-shadow-solid-lg">
     <h3>SHOP</h3>
     <div id="shopBalance">SHOP CURRENCY: <b id="shopPointsVal">0</b> points</div>
     <div id="shopItems"></div>
-    <button id="shopCloseBtn">CLOSE (E)</button>
+    <button id="shopCloseBtn" class="io-border squishy">CLOSE (E)</button>
   </div>
 </div>
 
+<!-- FACTORY MODAL -->
 <div id="factoryPanel" class="overlay-anim hidden">
-  <div id="factoryBox">
+  <div id="factoryBox" class="io-border io-shadow-solid-lg">
     <h3>FACTORY — ADVANCED TOWER PRODUCTION</h3>
     <div class="sub">Craft advanced tactical defenses and place them on the battlefield</div>
     <div id="factoryItems"></div>
-    <button id="factoryCloseBtn">CLOSE (E)</button>
+    <button id="factoryCloseBtn" class="io-border squishy">CLOSE (E)</button>
   </div>
 </div>
 
-<div id="structureInspector" class="hidden">
+<!-- STRUCTURE INSPECTOR MODAL -->
+<div id="structureInspector" class="hidden io-border io-shadow-solid">
   <div class="inspector-header">
     <div class="inspector-title">
       <b id="inspectorName">CANNON</b>
@@ -117,35 +121,38 @@
     </div>
     <button id="inspectorCloseBtn">✕</button>
   </div>
-  <div class="inspector-hp-bar">
+  <div class="inspector-hp-bar io-border">
     <div id="inspectorHpFill" class="fill"></div>
     <span id="inspectorHpText">100/100 HP</span>
   </div>
-  <div id="inspectorStats" class="inspector-stats"></div>
+  <div id="inspectorStats" class="inspector-stats io-border"></div>
   <div class="inspector-upgrade-box">
     <div id="inspectorCostText" class="cost-text">UPGRADE COST: 20 WOOD</div>
-    <button id="inspectorUpgradeBtn" class="upgrade-btn-action">UPGRADE TOWER</button>
+    <button id="inspectorUpgradeBtn" class="upgrade-btn-action io-border squishy">UPGRADE TOWER</button>
   </div>
 </div>
 
+<!-- WEAPON CHOICE MODAL -->
 <div id="weaponChoicePanel" class="overlay-anim hidden">
-  <div id="weaponChoiceBox">
+  <div id="weaponChoiceBox" class="io-border io-shadow-solid-lg">
     <h3>LEVEL 15 — CHOOSE YOUR WEAPON</h3>
     <div class="sub">This replaces your pistol for the rest of the run. Pick one.</div>
     <div id="weaponChoiceItems"></div>
   </div>
 </div>
 
+<!-- MUTATION CHOICE MODAL -->
 <div id="mutationChoicePanel" class="overlay-anim hidden">
-  <div id="mutationChoiceBox">
+  <div id="mutationChoiceBox" class="io-border io-shadow-solid-lg">
     <h3>LEVEL 25 — CHOOSE YOUR MUTATION</h3>
     <div class="sub">A permanent change to how you play, for the rest of the run. Pick one.</div>
     <div id="mutationChoiceItems"></div>
   </div>
 </div>
 
+<!-- CODEX MODAL -->
 <div id="codexModal" class="overlay-anim hidden">
-  <div id="codexBox">
+  <div id="codexBox" class="io-border io-shadow-solid-lg">
     <div class="codex-header">
       <h3>SURVIVOR'S BESTIARY</h3>
       <button id="codexCloseBtn">✕</button>
@@ -157,7 +164,7 @@
         <div id="codexDetailContent" class="hidden">
           <div class="codex-detail-left">
             <canvas id="codexPreviewCanvas" width="240" height="240"></canvas>
-            <div id="codexStats" class="codex-stats"></div>
+            <div id="codexStats" class="codex-stats io-border"></div>
           </div>
           <div class="codex-detail-right">
             <h4 id="codexMonsterName">Name</h4>
@@ -171,48 +178,49 @@
   </div>
 </div>
 
+<!-- DEBUG CONSOLE -->
 <div id="debugPanel" class="overlay-anim hidden">
-  <div id="debugBox">
+  <div id="debugBox" class="io-border io-shadow-solid-lg">
     <h3>DEBUG CONSOLE</h3>
     <div id="debugLockStep">
       <div class="sub">this is a local testing tool, not a real security gate</div>
-      <input id="debugPassInput" type="password" placeholder="password" autocomplete="off">
-      <button id="debugUnlockBtn">UNLOCK</button>
+      <input id="debugPassInput" type="password" placeholder="password" autocomplete="off" class="io-border">
+      <button id="debugUnlockBtn" class="io-border squishy">UNLOCK</button>
       <div id="debugLockMsg"></div>
     </div>
     <div id="debugControls" class="hidden">
       <div class="debug-row">
         <label>Level</label>
-        <input id="debugLevelInput" type="number" min="1" max="999" value="15">
-        <button id="debugSetLevelBtn">SET</button>
+        <input id="debugLevelInput" type="number" min="1" max="999" value="15" class="io-border">
+        <button id="debugSetLevelBtn" class="io-border squishy">SET</button>
       </div>
       <div class="debug-row">
         <label>Points</label>
-        <input id="debugPointsInput" type="number" min="0" value="500">
-        <button id="debugAddPointsBtn">ADD</button>
-        <button id="debugSetPointsBtn">SET</button>
+        <input id="debugPointsInput" type="number" min="0" value="500" class="io-border">
+        <button id="debugAddPointsBtn" class="io-border squishy">ADD</button>
+        <button id="debugSetPointsBtn" class="io-border squishy">SET</button>
       </div>
       <div class="debug-row">
         <label>Wave</label>
-        <input id="debugWaveInput" type="number" min="1" max="999" value="10">
-        <button id="debugSetWaveBtn">SET</button>
+        <input id="debugWaveInput" type="number" min="1" max="999" value="10" class="io-border">
+        <button id="debugSetWaveBtn" class="io-border squishy">SET</button>
       </div>
       <div class="debug-row">
         <label>Wood/Stone</label>
-        <input id="debugResInput" type="number" min="0" value="500">
-        <button id="debugAddResBtn">ADD BOTH</button>
+        <input id="debugResInput" type="number" min="0" value="500" class="io-border">
+        <button id="debugAddResBtn" class="io-border squishy">ADD BOTH</button>
       </div>
       <div class="debug-row">
-        <button id="debugFullHealBtn">FULL HEAL</button>
-        <button id="debugGodBtn">GOD MODE: OFF</button>
+        <button id="debugFullHealBtn" class="io-border squishy">FULL HEAL</button>
+        <button id="debugGodBtn" class="io-border squishy">GOD MODE: OFF</button>
       </div>
       <div class="debug-row">
-        <button id="debugKillAllBtn" style="background:#e74c3c;color:#fff;">KILL ALL ZOMBIES</button>
-        <button id="debugSkipLevel10Btn" style="background:#27ae60;color:#fff;">SKIP TO LEVEL 10</button>
+        <button id="debugKillAllBtn" class="io-border squishy" style="background:#ba1a1a;color:#fff;">KILL ALL ZOMBIES</button>
+        <button id="debugSkipLevel10Btn" class="io-border squishy" style="background:#246c2a;color:#fff;">SKIP TO LEVEL 10</button>
       </div>
       <div class="debug-row">
         <label>Game Speed</label>
-        <select id="debugSpeedSelect" style="background:#0d1a14;color:#fff;border:1px solid var(--line);border-radius:6px;padding:6px;font-family:'Ubuntu',sans-serif;font-size:12px;flex:1;">
+        <select id="debugSpeedSelect" class="io-border" style="background:#171d1a;color:#fff;border-radius:6px;padding:6px;font-family:'Ubuntu',sans-serif;font-size:12px;flex:1;">
           <option value="1">1x (Normal)</option>
           <option value="2">2x (Fast)</option>
           <option value="5">5x (Turbo)</option>
@@ -220,171 +228,200 @@
         </select>
       </div>
       <div class="debug-row">
-        <button id="debugBloodMoonBtn">TRIGGER BLOOD MOON</button>
+        <button id="debugBloodMoonBtn" class="io-border squishy">TRIGGER BLOOD MOON</button>
       </div>
       <div class="debug-row">
-        <button id="debugAddFakePlayerBtn">ADD FAKE PLAYER (lobby)</button>
+        <button id="debugAddFakePlayerBtn" class="io-border squishy">ADD FAKE PLAYER (lobby)</button>
       </div>
     </div>
-    <button id="debugCloseBtn">CLOSE (HOME)</button>
+    <button id="debugCloseBtn" class="io-border squishy">CLOSE (HOME)</button>
   </div>
 </div>
 
+<!-- GAME OVER OVERLAY -->
 <div id="overlay" class="overlay-anim hidden">
-  <h1>YOU DIED</h1>
-  <p>Wave reached: <span class="stat" id="finalWave">1</span></p>
-  <p>Zombies slain: <span class="stat" id="finalKills">0</span></p>
-  <p>Level: <span class="stat" id="finalLevel">1</span></p>
-  <div class="metaEarned" id="metaEarned">+0 meta points earned</div>
-  <button id="restartBtn">BACK TO MENU</button>
+  <div class="gameover-box io-border io-shadow-solid-lg">
+    <h1 class="text-outline">YOU DIED</h1>
+    <p>Wave reached: <span class="stat" id="finalWave">1</span></p>
+    <p>Zombies slain: <span class="stat" id="finalKills">0</span></p>
+    <p>Level: <span class="stat" id="finalLevel">1</span></p>
+    <div class="metaEarned" id="metaEarned">+0 meta points earned</div>
+    <button id="restartBtn" class="flor-start-btn io-border io-shadow-solid squishy-lg squishy-hover text-outline">BACK TO MENU</button>
+  </div>
 </div>
 
 <!-- CLASS SELECT MODAL POPUP -->
 <div id="classSelectModal" class="overlay-anim hidden">
-  <div id="classSelectBox">
-    <h2>CHOOSE YOUR CLASS</h2>
+  <div id="classSelectBox" class="io-border io-shadow-solid-lg">
+    <h2 class="text-outline">CHOOSE YOUR CLASS</h2>
     <div class="sub">Select your survivor specialization for this run</div>
     <div id="classSelect"></div>
   </div>
 </div>
 
-<!-- REDESIGNED MAIN MENU OVERLAY (NO SCROLLING - 3 COLUMN LAYOUT) -->
-<div id="startOverlay">
-  <button id="startSettingsBtn" class="gear-btn" title="Settings">S</button>
+<!-- TEAM LOBBY OVERLAY -->
+<div id="lobbyOverlay" class="overlay-anim hidden">
+  <div class="lobby-box io-border io-shadow-solid-lg">
+    <h1 class="text-outline">TEAM MODE</h1>
+    <div class="sub">2-4 PLAYERS &middot; READY UP TO START</div>
+    <div id="lobbySlots"></div>
+    <div id="lobbyStatus">Waiting for players... (1/4)</div>
+    <button id="lobbyReadyBtn" class="io-border io-shadow-solid squishy-lg squishy-hover">READY</button>
+    <button id="lobbyLeaveBtn" class="io-border io-shadow-solid squishy">LEAVE QUEUE</button>
+  </div>
+</div>
 
-  <header id="menuHeader">
-    <h1 class="logo">NIGHTFALL<span class="logo-io">.IO</span></h1>
-    <div class="tagline">TOP-DOWN ZOMBIE SURVIVAL ARENA</div>
-  </header>
-
-  <div id="menuGrid">
-    <!-- LEFT PANEL: CREATORS & CREDITS -->
-    <aside id="leftPanel" class="menu-side-panel">
-      <div class="side-box">
-        <h3>COMMUNITY</h3>
-        <div class="creator-list">
-          <div class="creator-item">
-            <div class="creator-badge">DC</div>
-            <div>
-              <b>Official Discord</b>
-              <span class="sub-text">Join the community server</span>
-            </div>
-          </div>
-          <div class="creator-item">
-            <div class="creator-badge">YT</div>
-            <div>
-              <b>Content Creators</b>
-              <span class="sub-text">Watch strategy & highlight videos</span>
-            </div>
-          </div>
-          <div class="creator-item">
-            <div class="creator-badge">GD</div>
-            <div>
-              <b>Survival Guide</b>
-              <span class="sub-text">Build defenses & defeat Nightfall bosses</span>
-            </div>
-          </div>
+<!-- SETTINGS OVERLAY -->
+<div id="settingsOverlay" class="overlay-anim hidden">
+  <div class="settings-box io-border io-shadow-solid-lg">
+    <h1 class="text-outline">SETTINGS</h1>
+    <div class="sub">SAVED AUTOMATICALLY</div>
+    <div class="panelBox" id="settingsPanel">
+      <div class="setting-row">
+        <label>Screen Shake</label>
+        <button id="settingShakeBtn" class="toggle-btn io-border squishy">ON</button>
+      </div>
+      <div class="setting-row">
+        <label>Damage Numbers</label>
+        <button id="settingDamageNumBtn" class="toggle-btn io-border squishy">ON</button>
+      </div>
+      <div class="setting-row">
+        <label>UI Scale</label>
+        <div class="scale-btns">
+          <button id="scaleSmallBtn" class="scale-btn io-border squishy">SMALL</button>
+          <button id="scaleMediumBtn" class="scale-btn io-border squishy">MEDIUM</button>
+          <button id="scaleLargeBtn" class="scale-btn io-border squishy">LARGE</button>
         </div>
       </div>
+    </div>
+    <button id="settingsCloseBtn" class="io-border squishy">CLOSE</button>
+  </div>
+</div>
 
-      <div class="side-box credits-box">
-        <h3>CREDITS</h3>
-        <p class="credits-desc">Built with TypeScript &amp; HTML5 Canvas. Modular ES Modules architecture.</p>
-        <div class="version-tag">v1.0.0 &nbsp;&mdash;&nbsp; ES Modules Build</div>
+<!-- FLORR.IO NEO-BRUTALIST MAIN MENU OVERLAY -->
+<div id="startOverlay">
+  <!-- Top Navigation Bar -->
+  <nav class="flor-topbar io-border io-shadow-solid">
+    <div class="flor-logo-wrap io-border text-outline squishy-hover">
+      NIGHTFALL SURVIVAL
+    </div>
+    <div class="flor-top-actions">
+      <button id="startSettingsBtn" class="flor-icon-btn io-border io-shadow-solid-sm squishy-hover squishy" title="Settings">
+        ⚙
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Content Layout Grid -->
+  <div class="flor-layout">
+    <!-- Left Sidebar: Profile & Community Links -->
+    <aside class="flor-sidebar-left io-border io-shadow-solid">
+      <div class="profile-header-wrap">
+        <div class="profile-avatar io-border">
+          <img class="avatar-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%234E92F5'/%3E%3Cpath d='M32 16a12 12 0 100 24 12 12 0 000-24zM16 52c0-8.8 7.2-16 16-16s16 7.2 16 16' fill='%23171d1a'/%3E%3C/svg%3E" alt="Avatar">
+        </div>
+        <h3 class="survivor-title">SURVIVOR</h3>
+        <span class="survivor-tag io-border">LEVEL 42 PREPPER</span>
+      </div>
+
+      <nav class="community-nav">
+        <a href="https://discord.com" target="_blank" class="community-link io-border squishy-hover">
+          <span class="link-icon">💬</span>
+          <span>Discord</span>
+        </a>
+        <a href="https://youtube.com" target="_blank" class="community-link io-border squishy-hover">
+          <span class="link-icon">▶</span>
+          <span>YouTube</span>
+        </a>
+        <a href="#" class="community-link io-border squishy-hover">
+          <span class="link-icon">📖</span>
+          <span>Wiki</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="join-community-btn io-border io-shadow-solid-sm squishy-hover squishy">
+          JOIN COMMUNITY
+        </button>
       </div>
     </aside>
 
-    <!-- CENTER PANEL: SURVIVOR NAME + STATS + META UPGRADES + SKINS -->
-    <main id="centerPanel" class="menu-main-panel">
-      <div class="profile-header">
-        <label for="nameInput">SURVIVOR NAME</label>
-        <input id="nameInput" type="text" maxlength="14" placeholder="Enter name" autocomplete="off">
-      </div>
+    <!-- Center Main Panel: Name, Stats, Upgrades, Modes, Start Button -->
+    <main class="flor-main-panel">
+      <!-- Player Bubbly Name Header -->
+      <section class="bubbly-name-section">
+        <div class="bubbly-name-card io-border io-shadow-solid-sm squishy-hover animate-float">
+          <input id="nameInput" type="text" maxlength="14" placeholder="Enter Name" autocomplete="off" class="text-outline">
+        </div>
+      </section>
 
-      <div class="metaStatsRow" id="metaStatsRow">
-        <div class="stat-card">
-          <span class="lbl">Meta Points</span>
-          <b id="metaPointsVal">0</b>
+      <!-- Rarity Color-Coded Stats Grid -->
+      <section class="flor-stats-grid">
+        <div class="stat-card-io card-uncommon io-border io-shadow-solid-sm squishy-hover animate-float" style="animation-delay: 0.1s;">
+          <span class="stat-label-sm">META POINTS</span>
+          <span id="metaPointsVal" class="stat-val text-outline">0</span>
         </div>
-        <div class="stat-card">
-          <span class="lbl">Best Wave</span>
-          <b id="bestWaveVal">0</b>
+        <div class="stat-card-io card-rare io-border io-shadow-solid-sm squishy-hover animate-float" style="animation-delay: 0.2s;">
+          <span class="stat-label-sm">BEST WAVE</span>
+          <span id="bestWaveVal" class="stat-val text-outline">0</span>
         </div>
-        <div class="stat-card">
-          <span class="lbl">Lifetime Kills</span>
-          <b id="lifetimeKillsVal">0</b>
+        <div class="stat-card-io card-epic io-border io-shadow-solid-sm squishy-hover animate-float" style="animation-delay: 0.3s;">
+          <span class="stat-label-sm">LIFETIME KILLS</span>
+          <span id="lifetimeKillsVal" class="stat-val text-outline">0</span>
         </div>
-        <div class="stat-card">
-          <span class="lbl">Total Runs</span>
-          <b id="gamesPlayedVal">0</b>
+        <div class="stat-card-io card-legendary io-border io-shadow-solid-sm squishy-hover animate-float" style="animation-delay: 0.4s;">
+          <span class="stat-label-sm">TOTAL RUNS</span>
+          <span id="gamesPlayedVal" class="stat-val text-outline">0</span>
         </div>
-      </div>
+      </section>
 
-      <div class="meta-section">
-        <h4>PERMANENT UPGRADES</h4>
-        <div id="metaUpgrades"></div>
-      </div>
+      <!-- Central Active Tab View (Upgrades / Bonuses / Skins) -->
+      <section class="flor-tab-display io-border io-shadow-solid">
+        <div id="metaUpgrades" class="tab-content active"></div>
+        <div id="startBonuses" class="tab-content hidden shop-row"></div>
+        <div id="metaSkins" class="tab-content hidden shop-row"></div>
+      </section>
 
-      <div class="meta-two-col">
-        <div class="meta-sub-section">
-          <h4>STARTING BONUSES</h4>
-          <div id="startBonuses" class="shop-row"></div>
-        </div>
-        <div class="meta-sub-section">
-          <h4>SKINS</h4>
-          <div id="metaSkins" class="shop-row"></div>
-        </div>
-      </div>
-
-      <div class="mode-selector-wrap">
-        <div class="mode-label">SELECT MODE</div>
+      <!-- Mode Selector -->
+      <section class="mode-section">
+        <h2 class="mode-header-title text-outline">SELECT MODE</h2>
         <div id="modeSelect"></div>
-      </div>
+      </section>
 
-      <button id="startBtn">ENTER THE ZONE</button>
+      <!-- Pulsing Mythic Start Button -->
+      <button id="startBtn" class="flor-start-btn io-border io-shadow-solid-lg squishy-lg squishy-hover animate-pulse-io text-outline">
+        ENTER THE ZONE 🚀
+      </button>
     </main>
 
-    <!-- RIGHT PANEL: LEADERBOARD -->
-    <aside id="rightPanel" class="menu-side-panel">
-      <div class="side-box lb-box">
-        <h3>LEADERBOARD</h3>
-        <div id="leaderboardList"><div class="lb-empty">Loading...</div></div>
+    <!-- Right Sidebar: Leaderboard -->
+    <aside class="flor-sidebar-right io-border io-shadow-solid">
+      <h3 class="lb-header text-outline">
+        🏆 Top Survivors
+      </h3>
+      <div id="leaderboardList" class="lb-list-container">
+        <div class="lb-empty">Loading leaderboard...</div>
       </div>
     </aside>
   </div>
-</div>
 
-<div id="lobbyOverlay" class="overlay-anim hidden">
-  <h1>TEAM MODE</h1>
-  <div class="sub">2-4 PLAYERS &middot; READY UP TO START</div>
-  <div id="lobbySlots"></div>
-  <div id="lobbyStatus">Waiting for players... (1/4)</div>
-  <button id="lobbyReadyBtn">READY</button>
-  <button id="lobbyLeaveBtn">LEAVE QUEUE</button>
-</div>
-
-<div id="settingsOverlay" class="overlay-anim hidden">
-  <h1>SETTINGS</h1>
-  <div class="sub">SAVED AUTOMATICALLY</div>
-  <div class="panelBox" id="settingsPanel">
-    <div class="setting-row">
-      <label>Screen Shake</label>
-      <button id="settingShakeBtn" class="toggle-btn">ON</button>
-    </div>
-    <div class="setting-row">
-      <label>Damage Numbers</label>
-      <button id="settingDamageNumBtn" class="toggle-btn">ON</button>
-    </div>
-    <div class="setting-row">
-      <label>UI Scale</label>
-      <div class="scale-btns">
-        <button id="scaleSmallBtn" class="scale-btn">SMALL</button>
-        <button id="scaleMediumBtn" class="scale-btn">MEDIUM</button>
-        <button id="scaleLargeBtn" class="scale-btn">LARGE</button>
-      </div>
+  <!-- Bottom Interaction Dock Tab Switcher -->
+  <div class="flor-bottom-dock">
+    <div class="dock-tabs">
+      <button id="btnMetaUpgrades" class="dock-btn active io-border io-shadow-solid-sm squishy">
+        <span class="dock-icon">⚡</span>
+        <span class="dock-lbl">Upgrades</span>
+      </button>
+      <button id="btnStartBonuses" class="dock-btn io-border io-shadow-solid-sm squishy">
+        <span class="dock-icon">🎁</span>
+        <span class="dock-lbl">Bonuses</span>
+      </button>
+      <button id="btnMetaSkins" class="dock-btn io-border io-shadow-solid-sm squishy">
+        <span class="dock-icon">🛡️</span>
+        <span class="dock-lbl">Skins</span>
+      </button>
     </div>
   </div>
-  <button id="settingsCloseBtn">CLOSE</button>
 </div>
 
 <script src="game.js"></script>

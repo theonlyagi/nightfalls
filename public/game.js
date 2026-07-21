@@ -4987,6 +4987,47 @@
     renderModeSelect();
     renderClassSelect();
     renderLeaderboard();
+    const btnUpgrades = byId("btnMetaUpgrades");
+    const btnBonuses = byId("btnStartBonuses");
+    const btnSkins = byId("btnMetaSkins");
+    const tabUpgrades = byId("metaUpgrades");
+    const tabBonuses = byId("startBonuses");
+    const tabSkins = byId("metaSkins");
+    if (btnUpgrades && btnBonuses && btnSkins && tabUpgrades && tabBonuses && tabSkins) {
+      btnUpgrades.onclick = () => {
+        btnUpgrades.classList.add("active");
+        btnBonuses.classList.remove("active");
+        btnSkins.classList.remove("active");
+        tabUpgrades.classList.remove("hidden");
+        tabUpgrades.classList.add("active");
+        tabBonuses.classList.add("hidden");
+        tabBonuses.classList.remove("active");
+        tabSkins.classList.add("hidden");
+        tabSkins.classList.remove("active");
+      };
+      btnBonuses.onclick = () => {
+        btnBonuses.classList.add("active");
+        btnUpgrades.classList.remove("active");
+        btnSkins.classList.remove("active");
+        tabBonuses.classList.remove("hidden");
+        tabBonuses.classList.add("active");
+        tabUpgrades.classList.add("hidden");
+        tabUpgrades.classList.remove("active");
+        tabSkins.classList.add("hidden");
+        tabSkins.classList.remove("active");
+      };
+      btnSkins.onclick = () => {
+        btnSkins.classList.add("active");
+        btnUpgrades.classList.remove("active");
+        btnBonuses.classList.remove("active");
+        tabSkins.classList.remove("hidden");
+        tabSkins.classList.add("active");
+        tabUpgrades.classList.add("hidden");
+        tabUpgrades.classList.remove("active");
+        tabBonuses.classList.add("hidden");
+        tabBonuses.classList.remove("active");
+      };
+    }
   }
   function lobbyCheckAllReady() {
     if (lobby.players.length >= 2 && lobby.players.length <= 4 && lobby.players.every((p) => p.ready)) {
