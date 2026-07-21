@@ -81,6 +81,14 @@ export function drawBossZombie(ctx: CanvasRenderingContext2D, z: Zombie, s: Vec2
   ctx.beginPath(); ctx.ellipse(s.x, s.y, r, r * 0.98, 0, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = OUTLINE; ctx.lineWidth = 4.5; ctx.stroke();
 
+  // Boss Purple Cracks
+  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.moveTo(s.x - Math.cos(angle) * r * 0.4, s.y - Math.sin(angle) * r * 0.4);
+  ctx.lineTo(s.x + Math.cos(angle + 0.5) * r * 0.1, s.y + Math.sin(angle + 0.5) * r * 0.1);
+  ctx.lineTo(s.x + Math.cos(angle - 0.5) * r * 0.4, s.y + Math.sin(angle - 0.5) * r * 0.4);
+  ctx.stroke();
+
   ctx.fillStyle = 'rgba(0,0,0,0.18)';
   for (let i = 0; i < 7; i++) {
     const a = angle + i * 2.44 + i * i * 0.7;
@@ -210,6 +218,15 @@ export function drawWolfZombie(
   ctx.strokeStyle = legCol; ctx.lineWidth = r * 0.12;
   ctx.beginPath(); ctx.moveTo(s.x - fx * r * 0.75, s.y - fy * r * 0.75); ctx.lineTo(s.x + fx * r * 0.55, s.y + fy * r * 0.55); ctx.stroke();
   ctx.lineCap = 'butt';
+
+  // Spine fur spikes
+  ctx.fillStyle = legCol;
+  [-0.3, 0, 0.3].forEach(off => {
+    const furAngle = angle + Math.PI + off;
+    const fux = s.x + Math.cos(furAngle) * r * 0.68;
+    const fuy = s.y + Math.sin(furAngle) * r * 0.68;
+    ctx.beginPath(); ctx.arc(fux, fuy, r * 0.15, 0, Math.PI * 2); ctx.fill();
+  });
   ctx.fillStyle = 'rgba(255,255,255,0.18)';
   ctx.beginPath(); ctx.ellipse(s.x - px * r * 0.3 + fx * r * 0.1, s.y - py * r * 0.3 + fy * r * 0.1, r * 0.28, r * 0.16, angle, 0, Math.PI * 2); ctx.fill();
 
@@ -315,6 +332,17 @@ export function drawZombie(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElem
   const armReach = def_ranged(z) ? 0.8 : 0.88;
   drawZombieArmBlobs(ctx, s.x, s.y, z.radius, angle, armSpread, armReach, bodyCol, bodyCol2, OUTLINE, flashing);
 
+  // Spitter acid hand drips
+  if (z.type === 'spitter') {
+    ctx.fillStyle = 'rgba(46, 204, 113, 0.75)';
+    [-1, 1].forEach(side => {
+      const armAngle = angle + side * armSpread;
+      const hx = s.x + Math.cos(armAngle) * z.radius * armReach;
+      const hy = s.y + Math.sin(armAngle) * z.radius * armReach;
+      ctx.beginPath(); ctx.arc(hx + Math.sin(performance.now() * 0.008) * 3, hy + 4, 3.5, 0, Math.PI * 2); ctx.fill();
+    });
+  }
+
   if (z.type === 'spitter') {
     ctx.fillStyle = flashing ? '#ffffff' : '#437040';
     ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2;
@@ -333,6 +361,48 @@ export function drawZombie(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElem
   ctx.fillStyle = radialFill(ctx, s.x, s.y, z.radius, bodyCol, bodyCol2);
   ctx.beginPath(); ctx.ellipse(s.x, s.y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3.5; ctx.stroke();
+
+  // Rotting skin spots
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  for (let i = 0; i < 3; i++) {
+    const offX = Math.sin(i * 1.5) * z.radius * 0.35;
+    const offY = Math.cos(i * 1.5) * z.radius * 0.35;
+    ctx.beginPath(); ctx.arc(s.x + offX, s.y + offY, z.radius * 0.11, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Scout Headband
+  if (z.type === 'scout') {
+    ctx.fillStyle = '#e74c3c';
+    ctx.strokeStyle = OUTLINE; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y - z.radius * 0.25, z.radius * 0.9, z.radius * 0.16, angle, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+  }
+
+  // Brute Chestplate
+  if (z.type === 'brute') {
+    ctx.fillStyle = '#7f8c8d';
+    ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y + z.radius * 0.4, z.radius * 0.55, z.radius * 0.22, angle, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+  }
+
+  // Exploder Dynamite Pack
+  if (z.type === 'exploder') {
+    ctx.fillStyle = '#e74c3c';
+    ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2.0;
+    const ex = s.x + Math.cos(angle + Math.PI) * z.radius * 0.1;
+    const ey = s.y + Math.sin(angle + Math.PI) * z.radius * 0.1;
+    ctx.save();
+    ctx.translate(ex, ey);
+    ctx.rotate(angle);
+    ctx.fillRect(-z.radius * 0.32, -z.radius * 0.08, z.radius * 0.64, z.radius * 0.4);
+    ctx.strokeRect(-z.radius * 0.32, -z.radius * 0.08, z.radius * 0.64, z.radius * 0.4);
+    ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-z.radius * 0.75, z.radius * 0.12); ctx.lineTo(z.radius * 0.75, z.radius * 0.12); ctx.stroke();
+    ctx.restore();
+  }
 
   ctx.fillStyle = 'rgba(255,255,255,0.22)';
   ctx.beginPath(); ctx.ellipse(s.x - rx * 0.32, s.y - ry * 0.38, rx * 0.32, ry * 0.2, -0.4, 0, Math.PI * 2); ctx.fill();
@@ -463,6 +533,16 @@ export function drawSpiderZombie(
     ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(jointX, jointY); ctx.lineTo(tipX, tipY); ctx.stroke();
     ctx.strokeStyle = legCol; ctx.lineWidth = r * 0.22;
     ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(jointX, jointY); ctx.lineTo(tipX, tipY); ctx.stroke();
+    
+    // Fuzzy leg hairs
+    if (!flashing) {
+      ctx.strokeStyle = OUTLINE; ctx.lineWidth = 1.5;
+      const hairAngle = a + Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(jointX, jointY);
+      ctx.lineTo(jointX + Math.cos(hairAngle) * 5, jointY + Math.sin(hairAngle) * 5);
+      ctx.stroke();
+    }
     ctx.lineCap = 'butt';
   });
 
@@ -477,6 +557,20 @@ export function drawSpiderZombie(
   ctx.fillStyle = radialFill(ctx, headX, headY, r * 0.65, bodyCol, bodyCol2);
   ctx.beginPath(); ctx.ellipse(headX, headY, r * 0.65, r * 0.55, angle, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2.5; ctx.stroke();
+
+  // Spider Fangs (Chelicerae)
+  ctx.fillStyle = '#f0ead6';
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 1.5;
+  [-1, 1].forEach(side => {
+    const fangAngle = angle + side * 0.25;
+    const fx1 = headX + Math.cos(fangAngle) * r * 0.5;
+    const fy1 = headY + Math.sin(fangAngle) * r * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(fx1, fy1);
+    ctx.lineTo(fx1 + Math.cos(angle + side * 0.1) * 7, fy1 + Math.sin(angle + side * 0.1) * 7);
+    ctx.lineTo(fx1 + Math.cos(angle - side * 0.1) * 3, fy1 + Math.sin(angle - side * 0.1) * 3);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  });
 
   // Glowing spider eyes (multiple red dots on the head)
   ctx.fillStyle = '#ff1e1e';
@@ -525,6 +619,23 @@ export function drawWitchZombie(
       ctx.beginPath(); ctx.arc(hx + Math.random() * 6 - 3, hy + Math.random() * 6 - 3, 2.5 + Math.random() * 3, 0, Math.PI * 2); ctx.fill();
     });
   }
+
+  // Magic Staff (crystal staff)
+  const staffAngle = angle + 0.7;
+  const handDist = r * 0.85;
+  const hx = s.x + Math.cos(staffAngle) * handDist;
+  const hy = s.y + Math.sin(staffAngle) * handDist;
+  ctx.strokeStyle = '#5c4033'; ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.moveTo(hx - Math.cos(angle) * r * 0.5, hy - Math.sin(angle) * r * 0.5);
+  ctx.lineTo(hx + Math.cos(angle) * r * 0.9, hy + Math.sin(angle) * r * 0.9);
+  ctx.stroke();
+  ctx.fillStyle = '#9b59b6'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(hx + Math.cos(angle) * r * 0.9 - px * 4, hy + Math.sin(angle) * r * 0.9 - py * 4);
+  ctx.lineTo(hx + Math.cos(angle) * r * 0.9 + Math.cos(angle) * 12, hy + Math.sin(angle) * r * 0.9 + Math.sin(angle) * 12);
+  ctx.lineTo(hx + Math.cos(angle) * r * 0.9 + px * 4, hy + Math.sin(angle) * r * 0.9 + py * 4);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
 
   // Witch dress (flowing purple cape/skirt)
   ctx.fillStyle = '#4a235a';

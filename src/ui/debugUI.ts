@@ -3,7 +3,7 @@ import {
   godMode, setGodMode, running, player, zombies, setZombies, bloodMoon,
   setDebugSpeedMultiplier
 } from '../state';
-import { DEBUG_PASSWORD, BLOOD_MOON_DURATION_MS } from '../constants';
+import { DEBUG_PASSWORD, BLOOD_MOON_DURATION_MS, BASE_STATS } from '../constants';
 import { byId, clamp } from '../utils';
 import { startWave } from '../systems/wave';
 import { openWeaponChoice, openMutationChoice, renderUpgradePanel } from './shopUI';
@@ -45,13 +45,19 @@ export function tryDebugUnlock(): void {
 
 export function cheatSetLevel(target: number): void {
   target = clamp(Math.floor(target) || 1, 1, 999);
-  while (player.level < target) {
-    player.level++;
-    player.statPoints++;
-    player.xpToNext = Math.floor(player.xpToNext * 1.32);
-    player.maxHp += 8;
-    player.hp = Math.min(player.maxHp, player.hp + 8);
+  
+  player.level = target;
+  player.statPoints = target - 1;
+  player.maxHp = BASE_STATS.maxHp + (target - 1) * 8;
+  player.hp = player.maxHp;
+  
+  let xpNeeded = 50;
+  for (let l = 1; l < target; l++) {
+    xpNeeded = Math.floor(xpNeeded * 1.32);
   }
+  player.xpToNext = xpNeeded;
+  player.xp = 0;
+
   if (player.level >= 15 && !player.weaponChosen) openWeaponChoice();
   if (player.level >= 25 && !player.mutationChosen) openMutationChoice();
   renderUpgradePanel();
@@ -102,6 +108,7 @@ export function setupDebugUI(): void {
   };
   byId('debugFullHealBtn').onclick = () => { player.hp = player.maxHp; };
   byId('debugKillAllBtn').onclick = () => { cheatKillAll(); };
+  byId('debugSkipLevel10Btn').onclick = () => { cheatSetLevel(10); };
   const speedSelect = byId<HTMLSelectElement>('debugSpeedSelect');
   if (speedSelect) {
     speedSelect.onchange = (e) => {
