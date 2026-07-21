@@ -18,7 +18,7 @@ import { setupInputListeners } from './systems/input';
 import { setupTouchListeners } from './systems/touch';
 import { updatePlayer, updateBullets, updateStructures, updateZombies, updateParticles } from './systems/update';
 import { setXpCallbacks } from './systems/combat';
-import { generateWorld, updateBloodMoon, updateDayNight, updateWaves } from './systems/wave';
+import { generateWorld, updateBloodMoon, updateDayNight, updateWaves, resetZombieId } from './systems/wave';
 import { render } from './render/renderer';
 import { initMatchSync, startNetMatch, stopNetMatch } from './net/matchSync';
 import { disconnect as disconnectNet, isConnected as isNetConnected } from './net/socket';
@@ -28,7 +28,8 @@ import {
 } from './ui/metaUI';
 import {
   renderUpgradePanel, renderBuildBar, tryBuildOrUpgrade, selectBuild,
-  openWeaponChoice, openMutationChoice, updateHud, toggleShop
+  openWeaponChoice, openMutationChoice, updateHud, toggleShop, toggleFactory,
+  closeStructureInspector, upgradeInspectedStructure
 } from './ui/shopUI';
 import { openSettings, closeSettings, renderSettingsUI } from './ui/settingsUI';
 import { setupDebugUI, toggleDebugPanel } from './ui/debugUI';
@@ -118,7 +119,7 @@ function resetGame(): void {
     bulletSpeed: BASE_STATS.bulletSpeed, bulletRadius: BASE_STATS.bulletRadius,
     fireRate: BASE_STATS.fireRate + PERM_DEFS.rate.bonus(perm.rate), lastShot: 0,
     level: 1, xp: 0, xpToNext: 50, statPoints: 0, points: 0,
-    wood: 0, stone: 0, kills: 0, regen: BASE_STATS.regen + PERM_DEFS.regen.bonus(perm.regen), alive: true,
+    wood: 0, stone: 0, iron: 0, gold: 0, kills: 0, regen: BASE_STATS.regen + PERM_DEFS.regen.bonus(perm.regen), alive: true,
     buildDiscount: 1, resourceMul: 1, fortuneMul: 1 + PERM_DEFS.fortune.bonus(perm.fortune),
     instaKillUntil: 0, doubleXpUntil: 0,
     speedBoostUntil: 0, damageBoostUntil: 0, fireRateBoostUntil: 0, regenBoostUntil: 0,
@@ -133,6 +134,7 @@ function resetGame(): void {
   if (meta.startBonuses['headstart']) { player.wood += 50; player.stone += 50; }
   if (meta.startBonuses['nestegg']) { player.points += 30; }
 
+  resetZombieId();
   setBullets([]); setZombies([]); setStructures([]); setCrates([]); setParticles([]); setBursts([]);
   setPowerups([]); setBloodDecals([]);
   setWave(0); setWaveState('idle'); setIsBossWave(false); setActiveBoss(null);
@@ -207,6 +209,18 @@ byId('startBtn').onclick = () => {
 
 byId('shopCloseBtn').onclick = () => {
   try { toggleShop(); } catch (err) { showFatalError(err); }
+};
+
+byId('factoryCloseBtn').onclick = () => {
+  try { toggleFactory(); } catch (err) { showFatalError(err); }
+};
+
+byId('inspectorCloseBtn').onclick = () => {
+  try { closeStructureInspector(); } catch (err) { showFatalError(err); }
+};
+
+byId('inspectorUpgradeBtn').onclick = () => {
+  try { upgradeInspectedStructure(); } catch (err) { showFatalError(err); }
 };
 
 lobby.onPlayersChanged = renderLobby;

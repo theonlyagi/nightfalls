@@ -33,9 +33,10 @@ function toClientZombie(snap: NetZombieSnapshot): Zombie {
   const h = hashId(snap.id);
   const variant = SKIN_VARIANTS[h % SKIN_VARIANTS.length];
   return {
+    id: h,
     type: 'normal',
     x: snap.x, y: snap.y, radius: 20,
-    hp: snap.hp, maxHp: snap.maxHp, speed: 0, damage: 0,
+    hp: snap.hp, maxHp: snap.maxHp, speed: 0, damage: 0, armor: 0,
     hitCooldown: 0, wobble: (h % 628) / 100, flash: 0, lastShot: 0, fuseStart: null,
     hairKind: HAIR_KINDS[h % HAIR_KINDS.length], mouthKind: MOUTH_KINDS[(h >> 3) % MOUTH_KINDS.length],
     squishX: 1, squishY: 1,

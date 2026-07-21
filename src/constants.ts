@@ -98,28 +98,82 @@ export const CLASS_DEFS: Record<string, ClassDef> = {
 };
 
 export const BUILD_DEFS: Record<StructureKind, BuildDef> = {
-  wall:     { label: 'Wall',     wood: 15, stone: 0,  hp: 80,  radius: 26, color: ['#c9a668', '#9aa3a6', '#c7cfd2'] },
-  spike:    { label: 'Spike',    wood: 10, stone: 5,  hp: 40,  radius: 18, damage: 9 },
-  turret:   { label: 'Turret',   wood: 25, stone: 20, hp: 70,  radius: 20, range: 270, fireRate: 1.6, damage: 9 },
-  campfire: { label: 'Campfire', wood: 20, stone: 0,  hp: 50,  radius: 20, healRadius: 150, healRate: 5 },
-  shop:     { label: 'Shop',     wood: 40, stone: 35, hp: 120, radius: 24 }
+  wall:     { label: 'Wall',          wood: 15, stone: 0,  hp: 80,  radius: 26, color: ['#c9a668', '#9aa3a6', '#c7cfd2'] },
+  spike:    { label: 'Spike',         wood: 10, stone: 5,  hp: 40,  radius: 18, damage: 9 },
+  campfire: { label: 'Campfire',      wood: 20, stone: 0,  hp: 50,  radius: 20, healRadius: 150, healRate: 5 },
+  shop:     { label: 'Shop',          wood: 40, stone: 35, hp: 120, radius: 24 },
+  factory:  { label: 'Factory',       wood: 50, stone: 40, hp: 150, radius: 28 },
+  cannon:   { label: 'Cannon',        wood: 25, stone: 20, hp: 70,  radius: 20, range: 250, fireRate: 1.0, damage: 15 },
+  mortar:   { label: 'Mortar',        wood: 35, stone: 25, hp: 80,  radius: 22, range: 400, fireRate: 0.4, damage: 40 },
+  sniper:   { label: 'Sniper',        wood: 40, stone: 30, hp: 60,  radius: 20, range: 600, fireRate: 0.25, damage: 120 },
+  tesla:    { label: 'Tesla Tower',   wood: 30, stone: 30, hp: 70,  radius: 20, range: 240, fireRate: 0.8, damage: 20 },
+  frost:    { label: 'Frost Tower',   wood: 30, stone: 25, hp: 90,  radius: 22, range: 200, fireRate: 1.0, damage: 5 },
+  toxic:    { label: 'Toxic Spitter', wood: 35, stone: 30, hp: 80,  radius: 20, range: 340, fireRate: 0.25, damage: 10 }
 };
 
-export const STRUCTURE_TIERS: Record<'wall' | 'turret' | 'spike', StructureTierDef[]> = {
+export const STRUCTURE_TIERS: Record<'wall' | 'spike', StructureTierDef[]> = {
   wall: [
     { name: 'Wood',  hpMax: 80,  pointsCost: 0 },
     { name: 'Stone', hpMax: 170, pointsCost: 40 },
     { name: 'Metal', hpMax: 280, pointsCost: 90 }
   ],
-  turret: [
-    { name: 'Mk1', hpMax: 70,  damage: 9,  range: 270, fireRate: 1.6, pointsCost: 0 },
-    { name: 'Mk2', hpMax: 110, damage: 14, range: 310, fireRate: 2.0, pointsCost: 70 },
-    { name: 'Mk3', hpMax: 160, damage: 20, range: 350, fireRate: 2.5, pointsCost: 150 }
-  ],
   spike: [
     { name: 'Sharp',    hpMax: 40, damage: 9,  pointsCost: 0 },
     { name: 'Barbed',   hpMax: 65, damage: 16, pointsCost: 45 },
     { name: 'Serrated', hpMax: 95, damage: 26, pointsCost: 95 }
+  ]
+};
+
+export interface TowerLevelSpec {
+  damage: number;
+  fireRate: number;
+  range: number;
+  specialValue?: number; // slow %, chain count, splash radius, etc.
+  cost: { resource: 'wood' | 'stone' | 'iron' | 'gold'; amount: number } | null;
+}
+
+export const TOWER_LEVELS: Record<'cannon' | 'mortar' | 'sniper' | 'tesla' | 'frost' | 'toxic', TowerLevelSpec[]> = {
+  cannon: [
+    { damage: 15, fireRate: 1.0, range: 250, cost: null },
+    { damage: 22, fireRate: 1.1, range: 275, cost: { resource: 'wood', amount: 10 } },
+    { damage: 32, fireRate: 1.25, range: 300, cost: { resource: 'stone', amount: 15 } },
+    { damage: 48, fireRate: 1.4, range: 325, cost: { resource: 'iron', amount: 8 } },
+    { damage: 75, fireRate: 1.6, range: 350, cost: { resource: 'gold', amount: 3 } }
+  ],
+  mortar: [
+    { damage: 40, fireRate: 0.4, range: 400, specialValue: 125, cost: null }, // splash radius 125px
+    { damage: 60, fireRate: 0.45, range: 420, specialValue: 140, cost: { resource: 'wood', amount: 15 } },
+    { damage: 90, fireRate: 0.5, range: 440, specialValue: 160, cost: { resource: 'stone', amount: 20 } },
+    { damage: 135, fireRate: 0.55, range: 460, specialValue: 180, cost: { resource: 'iron', amount: 12 } },
+    { damage: 210, fireRate: 0.6, range: 480, specialValue: 200, cost: { resource: 'gold', amount: 4 } }
+  ],
+  tesla: [
+    { damage: 20, fireRate: 0.8, range: 240, specialValue: 3, cost: null }, // chain count 3
+    { damage: 30, fireRate: 0.9, range: 260, specialValue: 3, cost: { resource: 'wood', amount: 12 } },
+    { damage: 45, fireRate: 1.0, range: 280, specialValue: 4, cost: { resource: 'stone', amount: 18 } },
+    { damage: 65, fireRate: 1.1, range: 300, specialValue: 5, cost: { resource: 'iron', amount: 10 } },
+    { damage: 100, fireRate: 1.3, range: 320, specialValue: 6, cost: { resource: 'gold', amount: 3 } }
+  ],
+  sniper: [
+    { damage: 120, fireRate: 0.25, range: 600, cost: null },
+    { damage: 180, fireRate: 0.28, range: 650, cost: { resource: 'wood', amount: 18 } },
+    { damage: 270, fireRate: 0.32, range: 700, cost: { resource: 'stone', amount: 25 } },
+    { damage: 400, fireRate: 0.35, range: 750, cost: { resource: 'iron', amount: 15 } },
+    { damage: 650, fireRate: 0.4, range: 800, cost: { resource: 'gold', amount: 5 } }
+  ],
+  frost: [
+    { damage: 5, fireRate: 1.0, range: 200, specialValue: 0.20, cost: null }, // slow rate 20%
+    { damage: 8, fireRate: 1.0, range: 225, specialValue: 0.25, cost: { resource: 'wood', amount: 12 } },
+    { damage: 13, fireRate: 1.0, range: 250, specialValue: 0.32, cost: { resource: 'stone', amount: 18 } },
+    { damage: 20, fireRate: 1.0, range: 275, specialValue: 0.40, cost: { resource: 'iron', amount: 10 } },
+    { damage: 32, fireRate: 1.0, range: 300, specialValue: 0.50, cost: { resource: 'gold', amount: 3 } }
+  ],
+  toxic: [
+    { damage: 10, fireRate: 0.25, range: 340, specialValue: 5, cost: null }, // armor reduction 5
+    { damage: 16, fireRate: 0.25, range: 360, specialValue: 8, cost: { resource: 'wood', amount: 15 } },
+    { damage: 25, fireRate: 0.25, range: 380, specialValue: 12, cost: { resource: 'stone', amount: 20 } },
+    { damage: 38, fireRate: 0.25, range: 400, specialValue: 18, cost: { resource: 'iron', amount: 12 } },
+    { damage: 58, fireRate: 0.25, range: 420, specialValue: 25, cost: { resource: 'gold', amount: 4 } }
   ]
 };
 

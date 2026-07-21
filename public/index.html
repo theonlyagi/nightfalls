@@ -38,6 +38,8 @@
   <div id="resources">
     <div class="res-pill"><div class="swatch" style="background:var(--accent-wood)"></div>wood <span id="woodCount">0</span></div>
     <div class="res-pill"><div class="swatch" style="background:var(--accent-stone)"></div>stone <span id="stoneCount">0</span></div>
+    <div class="res-pill"><div class="swatch" style="background:var(--accent-iron)"></div>iron <span id="ironCount">0</span></div>
+    <div class="res-pill"><div class="swatch" style="background:var(--accent-gold)"></div>gold <span id="goldCount">0</span></div>
     <div class="res-pill"><div class="swatch" style="background:var(--accent-points)"></div>points <span id="pointsCount">0</span></div>
   </div>
 
@@ -56,6 +58,7 @@
   <div id="upgradePanel"></div>
   <div id="buildBar"></div>
   <div id="shopHint">press <b>E</b> to open shop</div>
+  <div id="factoryHint">press <b>E</b> to open factory</div>
   <div id="rotateHint">press <b>R</b> to rotate</div>
 
   <div id="waveBanner">WAVE 1<span>Zombies incoming</span></div>
@@ -65,8 +68,8 @@
       <div class="help-title">Controls &amp; Guide</div>
       <div class="help-row"><span>Move Character</span><b>WASD</b></div>
       <div class="help-row"><span>Aim &amp; Shoot</span><b>MOUSE</b></div>
-      <div class="help-row"><span>Select Structures</span><b>1 &ndash; 5</b></div>
-      <div class="help-row"><span>Place / Open Shop</span><b>E</b></div>
+      <div class="help-row"><span>Select Structures</span><b>1 &ndash; 8</b></div>
+      <div class="help-row"><span>Place / Interact</span><b>E</b></div>
       <div class="help-row"><span>Rotate Structure</span><b>R</b></div>
       <div class="help-row"><span>Cancel Selection</span><b>ESC</b></div>
       <div class="help-note">Zombies hit harder and move faster during the night.</div>
@@ -97,6 +100,34 @@
   </div>
 </div>
 
+<div id="factoryPanel" class="overlay-anim hidden">
+  <div id="factoryBox">
+    <h3>FACTORY — ADVANCED TOWER PRODUCTION</h3>
+    <div class="sub">Craft advanced tactical defenses and place them on the battlefield</div>
+    <div id="factoryItems"></div>
+    <button id="factoryCloseBtn">CLOSE (E)</button>
+  </div>
+</div>
+
+<div id="structureInspector" class="hidden">
+  <div class="inspector-header">
+    <div class="inspector-title">
+      <b id="inspectorName">CANNON</b>
+      <span id="inspectorLvl">LV. 1</span>
+    </div>
+    <button id="inspectorCloseBtn">✕</button>
+  </div>
+  <div class="inspector-hp-bar">
+    <div id="inspectorHpFill" class="fill"></div>
+    <span id="inspectorHpText">100/100 HP</span>
+  </div>
+  <div id="inspectorStats" class="inspector-stats"></div>
+  <div class="inspector-upgrade-box">
+    <div id="inspectorCostText" class="cost-text">UPGRADE COST: 20 WOOD</div>
+    <button id="inspectorUpgradeBtn" class="upgrade-btn-action">UPGRADE TOWER</button>
+  </div>
+</div>
+
 <div id="weaponChoicePanel" class="overlay-anim hidden">
   <div id="weaponChoiceBox">
     <h3>LEVEL 15 — CHOOSE YOUR WEAPON</h3>
@@ -124,12 +155,16 @@
       <div class="codex-detail">
         <div id="codexDetailEmpty">Select a specimen to view records.</div>
         <div id="codexDetailContent" class="hidden">
-          <h4 id="codexMonsterName">Name</h4>
-          <canvas id="codexPreviewCanvas" width="240" height="240"></canvas>
-          <div id="codexHistory" class="codex-history"></div>
-          <div id="codexStats" class="codex-stats"></div>
-          <div class="codex-lore-title">FIELD NOTES</div>
-          <div id="codexLore" class="codex-lore"></div>
+          <div class="codex-detail-left">
+            <canvas id="codexPreviewCanvas" width="240" height="240"></canvas>
+            <div id="codexStats" class="codex-stats"></div>
+          </div>
+          <div class="codex-detail-right">
+            <h4 id="codexMonsterName">Name</h4>
+            <div id="codexHistory" class="codex-history"></div>
+            <div class="codex-lore-title">FIELD NOTES</div>
+            <div id="codexLore" class="codex-lore"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -173,6 +208,7 @@
       </div>
       <div class="debug-row">
         <button id="debugKillAllBtn" style="background:#e74c3c;color:#fff;">KILL ALL ZOMBIES</button>
+        <button id="debugSkipLevel10Btn" style="background:#27ae60;color:#fff;">SKIP TO LEVEL 10</button>
       </div>
       <div class="debug-row">
         <label>Game Speed</label>

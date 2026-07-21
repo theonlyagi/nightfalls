@@ -24,7 +24,7 @@ export const SPECIMENS: SpecimenDef[] = [
     draw: (ctx, cx, cy, time) => {
       const bounce = Math.sin(time * 0.005) * 2;
       const armAnim = Math.sin(time * 0.007) * 0.15;
-      drawDummyZombie(ctx, cx, cy + bounce, 18, '#4c8a52', '#3a6b40', '#274d2b', armAnim, false);
+      drawDummyZombie(ctx, cx, cy + bounce, 18, '#4c8a52', '#3a6b40', '#274d2b', armAnim, false, false, false, 'normal');
     }
   },
   {
@@ -37,7 +37,7 @@ export const SPECIMENS: SpecimenDef[] = [
     draw: (ctx, cx, cy, time) => {
       const bounce = Math.sin(time * 0.008) * 3;
       const armAnim = Math.sin(time * 0.01) * 0.25;
-      drawDummyZombie(ctx, cx, cy + bounce, 14, '#c9c24e', '#a8a13c', '#7a742a', armAnim, false);
+      drawDummyZombie(ctx, cx, cy + bounce, 14, '#c9c24e', '#a8a13c', '#7a742a', armAnim, false, false, false, 'scout');
     }
   },
   {
@@ -61,7 +61,7 @@ export const SPECIMENS: SpecimenDef[] = [
         ctx.fill(); ctx.stroke();
       });
       ctx.restore();
-      drawDummyZombie(ctx, cx, cy + bounce, 24, '#8a3d3d', '#6e2f2f', '#4d2020', armAnim, false);
+      drawDummyZombie(ctx, cx, cy + bounce, 24, '#8a3d3d', '#6e2f2f', '#4d2020', armAnim, false, false, false, 'brute');
     }
   },
   {
@@ -79,7 +79,7 @@ export const SPECIMENS: SpecimenDef[] = [
       ctx.beginPath();
       ctx.arc(cx, cy + bounce + 10, 10, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
-      drawDummyZombie(ctx, cx, cy + bounce, 15, '#5a9151', '#437040', '#2b4526', 0, true);
+      drawDummyZombie(ctx, cx, cy + bounce, 15, '#5a9151', '#437040', '#2b4526', 0, true, false, false, 'spitter');
     }
   },
   {
@@ -92,7 +92,7 @@ export const SPECIMENS: SpecimenDef[] = [
     draw: (ctx, cx, cy, time) => {
       const bounce = Math.sin(time * 0.006) * 2.2;
       const pulse = 20 + Math.sin(time * 0.01) * 2;
-      drawDummyZombie(ctx, cx, cy + bounce, pulse, '#c07a2e', '#9c5c1e', '#5c2e0d', 0, false, true);
+      drawDummyZombie(ctx, cx, cy + bounce, pulse, '#c07a2e', '#9c5c1e', '#5c2e0d', 0, false, true, false, 'exploder');
     }
   },
   {
@@ -182,7 +182,7 @@ export const SPECIMENS: SpecimenDef[] = [
       }
       ctx.restore();
 
-      drawDummyZombie(ctx, cx, cy + bounce, 36, '#4b2a63', '#3a1f4d', '#241333', armAnim, false, false, true);
+      drawDummyZombie(ctx, cx, cy + bounce, 36, '#4b2a63', '#3a1f4d', '#241333', armAnim, false, false, true, 'boss');
     }
   },
   {
@@ -267,7 +267,24 @@ export const SPECIMENS: SpecimenDef[] = [
 
       // Arms
       const armAnim = Math.sin(time * 0.007) * 0.15;
-      drawDummyZombie(ctx, 0, 0, r, bodyCol, bodyCol2, '#4a235a', armAnim, true);
+      drawDummyZombie(ctx, 0, 0, r, bodyCol, bodyCol2, '#4a235a', armAnim, true, false, false, 'witch');
+
+      // Staff (crystal staff)
+      const staffAngle = 0.7;
+      const handDist = r * 0.85;
+      const hx = Math.cos(staffAngle) * handDist;
+      const hy = Math.sin(staffAngle) * handDist;
+      ctx.strokeStyle = '#5c4033'; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(hx - 8, hy - 8);
+      ctx.lineTo(hx + 12, hy + 12);
+      ctx.stroke();
+      ctx.fillStyle = '#9b59b6'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(hx + 8, hy + 8);
+      ctx.lineTo(hx + 16, hy + 16);
+      ctx.lineTo(hx + 12, hy + 12);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
 
       // Hat
       ctx.fillStyle = '#1a052e';
@@ -290,7 +307,8 @@ export const SPECIMENS: SpecimenDef[] = [
 function drawDummyZombie(
   ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number,
   bodyCol: string, bodyCol2: string, darkCol: string, armAngle: number,
-  ranged: boolean, exploderGlow: boolean = false, isBoss: boolean = false
+  ranged: boolean, exploderGlow: boolean = false, isBoss: boolean = false,
+  type?: ZombieKind
 ): void {
   ctx.save();
   
@@ -317,13 +335,89 @@ function drawDummyZombie(
     ctx.fillStyle = radialFillDummy(ctx, bx, by, blobR, bodyCol, bodyCol2);
     ctx.beginPath(); ctx.arc(bx, by, blobR, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2.5; ctx.stroke();
+
+    // Spitter hand acid drips
+    if (type === 'spitter') {
+      ctx.fillStyle = 'rgba(46, 204, 113, 0.7)';
+      ctx.beginPath(); ctx.arc(bx + Math.sin(performance.now() * 0.008) * 3, by + 4, 3, 0, Math.PI * 2); ctx.fill();
+    }
   });
+
+  // Brute shoulder spikes (drawn under body)
+  if (type === 'brute') {
+    ctx.fillStyle = '#f0ead6';
+    ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2;
+    [-1, 1].forEach(side => {
+      const sx = cx + r * 0.75 * side;
+      const sy = cy + r * 0.3;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + r * 0.3 * side, sy - r * 0.35);
+      ctx.lineTo(sx + r * 0.1 * side, sy);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    });
+  }
+
+  // Spitter back toxic bubble (drawn under body)
+  if (type === 'spitter') {
+    ctx.fillStyle = '#2ecc71';
+    ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx - r * 0.4, cy - r * 0.4, r * 0.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
 
   ctx.fillStyle = radialFillDummy(ctx, cx, cy, r, bodyCol, bodyCol2);
   ctx.beginPath();
   ctx.ellipse(cx, cy, r, r * 0.98, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3.5; ctx.stroke();
+
+  // Rotting skin spots
+  if (type !== 'wolf' && type !== 'spider') {
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    for (let i = 0; i < 3; i++) {
+      const offX = Math.sin(i * 1.5) * r * 0.35;
+      const offY = Math.cos(i * 1.5) * r * 0.35;
+      ctx.beginPath(); ctx.arc(cx + offX, cy + offY, r * 0.11, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // Scout Headband
+  if (type === 'scout') {
+    ctx.fillStyle = '#e74c3c';
+    ctx.strokeStyle = OUTLINE; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy - r * 0.25, r * 0.9, r * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+  }
+
+  // Brute Chestplate
+  if (type === 'brute') {
+    ctx.fillStyle = '#7f8c8d';
+    ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + r * 0.4, r * 0.55, r * 0.22, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+  }
+
+  // Exploder Dynamite Pack
+  if (type === 'exploder') {
+    ctx.fillStyle = '#e74c3c';
+    ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2;
+    ctx.fillRect(cx - r * 0.32, cy - r * 0.08, r * 0.64, r * 0.4);
+    ctx.strokeRect(cx - r * 0.32, cy - r * 0.08, r * 0.64, r * 0.4);
+    ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - r * 0.7, cy + r * 0.12); ctx.lineTo(cx + r * 0.7, cy + r * 0.12); ctx.stroke();
+  }
+
+  // Boss Purple Cracks
+  if (type === 'boss') {
+    ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx - r * 0.4, cy - r * 0.4);
+    ctx.lineTo(cx + r * 0.1, cy + r * 0.1);
+    ctx.lineTo(cx - r * 0.4, cy + r * 0.4);
+    ctx.stroke();
+  }
 
   const eyeSep = r * 0.3;
   const eyeFwd = -r * 0.22;
@@ -497,7 +591,16 @@ export function renderCodexList(): void {
     const tctx = thumb.getContext('2d');
     if (tctx) {
       if (isEncountered) {
-        specimen.draw(tctx, 15, 17, 0);
+        tctx.save();
+        let scale = 0.5;
+        if (specimen.id === 'boss') scale = 0.28;
+        else if (specimen.id === 'brute') scale = 0.38;
+        else if (specimen.id === 'wolf' || specimen.id === 'spider' || specimen.id === 'witch') scale = 0.44;
+        
+        tctx.translate(15, 15);
+        tctx.scale(scale, scale);
+        specimen.draw(tctx, 0, 0, 0);
+        tctx.restore();
       } else {
         tctx.fillStyle = '#6d9080';
         tctx.textAlign = 'center';
