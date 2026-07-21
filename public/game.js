@@ -1754,38 +1754,77 @@
     if (s.x < -60 || s.x > canvas2.width + 60 || s.y < -60 || s.y > canvas2.height + 60) return;
     drawShadow(ctx2, s.x, s.y, r.radius);
     if (r.type === "tree") {
-      ctx2.fillStyle = radialFill(ctx2, s.x, s.y, r.radius, "#2e5a3c", "#1e3d28");
-      ctx2.strokeStyle = "#14201a";
-      ctx2.lineWidth = 3;
-      ctx2.beginPath();
-      ctx2.arc(s.x, s.y, r.radius, 0, Math.PI * 2);
+      const trunkW = r.radius * 0.3, trunkH = r.radius * 0.6;
+      ctx2.fillStyle = "#5a3d24";
+      ctx2.strokeStyle = "#2e1f12";
+      ctx2.lineWidth = 2;
+      roundRectPath(ctx2, s.x - trunkW / 2, s.y + r.radius * 0.1, trunkW, trunkH, 3);
       ctx2.fill();
       ctx2.stroke();
-      ctx2.fillStyle = radialFill(ctx2, s.x, s.y, r.radius * 0.62, "#4a8a5a", "#356b43");
+      const blobs = [
+        { dx: -r.radius * 0.4, dy: r.radius * 0.1, rr: r.radius * 0.58 },
+        { dx: r.radius * 0.38, dy: r.radius * 0.12, rr: r.radius * 0.6 },
+        { dx: 0, dy: -r.radius * 0.18, rr: r.radius * 0.82 }
+      ];
+      for (const b of blobs) {
+        ctx2.fillStyle = radialFill(ctx2, s.x + b.dx, s.y + b.dy, b.rr, "#3a6b46", "#1e3d28");
+        ctx2.strokeStyle = "#14201a";
+        ctx2.lineWidth = 2.5;
+        ctx2.beginPath();
+        ctx2.arc(s.x + b.dx, s.y + b.dy, b.rr, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.stroke();
+      }
+      ctx2.fillStyle = radialFill(ctx2, s.x, s.y - r.radius * 0.18, r.radius * 0.5, "#5a9a68", "#3f7a4d");
       ctx2.beginPath();
-      ctx2.arc(s.x, s.y, r.radius * 0.62, 0, Math.PI * 2);
+      ctx2.arc(s.x, s.y - r.radius * 0.18, r.radius * 0.5, 0, Math.PI * 2);
       ctx2.fill();
-      ctx2.fillStyle = "rgba(120,200,140,0.35)";
+      ctx2.fillStyle = "rgba(150,220,160,0.4)";
       ctx2.beginPath();
-      ctx2.arc(s.x - r.radius * 0.25, s.y - r.radius * 0.3, r.radius * 0.22, 0, Math.PI * 2);
+      ctx2.arc(s.x - r.radius * 0.22, s.y - r.radius * 0.42, r.radius * 0.17, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.fillStyle = "rgba(20,40,25,0.25)";
+      ctx2.beginPath();
+      ctx2.arc(s.x + r.radius * 0.28, s.y - r.radius * 0.02, r.radius * 0.13, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.beginPath();
+      ctx2.arc(s.x - r.radius * 0.3, s.y + r.radius * 0.22, r.radius * 0.11, 0, Math.PI * 2);
       ctx2.fill();
     } else {
-      ctx2.fillStyle = radialFill(ctx2, s.x, s.y, r.radius, "#7a888c", "#4a565a");
-      ctx2.beginPath();
-      const sides = 6;
-      ctx2.moveTo(s.x + r.radius * Math.cos(0), s.y + r.radius * Math.sin(0));
-      for (let i = 1; i <= sides; i++) {
-        const a = i / sides * Math.PI * 2;
-        ctx2.lineTo(s.x + r.radius * Math.cos(a), s.y + r.radius * Math.sin(a));
+      const chunks = [
+        { dx: -r.radius * 0.34, dy: r.radius * 0.2, rr: r.radius * 0.56, sides: 5, rot: 0.4 },
+        { dx: r.radius * 0.32, dy: r.radius * 0.24, rr: r.radius * 0.48, sides: 6, rot: -0.2 },
+        { dx: 0, dy: -r.radius * 0.06, rr: r.radius * 0.8, sides: 6, rot: 0 }
+      ];
+      for (const c of chunks) {
+        ctx2.fillStyle = radialFill(ctx2, s.x + c.dx, s.y + c.dy, c.rr, "#7a888c", "#4a565a");
+        ctx2.beginPath();
+        for (let i = 0; i <= c.sides; i++) {
+          const a = i / c.sides * Math.PI * 2 + c.rot;
+          const px = s.x + c.dx + c.rr * Math.cos(a), py = s.y + c.dy + c.rr * Math.sin(a);
+          if (i === 0) ctx2.moveTo(px, py);
+          else ctx2.lineTo(px, py);
+        }
+        ctx2.closePath();
+        ctx2.fill();
+        ctx2.strokeStyle = "#14201a";
+        ctx2.lineWidth = 2.5;
+        ctx2.stroke();
       }
-      ctx2.closePath();
-      ctx2.fill();
-      ctx2.strokeStyle = "#14201a";
-      ctx2.lineWidth = 3;
-      ctx2.stroke();
-      ctx2.fillStyle = "rgba(255,255,255,0.1)";
+      ctx2.strokeStyle = "rgba(0,0,0,0.28)";
+      ctx2.lineWidth = 1.5;
       ctx2.beginPath();
-      ctx2.arc(s.x - r.radius * 0.25, s.y - r.radius * 0.25, r.radius * 0.3, 0, Math.PI * 2);
+      ctx2.moveTo(s.x - r.radius * 0.22, s.y - r.radius * 0.52);
+      ctx2.lineTo(s.x + r.radius * 0.05, s.y - r.radius * 0.05);
+      ctx2.lineTo(s.x - r.radius * 0.15, s.y + r.radius * 0.42);
+      ctx2.stroke();
+      ctx2.fillStyle = "rgba(255,255,255,0.16)";
+      ctx2.beginPath();
+      ctx2.arc(s.x - r.radius * 0.28, s.y - r.radius * 0.34, r.radius * 0.26, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.fillStyle = "rgba(120,150,90,0.3)";
+      ctx2.beginPath();
+      ctx2.arc(s.x + r.radius * 0.3, s.y + r.radius * 0.16, r.radius * 0.1, 0, Math.PI * 2);
       ctx2.fill();
     }
     if (r.hp < r.maxHp) {
