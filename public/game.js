@@ -428,6 +428,10 @@
   function setShopOpen(val) {
     shopOpen = val;
   }
+  var factoryOpen = false;
+  function setFactoryOpen(val) {
+    factoryOpen = val;
+  }
   var debugUnlocked = false;
   function setDebugUnlocked(val) {
     debugUnlocked = val;
@@ -590,19 +594,20 @@
       if (k === "3") onSelectBuild("cannon");
       if (k === "4") onSelectBuild("mortar");
       if (k === "5") onSelectBuild("sniper");
-      if (k === "6") onSelectBuild("tesla");
-      if (k === "7") onSelectBuild("frost");
-      if (k === "8") onSelectBuild("toxic");
-      if (k === "9") onSelectBuild("campfire");
-      if (k === "0") onSelectBuild("shop");
-      if (k === "-") onSelectBuild("factory");
+      if (k === "6") onSelectBuild("campfire");
+      if (k === "7") onSelectBuild("shop");
+      if (k === "8") onSelectBuild("factory");
       if (k === "r" && (selectedBuild === "wall" || selectedBuild === "spike")) {
         const base = manualBuildAngle !== null ? manualBuildAngle : snapAngleToCardinal(player.angle);
         setManualBuildAngle((base + Math.PI / 2) % (Math.PI * 2));
       }
-      if (k === "escape" && selectedBuild) {
-        setSelectedBuild(null);
-        onRenderBuildBar();
+      if (k === "escape") {
+        if (selectedBuild) {
+          setSelectedBuild(null);
+          onRenderBuildBar();
+        } else {
+          onTryBuildOrUpgrade();
+        }
       }
       if (k === "home") {
         e.preventDefault();
@@ -1372,6 +1377,18 @@
     let best = null, bd = Infinity;
     for (const s of structures) {
       if (s.type !== "shop") continue;
+      const d = dist(player.x, player.y, s.x, s.y);
+      if (d < range && d < bd) {
+        best = s;
+        bd = d;
+      }
+    }
+    return best;
+  }
+  function findNearestFactory(range) {
+    let best = null, bd = Infinity;
+    for (const s of structures) {
+      if (s.type !== "factory") continue;
       const d = dist(player.x, player.y, s.x, s.y);
       if (d < range && d < bd) {
         best = s;
@@ -5053,12 +5070,6 @@
     }
   }
   function selectBuild(key) {
-    const hasFactory = structures.some((s) => s.type === "factory");
-    const isLocked = !hasFactory && (key === "tesla" || key === "frost" || key === "toxic");
-    if (isLocked) {
-      spawnParticle(player.x, player.y - 30, "Factory required!", "#ff8080");
-      return;
-    }
     setSelectedBuild(selectedBuild === key ? null : key);
     setManualBuildAngle(null);
     renderBuildBar();
@@ -5284,26 +5295,17 @@
     const bar = byId("buildBar");
     if (!bar) return;
     bar.innerHTML = "";
-    const order = ["wall", "spike", "cannon", "mortar", "sniper", "tesla", "frost", "toxic", "campfire", "shop", "factory"];
-    const hasFactory = structures.some((s) => s.type === "factory");
+    const order = ["wall", "spike", "cannon", "mortar", "sniper", "campfire", "shop", "factory"];
     order.forEach((key, index) => {
       const def = BUILD_DEFS[key];
       const wCost = Math.ceil(def.wood * (player.buildDiscount || 1));
       const sCost = Math.ceil(def.stone * (player.buildDiscount || 1));
-      const isLocked = !hasFactory && (key === "tesla" || key === "frost" || key === "toxic");
       const slot = document.createElement("div");
-      slot.className = "build-slot" + (selectedBuild === key ? " active" : "") + (isLocked ? " locked" : "");
-      slot.onclick = () => {
-        if (isLocked) {
-          spawnParticle(player.x, player.y - 30, "Factory required!", "#ff8080");
-          return;
-        }
-        selectBuild(key);
-      };
+      slot.className = "build-slot" + (selectedBuild === key ? " active" : "");
+      slot.onclick = () => selectBuild(key);
       const badge = document.createElement("div");
       badge.className = "build-key-badge";
-      const hotkeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-"];
-      badge.textContent = hotkeys[index] || "";
+      badge.textContent = String(index + 1);
       slot.appendChild(badge);
       const canvasWrap = document.createElement("div");
       canvasWrap.className = "build-canvas-wrap";
@@ -5318,12 +5320,7 @@
       slot.appendChild(label);
       const cost = document.createElement("div");
       cost.className = "cost";
-      if (isLocked) {
-        cost.textContent = "FACTORY REQ";
-        cost.style.color = "#ff8080";
-      } else {
-        cost.textContent = (wCost ? wCost + "w " : "") + (sCost ? sCost + "s" : "");
-      }
+      cost.textContent = (wCost ? wCost + "w " : "") + (sCost ? sCost + "s" : "");
       slot.appendChild(cost);
       bar.appendChild(slot);
     });
@@ -5348,11 +5345,23 @@
   }
   function tryBuildOrUpgrade() {
     if (!player.alive) return;
-    if (findNearestShop(80)) {
+    if (shopOpen) {
       toggleShop();
       return;
     }
+    if (factoryOpen) {
+      toggleFactory();
+      return;
+    }
     if (!selectedBuild) {
+      if (findNearestShop(80)) {
+        toggleShop();
+        return;
+      }
+      if (findNearestFactory(80)) {
+        toggleFactory();
+        return;
+      }
       spawnParticle(player.x, player.y - 30, "no building selected", "#7fa08c");
       return;
     }
@@ -5540,9 +5549,15 @@
       heatEl.textContent = overheated ? "\u{1F321}\uFE0F OVERHEATED " + Math.ceil((player.overheatedUntil - now) / 1e3) + "s" : "\u{1F321}\uFE0F HEAT " + Math.round(player.heat) + "%";
     } else heatEl.classList.remove("show");
     const shopHintEl = byId("shopHint");
-    if (!shopOpen && findNearestShop(80)) shopHintEl.classList.add("show");
-    else shopHintEl.classList.remove("show");
+    const factoryHintEl = byId("factoryHint");
+    const nearShop = !shopOpen && !factoryOpen && findNearestShop(80);
+    const nearFactory = !factoryOpen && !shopOpen && findNearestFactory(80);
+    if (nearShop) shopHintEl?.classList.add("show");
+    else shopHintEl?.classList.remove("show");
+    if (nearFactory) factoryHintEl?.classList.add("show");
+    else factoryHintEl?.classList.remove("show");
     if (shopOpen && !findNearestShop(100)) toggleShop();
+    if (factoryOpen && !findNearestFactory(100)) toggleFactory();
     const rotateHintEl = byId("rotateHint");
     if (selectedBuild === "wall" || selectedBuild === "spike") rotateHintEl.classList.add("show");
     else rotateHintEl.classList.remove("show");
@@ -5550,6 +5565,64 @@
     byId("hpText").textContent = Math.round(Math.max(0, player.hp)) + "/" + player.maxHp;
     byId("xpFill").style.width = player.xp / player.xpToNext * 100 + "%";
     byId("xpText").textContent = Math.round(player.xp) + "/" + player.xpToNext;
+  }
+  var ADVANCED_TOWERS = ["tesla", "frost", "toxic"];
+  function renderFactoryPanel() {
+    const wrap = byId("factoryItems");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    ADVANCED_TOWERS.forEach((key) => {
+      const def = BUILD_DEFS[key];
+      const wCost = Math.ceil(def.wood * (player.buildDiscount || 1));
+      const sCost = Math.ceil(def.stone * (player.buildDiscount || 1));
+      const cantAfford = player.wood < wCost || player.stone < sCost;
+      const card = document.createElement("div");
+      card.className = "factory-item" + (cantAfford ? " disabled" : "");
+      let desc = "";
+      let badgeText = "";
+      if (key === "tesla") {
+        badgeText = "CONTROL / CHAIN";
+        desc = "Fires chain lightning striking up to 6 targets. Lv.5 stuns enemies.";
+      } else if (key === "frost") {
+        badgeText = "CONTROL / AURA";
+        desc = "Emits a slowing freeze aura. Lv.5 freezes enemies solid.";
+      } else if (key === "toxic") {
+        badgeText = "DEBUFF / ACID";
+        desc = "Fires acid shells creating toxic clouds that shred enemy armor.";
+      }
+      card.innerHTML = `
+      <div class="factory-item-header">
+        <b>${def.label}</b>
+        <span class="factory-badge">${badgeText}</span>
+      </div>
+      <div class="desc">${desc}</div>
+      <div class="factory-item-footer">
+        <div class="cost">${wCost} Wood, ${sCost} Stone</div>
+        <button class="factory-build-btn">${selectedBuild === key ? "SELECTED" : "CRAFT & PLACE"}</button>
+      </div>
+    `;
+      const btn = card.querySelector(".factory-build-btn");
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        if (cantAfford) {
+          spawnParticle(player.x, player.y - 30, "not enough materials", "#ff8080");
+          return;
+        }
+        selectBuild(key);
+        toggleFactory();
+      };
+      wrap.appendChild(card);
+    });
+  }
+  function toggleFactory() {
+    setFactoryOpen(!factoryOpen);
+    if (factoryOpen) {
+      if (shopOpen) setShopOpen(false);
+      renderFactoryPanel();
+      byId("factoryPanel")?.classList.remove("hidden");
+    } else {
+      byId("factoryPanel")?.classList.add("hidden");
+    }
   }
 
   // src/ui/settingsUI.ts
@@ -6547,6 +6620,13 @@
   byId("shopCloseBtn").onclick = () => {
     try {
       toggleShop();
+    } catch (err) {
+      showFatalError(err);
+    }
+  };
+  byId("factoryCloseBtn").onclick = () => {
+    try {
+      toggleFactory();
     } catch (err) {
       showFatalError(err);
     }

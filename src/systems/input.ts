@@ -18,19 +18,20 @@ export function setupInputListeners(
     if (k === '3') onSelectBuild('cannon');
     if (k === '4') onSelectBuild('mortar');
     if (k === '5') onSelectBuild('sniper');
-    if (k === '6') onSelectBuild('tesla');
-    if (k === '7') onSelectBuild('frost');
-    if (k === '8') onSelectBuild('toxic');
-    if (k === '9') onSelectBuild('campfire');
-    if (k === '0') onSelectBuild('shop');
-    if (k === '-') onSelectBuild('factory');
+    if (k === '6') onSelectBuild('campfire');
+    if (k === '7') onSelectBuild('shop');
+    if (k === '8') onSelectBuild('factory');
     if (k === 'r' && (selectedBuild === 'wall' || selectedBuild === 'spike')) {
       const base = manualBuildAngle !== null ? manualBuildAngle : snapAngleToCardinal(player.angle);
       setManualBuildAngle((base + Math.PI / 2) % (Math.PI * 2));
     }
-    if (k === 'escape' && selectedBuild) {
-      setSelectedBuild(null);
-      onRenderBuildBar();
+    if (k === 'escape') {
+      if (selectedBuild) {
+        setSelectedBuild(null);
+        onRenderBuildBar();
+      } else {
+        onTryBuildOrUpgrade();
+      }
     }
     if (k === 'home') {
       e.preventDefault();

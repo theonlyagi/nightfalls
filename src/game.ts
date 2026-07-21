@@ -26,7 +26,7 @@ import {
 } from './ui/metaUI';
 import {
   renderUpgradePanel, renderBuildBar, tryBuildOrUpgrade, selectBuild,
-  openWeaponChoice, openMutationChoice, updateHud, toggleShop
+  openWeaponChoice, openMutationChoice, updateHud, toggleShop, toggleFactory
 } from './ui/shopUI';
 import { openSettings, closeSettings, renderSettingsUI } from './ui/settingsUI';
 import { setupDebugUI, toggleDebugPanel } from './ui/debugUI';
@@ -196,6 +196,10 @@ byId('startBtn').onclick = () => {
 
 byId('shopCloseBtn').onclick = () => {
   try { toggleShop(); } catch (err) { showFatalError(err); }
+};
+
+byId('factoryCloseBtn').onclick = () => {
+  try { toggleFactory(); } catch (err) { showFatalError(err); }
 };
 
 lobby.onPlayersChanged = renderLobby;

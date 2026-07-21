@@ -210,6 +210,9 @@
   #shopHint{ position:absolute; bottom:200px; left:50%; transform:translateX(-50%); font-family:'Ubuntu',sans-serif; font-weight:700; font-size:12px; color:var(--accent-gold); background:var(--bg-panel); backdrop-filter:blur(6px); box-shadow:var(--shadow-panel); border:1px solid var(--accent-gold); border-radius:8px; padding:6px 14px; display:none; text-align:center; white-space:nowrap; }
   #shopHint.show{ display:block; }
 
+  #factoryHint{ position:absolute; bottom:200px; left:50%; transform:translateX(-50%); font-family:'Ubuntu',sans-serif; font-weight:700; font-size:12px; color:var(--accent-xp); background:var(--bg-panel); backdrop-filter:blur(6px); box-shadow:var(--shadow-panel); border:1px solid var(--accent-xp); border-radius:8px; padding:6px 14px; display:none; text-align:center; white-space:nowrap; }
+  #factoryHint.show{ display:block; }
+
   #rotateHint{ position:absolute; bottom:232px; left:50%; transform:translateX(-50%); font-family:'Ubuntu',sans-serif; font-weight:700; font-size:12px; color:var(--accent-xp); background:var(--bg-panel); backdrop-filter:blur(6px); box-shadow:var(--shadow-panel); border:1px solid var(--accent-xp); border-radius:8px; padding:6px 14px; display:none; text-align:center; white-space:nowrap; }
   #rotateHint.show{ display:block; }
 
@@ -911,3 +914,55 @@
     width: 100%; font-size: 13px; color: #a4b0b8;
     line-height: 1.5; font-style: italic; text-align: justify;
   }
+
+  /* ── FACTORY MODAL STYLES ── */
+  #factoryPanel {
+    position: fixed; inset: 0; background: rgba(6, 12, 9, 0.85); backdrop-filter: blur(12px);
+    display: flex; align-items: center; justify-content: center; z-index: 30; pointer-events: auto;
+  }
+  #factoryPanel.hidden { display: none !important; }
+  #factoryBox {
+    background: var(--menu-card); border: 1px solid var(--menu-border-active);
+    border-radius: 12px; padding: 24px 28px; width: min(620px, 92vw); max-height: 85vh;
+    overflow-y: auto; box-shadow: var(--menu-shadow); display: flex; flex-direction: column; gap: 14px; text-align: center;
+  }
+  #factoryBox h3 {
+    font-family: 'Ubuntu', sans-serif; font-weight: 700; font-size: 22px;
+    letter-spacing: 2px; color: var(--accent-xp); margin: 0;
+  }
+  #factoryBox .sub { font-size: 12px; color: var(--col-text-dim); margin-top: -8px; }
+  #factoryItems { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+  
+  .factory-item {
+    background: rgba(0, 0, 0, 0.3); border: 1px solid var(--menu-border);
+    border-radius: 8px; padding: 14px 18px; text-align: left;
+    display: flex; flex-direction: column; gap: 6px; transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+  .factory-item:hover { border-color: var(--col-teal-light); background: rgba(61, 168, 158, 0.05); }
+  .factory-item.disabled { opacity: 0.55; }
+  .factory-item-header { display: flex; justify-content: space-between; align-items: center; }
+  .factory-item-header b { font-size: 15px; color: var(--col-text); font-family: 'Ubuntu', sans-serif; }
+  .factory-badge {
+    font-size: 9px; font-weight: 700; letter-spacing: 1px;
+    background: rgba(78, 205, 196, 0.15); border: 1px solid var(--accent-xp);
+    color: var(--accent-xp); border-radius: 4px; padding: 2px 8px; text-transform: uppercase;
+  }
+  .factory-item .desc { font-size: 11px; color: var(--col-text-dim); line-height: 1.4; }
+  .factory-item-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 8px; }
+  .factory-item-footer .cost { font-size: 12px; font-weight: 700; color: var(--accent-gold); }
+  
+  .factory-build-btn {
+    font-family: 'Ubuntu', sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 1px;
+    background: var(--accent-xp); color: #062017; border: none; border-radius: 6px;
+    padding: 7px 18px; cursor: pointer; transition: background var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  .factory-build-btn:hover { background: var(--col-teal-light); transform: translateY(-1px); }
+  .factory-item.disabled .factory-build-btn { background: var(--line); color: var(--col-muted); cursor: not-allowed; transform: none; }
+  
+  #factoryCloseBtn {
+    font-family: 'Ubuntu', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 1px;
+    background: var(--col-red); color: #fff; border: none; border-radius: 6px;
+    padding: 9px 24px; cursor: pointer; margin-top: 10px; align-self: center;
+    transition: background var(--dur) var(--ease);
+  }
+  #factoryCloseBtn:hover { background: var(--col-red-light); }

@@ -161,6 +161,9 @@ export function setMutationChoiceOpen(val: boolean): void { mutationChoiceOpen =
 export let shopOpen = false;
 export function setShopOpen(val: boolean): void { shopOpen = val; }
 
+export let factoryOpen = false;
+export function setFactoryOpen(val: boolean): void { factoryOpen = val; }
+
 export let debugUnlocked = false;
 export function setDebugUnlocked(val: boolean): void { debugUnlocked = val; }
 

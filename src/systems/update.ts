@@ -34,6 +34,16 @@ export function findNearestShop(range: number): Structure | null {
   return best;
 }
 
+export function findNearestFactory(range: number): Structure | null {
+  let best: Structure | null = null, bd = Infinity;
+  for (const s of structures) {
+    if (s.type !== 'factory') continue;
+    const d = dist(player.x, player.y, s.x, s.y);
+    if (d < range && d < bd) { best = s; bd = d; }
+  }
+  return best;
+}
+
 export function checkDeath(onKillPlayer: () => void): void {
   if (player.hp > 0) return;
   if (player.secondChance) {
