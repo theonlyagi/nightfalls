@@ -100,20 +100,182 @@ export function selectBuild(key: StructureKind): void {
   renderBuildBar();
 }
 
+function drawBuildPreview(canvas: HTMLCanvasElement, key: StructureKind): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 8, 16, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (key === 'wall') {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(Math.PI / 6);
+    ctx.fillStyle = '#a9aeb2';
+    ctx.strokeStyle = '#2a2d30';
+    ctx.lineWidth = 2.5;
+    
+    const w = 32, h = 11;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(-w/2, -h/2, w, h, 3);
+    else ctx.rect(-w/2, -h/2, w, h);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-w/2 + w/3, -h/2); ctx.lineTo(-w/2 + w/3, h/2);
+    ctx.moveTo(w/2 - w/3, -h/2); ctx.lineTo(w/2 - w/3, h/2);
+    ctx.moveTo(-w/2, 0); ctx.lineTo(w/2, 0);
+    ctx.stroke();
+    ctx.restore();
+  } else if (key === 'spike') {
+    ctx.save();
+    ctx.translate(cx, cy + 2);
+    ctx.fillStyle = '#d8e0e4';
+    ctx.strokeStyle = '#1a1208';
+    ctx.lineWidth = 1.5;
+
+    const w = 30, h = 7;
+    for (let i = 0; i < 4; i++) {
+      const px = -w/2 + (i + 0.5) * (w / 4);
+      ctx.beginPath();
+      ctx.moveTo(px - 3, -h/2);
+      ctx.lineTo(px, -h/2 - 7);
+      ctx.lineTo(px + 3, -h/2);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    }
+
+    ctx.fillStyle = '#7a5230';
+    ctx.strokeStyle = '#2a1c0e';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(-w/2, -h/2, w, h, 2);
+    else ctx.rect(-w/2, -h/2, w, h);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  } else if (key === 'turret') {
+    ctx.save();
+    ctx.translate(cx, cy);
+    
+    ctx.fillStyle = '#597b7f';
+    ctx.strokeStyle = '#1c2426';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.rotate(-Math.PI / 4);
+    ctx.fillStyle = '#2f3a3c';
+    ctx.strokeStyle = '#1c2426';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(-2, -17, 4, 9);
+    ctx.strokeRect(-2, -17, 4, 9);
+    ctx.restore();
+  } else if (key === 'campfire') {
+    ctx.save();
+    ctx.translate(cx, cy);
+    
+    ctx.fillStyle = '#5c4530';
+    ctx.strokeStyle = '#22190f';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 2, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#ff9f43';
+    ctx.beginPath();
+    ctx.arc(0, -1, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffe066';
+    ctx.beginPath();
+    ctx.arc(0, -3, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  } else if (key === 'shop') {
+    ctx.save();
+    ctx.translate(cx, cy + 2);
+    
+    const w = 30, h = 16;
+    ctx.fillStyle = '#7a5230';
+    ctx.strokeStyle = '#2a1c0e';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(-w/2, -h/2, w, h, 3);
+    else ctx.rect(-w/2, -h/2, w, h);
+    ctx.fill();
+    ctx.stroke();
+
+    const stripes = 4;
+    for (let i = 0; i < stripes; i++) {
+      ctx.fillStyle = i % 2 === 0 ? '#c98b4a' : '#ffd76a';
+      const sx = -w/2 + i * (w / stripes);
+      ctx.beginPath();
+      ctx.moveTo(sx, -h/2);
+      ctx.lineTo(sx + w/stripes, -h/2);
+      ctx.lineTo(sx + w/stripes * 0.8, -h/2 - 5);
+      ctx.lineTo(sx + w/stripes * 0.2, -h/2 - 5);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
 export function renderBuildBar(): void {
   const bar = byId('buildBar');
   if (!bar) return;
   bar.innerHTML = '';
   const order: StructureKind[] = ['wall', 'spike', 'turret', 'campfire', 'shop'];
-  order.forEach((key) => {
+  order.forEach((key, index) => {
     const def = BUILD_DEFS[key];
     const wCost = Math.ceil(def.wood * (player.buildDiscount || 1));
     const sCost = Math.ceil(def.stone * (player.buildDiscount || 1));
     const slot = document.createElement('div');
     slot.className = 'build-slot' + (selectedBuild === key ? ' active' : '');
-    const costStr = (wCost ? wCost + 'w ' : '') + (sCost ? sCost + 's' : '');
-    slot.innerHTML = `<b>${def.label}</b><div class="cost">${costStr}</div>`;
     slot.onclick = () => selectBuild(key);
+
+    const badge = document.createElement('div');
+    badge.className = 'build-key-badge';
+    badge.textContent = String(index + 1);
+    slot.appendChild(badge);
+
+    const canvasWrap = document.createElement('div');
+    canvasWrap.className = 'build-canvas-wrap';
+    const canvas = document.createElement('canvas');
+    canvas.width = 60;
+    canvas.height = 48;
+    canvasWrap.appendChild(canvas);
+    slot.appendChild(canvasWrap);
+    
+    // Draw structure preview on canvas
+    drawBuildPreview(canvas, key);
+
+    const label = document.createElement('b');
+    label.textContent = def.label;
+    slot.appendChild(label);
+
+    const cost = document.createElement('div');
+    cost.className = 'cost';
+    cost.textContent = (wCost ? wCost + 'w ' : '') + (sCost ? sCost + 's' : '');
+    slot.appendChild(cost);
+
     bar.appendChild(slot);
   });
 }

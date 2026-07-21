@@ -3369,20 +3369,162 @@
     setManualBuildAngle(null);
     renderBuildBar();
   }
+  function drawBuildPreview2(canvas2, key) {
+    const ctx2 = canvas2.getContext("2d");
+    if (!ctx2) return;
+    ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
+    ctx2.save();
+    const cx = canvas2.width / 2;
+    const cy = canvas2.height / 2;
+    ctx2.fillStyle = "rgba(0,0,0,0.18)";
+    ctx2.beginPath();
+    ctx2.ellipse(cx, cy + 8, 16, 5, 0, 0, Math.PI * 2);
+    ctx2.fill();
+    if (key === "wall") {
+      ctx2.save();
+      ctx2.translate(cx, cy);
+      ctx2.rotate(Math.PI / 6);
+      ctx2.fillStyle = "#a9aeb2";
+      ctx2.strokeStyle = "#2a2d30";
+      ctx2.lineWidth = 2.5;
+      const w = 32, h = 11;
+      ctx2.beginPath();
+      if (ctx2.roundRect) ctx2.roundRect(-w / 2, -h / 2, w, h, 3);
+      else ctx2.rect(-w / 2, -h / 2, w, h);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.strokeStyle = "rgba(0,0,0,0.2)";
+      ctx2.lineWidth = 1;
+      ctx2.beginPath();
+      ctx2.moveTo(-w / 2 + w / 3, -h / 2);
+      ctx2.lineTo(-w / 2 + w / 3, h / 2);
+      ctx2.moveTo(w / 2 - w / 3, -h / 2);
+      ctx2.lineTo(w / 2 - w / 3, h / 2);
+      ctx2.moveTo(-w / 2, 0);
+      ctx2.lineTo(w / 2, 0);
+      ctx2.stroke();
+      ctx2.restore();
+    } else if (key === "spike") {
+      ctx2.save();
+      ctx2.translate(cx, cy + 2);
+      ctx2.fillStyle = "#d8e0e4";
+      ctx2.strokeStyle = "#1a1208";
+      ctx2.lineWidth = 1.5;
+      const w = 30, h = 7;
+      for (let i = 0; i < 4; i++) {
+        const px = -w / 2 + (i + 0.5) * (w / 4);
+        ctx2.beginPath();
+        ctx2.moveTo(px - 3, -h / 2);
+        ctx2.lineTo(px, -h / 2 - 7);
+        ctx2.lineTo(px + 3, -h / 2);
+        ctx2.closePath();
+        ctx2.fill();
+        ctx2.stroke();
+      }
+      ctx2.fillStyle = "#7a5230";
+      ctx2.strokeStyle = "#2a1c0e";
+      ctx2.lineWidth = 2;
+      ctx2.beginPath();
+      if (ctx2.roundRect) ctx2.roundRect(-w / 2, -h / 2, w, h, 2);
+      else ctx2.rect(-w / 2, -h / 2, w, h);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.restore();
+    } else if (key === "turret") {
+      ctx2.save();
+      ctx2.translate(cx, cy);
+      ctx2.fillStyle = "#597b7f";
+      ctx2.strokeStyle = "#1c2426";
+      ctx2.lineWidth = 2.5;
+      ctx2.beginPath();
+      ctx2.arc(0, 0, 10, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.rotate(-Math.PI / 4);
+      ctx2.fillStyle = "#2f3a3c";
+      ctx2.strokeStyle = "#1c2426";
+      ctx2.lineWidth = 1.5;
+      ctx2.fillRect(-2, -17, 4, 9);
+      ctx2.strokeRect(-2, -17, 4, 9);
+      ctx2.restore();
+    } else if (key === "campfire") {
+      ctx2.save();
+      ctx2.translate(cx, cy);
+      ctx2.fillStyle = "#5c4530";
+      ctx2.strokeStyle = "#22190f";
+      ctx2.lineWidth = 2;
+      ctx2.beginPath();
+      ctx2.arc(0, 2, 10, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.stroke();
+      ctx2.fillStyle = "#ff9f43";
+      ctx2.beginPath();
+      ctx2.arc(0, -1, 5, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.fillStyle = "#ffe066";
+      ctx2.beginPath();
+      ctx2.arc(0, -3, 2.5, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.restore();
+    } else if (key === "shop") {
+      ctx2.save();
+      ctx2.translate(cx, cy + 2);
+      const w = 30, h = 16;
+      ctx2.fillStyle = "#7a5230";
+      ctx2.strokeStyle = "#2a1c0e";
+      ctx2.lineWidth = 2.5;
+      ctx2.beginPath();
+      if (ctx2.roundRect) ctx2.roundRect(-w / 2, -h / 2, w, h, 3);
+      else ctx2.rect(-w / 2, -h / 2, w, h);
+      ctx2.fill();
+      ctx2.stroke();
+      const stripes = 4;
+      for (let i = 0; i < stripes; i++) {
+        ctx2.fillStyle = i % 2 === 0 ? "#c98b4a" : "#ffd76a";
+        const sx = -w / 2 + i * (w / stripes);
+        ctx2.beginPath();
+        ctx2.moveTo(sx, -h / 2);
+        ctx2.lineTo(sx + w / stripes, -h / 2);
+        ctx2.lineTo(sx + w / stripes * 0.8, -h / 2 - 5);
+        ctx2.lineTo(sx + w / stripes * 0.2, -h / 2 - 5);
+        ctx2.closePath();
+        ctx2.fill();
+      }
+      ctx2.restore();
+    }
+    ctx2.restore();
+  }
   function renderBuildBar() {
     const bar = byId("buildBar");
     if (!bar) return;
     bar.innerHTML = "";
     const order = ["wall", "spike", "turret", "campfire", "shop"];
-    order.forEach((key) => {
+    order.forEach((key, index) => {
       const def = BUILD_DEFS[key];
       const wCost = Math.ceil(def.wood * (player.buildDiscount || 1));
       const sCost = Math.ceil(def.stone * (player.buildDiscount || 1));
       const slot = document.createElement("div");
       slot.className = "build-slot" + (selectedBuild === key ? " active" : "");
-      const costStr = (wCost ? wCost + "w " : "") + (sCost ? sCost + "s" : "");
-      slot.innerHTML = `<b>${def.label}</b><div class="cost">${costStr}</div>`;
       slot.onclick = () => selectBuild(key);
+      const badge = document.createElement("div");
+      badge.className = "build-key-badge";
+      badge.textContent = String(index + 1);
+      slot.appendChild(badge);
+      const canvasWrap = document.createElement("div");
+      canvasWrap.className = "build-canvas-wrap";
+      const canvas2 = document.createElement("canvas");
+      canvas2.width = 60;
+      canvas2.height = 48;
+      canvasWrap.appendChild(canvas2);
+      slot.appendChild(canvasWrap);
+      drawBuildPreview2(canvas2, key);
+      const label = document.createElement("b");
+      label.textContent = def.label;
+      slot.appendChild(label);
+      const cost = document.createElement("div");
+      cost.className = "cost";
+      cost.textContent = (wCost ? wCost + "w " : "") + (sCost ? sCost + "s" : "");
+      slot.appendChild(cost);
       bar.appendChild(slot);
     });
   }
