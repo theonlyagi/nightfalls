@@ -100,28 +100,36 @@ see `server/NOTICE.md`):**
   complete) — contains the player/zombie/bullet sync described above, on
   top of the lobby branch. Latest commit: `WIP: in-match player/zombie/
   bullet sync (Phase 3/4, incomplete)`.
-- Verified so far on the WIP branch: server-side move+angle+name sync
-  confirmed correct in real time between real WS clients; browser client
-  connects, reaches an active match, zero console errors, canvas renders
-  non-blank content. **NOT yet visually confirmed** that the remote-player
-  avatar/zombies/bullets actually render correctly on screen — the
-  Browser pane's screenshot tool was unreliable this session (see quirks
-  section below), was mid-way through a `canvas.toDataURL()` fallback when
-  the session paused. **Do this visual check first** before building
-  further on top.
-- `main` has moved on since this branch was cut (teammate pushed a resource
-  texture/terrain visual PR) — expect to rebase/merge before this is
-  mergeable.
+- **Visually confirmed working (2026-07-21)**, with two real browser clients
+  in the same active match: remote-player rendering (`drawRemotePlayer` —
+  name tag + HP bar + facing wedge, confirmed via a zoomed canvas capture),
+  zombie sync (HUD `zombies: N` count matched the rendered blob count),
+  and bullet sync (visible dashed trail on firing, server-authoritative
+  per `combat.ts`'s `tryShoot`). This was the one open item from the prior
+  session — it's done, this phase is visually solid, not just "no console
+  errors."
+- `main` has moved on **much more** than previously noted — it's not just a
+  resource-texture/terrain PR. Since this branch was cut, `main` picked up
+  a full tower-defense system (6 towers, Factory building, 5 upgrade
+  levels), a Structure Click Inspector UI, an Iron ore resource node, and a
+  **full UI redesign** ("Florr.io Neo-Brutalist theme" — bold borders, hard
+  shadows, rarity cards, bottom dock tabs). Expect a real rebase/merge
+  effort before this branch is mergeable — likely UI-layer conflicts
+  especially, since this branch's HTML/CSS predates the redesign.
 
 **Recommended next steps, in order:**
-1. Finish visually verifying remote-player/zombie/bullet rendering actually
-   looks right (not just "no errors") before adding anything else.
+1. ~~Finish visually verifying remote-player/zombie/bullet rendering~~ —
+   done, see above.
 2. Decide whether to merge PR #8 (lobby) on its own first, or keep bundling
    it with the fuller sync work — user hasn't been asked this directly.
-3. Structures sync, then day/night + Blood Moon sync, then shop/weapon/
+3. Given how far `main` has diverged (see above), consider whether to
+   rebase/reconcile against `main` now (before more sync work compounds the
+   conflict surface) or keep deferring it — worth asking the user rather
+   than assuming.
+4. Structures sync, then day/night + Blood Moon sync, then shop/weapon/
    mutation sync — each is its own real chunk (new packet types, new server
    state), test-as-you-go like every other phase so far.
-4. Only open a PR once the user says it's ready — they were explicit about
+5. Only open a PR once the user says it's ready — they were explicit about
    this.
 
 **Do not push directly to `main`** — branch protection will reject it
@@ -133,18 +141,43 @@ infrastructure once live).
 ## Known environment quirks (only relevant if testing in this Browser pane)
 
 The automated test browser in this workspace runs persistently backgrounded
-(`document.hidden === true`), which throttles `requestAnimationFrame` and can
-make `getComputedStyle` return stale values. If verifying visual/timing
-behavior in a new session:
-- Prefer a **freshly-created tab** over a long-lived one (gets a brief grace
-  period of normal speed).
-- Override `requestAnimationFrame` with a `setTimeout` polyfill + frame
-  counter to prove causality via before/after deltas, rather than trusting a
-  single snapshot read.
-- Use `canvas.toDataURL()` decoded to a file to actually see rendered pixels
-  when screenshots are unreliable.
+(`document.hidden === true` on every tab, confirmed 2026-07-21 — not just the
+non-frontmost ones). This doesn't just throttle `requestAnimationFrame`, it
+**fully stops it** (measured 0 callbacks over 3s) and can make
+`getComputedStyle` return stale values. The `computer{action:"screenshot"}`
+tool also reliably times out in this state — don't bother retrying it, go
+straight to the canvas-dump workaround below.
+- Override `requestAnimationFrame` with a `setTimeout`-based polyfill —
+  **but timing matters**: this only works if the override is installed
+  *before* the page's own game loop makes its first scheduling call. In
+  this codebase specifically, `game.ts`'s `loop()` only calls
+  `requestAnimationFrame` for the first time inside `resetGame()` (i.e.
+  once a match actually starts) — if that first call already went out
+  natively (tab hidden) before you patch, it's stuck pending forever and
+  patching afterward does nothing (the loop never gets another chance to
+  call it). Reload/open a fresh tab, install the shim immediately, *then*
+  go through the join/match-start flow, so the very first call uses the
+  shim. A quick probe confirms it's working: schedule a counter callback
+  via `requestAnimationFrame` right after installing the shim and check it
+  incremented after a `sleep` — native gives 0, the shim gave ~150/s.
+- Use `canvas.toDataURL()` decoded to a file to actually see rendered
+  pixels once the shim is confirmed working. Keep captures small (roughly
+  2000–5000 base64 chars — a ~160×90 to ~320×180 JPEG) — larger payloads
+  risk silent corruption somewhere in the tool-result → file round trip.
+  **Always verify**: have the JS also return `b64.length`, write only the
+  base64 payload (no `data:` prefix) to a file, decode with
+  `base64 -d file.b64 > file.jpg`, and confirm the decoded byte count
+  equals `floor(length/4)*3 - paddingChars` before trusting the image —
+  a mismatch means transcription corruption, not a rendering bug. For
+  precise numeric checks (e.g. "did entity X actually move"), reading
+  pixels via `ctx.getImageData()` and computing centroids/positions in-JS
+  is more reliable and far cheaper than eyeballing a screenshot.
 - Cross-check CSS via `el.matches(selector)` (CSSOM) if `getComputedStyle`
   looks suspicious.
 - For the `server/` backend specifically, the Browser pane doesn't apply —
   verify it with real WebSocket test scripts (`node -e "..."` using the
   built-in `WebSocket` global on Node 24+) instead.
+- If a leftover `node`/`serve` process from a prior session is still
+  bound to the server's port (8081) or the client's static port (8080),
+  check for it (`netstat -ano`) before assuming the port is free — a
+  previous session's server can outlive the session itself.
