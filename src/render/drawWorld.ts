@@ -156,26 +156,65 @@ export function drawResource(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEl
   if (s.x < -60 || s.x > canvas.width + 60 || s.y < -60 || s.y > canvas.height + 60) return;
   drawShadow(ctx, s.x, s.y, r.radius);
   if (r.type === 'tree') {
-    ctx.fillStyle = radialFill(ctx, s.x, s.y, r.radius, '#2e5a3c', '#1e3d28');
-    ctx.strokeStyle = '#14201a'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(s.x, s.y, r.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = radialFill(ctx, s.x, s.y, r.radius * 0.62, '#4a8a5a', '#356b43');
-    ctx.beginPath(); ctx.arc(s.x, s.y, r.radius * 0.62, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(120,200,140,0.35)';
-    ctx.beginPath(); ctx.arc(s.x - r.radius * 0.25, s.y - r.radius * 0.3, r.radius * 0.22, 0, Math.PI * 2); ctx.fill();
-  } else {
-    ctx.fillStyle = radialFill(ctx, s.x, s.y, r.radius, '#7a888c', '#4a565a');
-    ctx.beginPath();
-    const sides = 6;
-    ctx.moveTo(s.x + r.radius * Math.cos(0), s.y + r.radius * Math.sin(0));
-    for (let i = 1; i <= sides; i++) {
-      const a = i / sides * Math.PI * 2;
-      ctx.lineTo(s.x + r.radius * Math.cos(a), s.y + r.radius * Math.sin(a));
+    // Trunk drawn first so the canopy blobs cover most of it, leaving just a base peek visible.
+    const trunkW = r.radius * 0.3, trunkH = r.radius * 0.6;
+    ctx.fillStyle = '#5a3d24';
+    ctx.strokeStyle = '#2e1f12'; ctx.lineWidth = 2;
+    roundRectPath(ctx, s.x - trunkW / 2, s.y + r.radius * 0.1, trunkW, trunkH, 3);
+    ctx.fill(); ctx.stroke();
+
+    // Three offset canopy blobs instead of one flat circle, so the silhouette reads as
+    // clustered foliage rather than a perfect disc.
+    const blobs = [
+      { dx: -r.radius * 0.4, dy: r.radius * 0.1, rr: r.radius * 0.58 },
+      { dx: r.radius * 0.38, dy: r.radius * 0.12, rr: r.radius * 0.6 },
+      { dx: 0, dy: -r.radius * 0.18, rr: r.radius * 0.82 },
+    ];
+    for (const b of blobs) {
+      ctx.fillStyle = radialFill(ctx, s.x + b.dx, s.y + b.dy, b.rr, '#3a6b46', '#1e3d28');
+      ctx.strokeStyle = '#14201a'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(s.x + b.dx, s.y + b.dy, b.rr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = '#14201a'; ctx.lineWidth = 3; ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
-    ctx.beginPath(); ctx.arc(s.x - r.radius * 0.25, s.y - r.radius * 0.25, r.radius * 0.3, 0, Math.PI * 2); ctx.fill();
+    // Brighter inner canopy + a leaf-light speckle for depth, plus a couple darker
+    // mottling spots so the foliage isn't a flat gradient.
+    ctx.fillStyle = radialFill(ctx, s.x, s.y - r.radius * 0.18, r.radius * 0.5, '#5a9a68', '#3f7a4d');
+    ctx.beginPath(); ctx.arc(s.x, s.y - r.radius * 0.18, r.radius * 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(150,220,160,0.4)';
+    ctx.beginPath(); ctx.arc(s.x - r.radius * 0.22, s.y - r.radius * 0.42, r.radius * 0.17, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(20,40,25,0.25)';
+    ctx.beginPath(); ctx.arc(s.x + r.radius * 0.28, s.y - r.radius * 0.02, r.radius * 0.13, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(s.x - r.radius * 0.3, s.y + r.radius * 0.22, r.radius * 0.11, 0, Math.PI * 2); ctx.fill();
+  } else {
+    // A small cluster of overlapping chunks (instead of one flat hexagon) reads as a
+    // rock pile rather than a single uniform gem shape.
+    const chunks = [
+      { dx: -r.radius * 0.34, dy: r.radius * 0.2, rr: r.radius * 0.56, sides: 5, rot: 0.4 },
+      { dx: r.radius * 0.32, dy: r.radius * 0.24, rr: r.radius * 0.48, sides: 6, rot: -0.2 },
+      { dx: 0, dy: -r.radius * 0.06, rr: r.radius * 0.8, sides: 6, rot: 0 },
+    ];
+    for (const c of chunks) {
+      ctx.fillStyle = radialFill(ctx, s.x + c.dx, s.y + c.dy, c.rr, '#7a888c', '#4a565a');
+      ctx.beginPath();
+      for (let i = 0; i <= c.sides; i++) {
+        const a = i / c.sides * Math.PI * 2 + c.rot;
+        const px = s.x + c.dx + c.rr * Math.cos(a), py = s.y + c.dy + c.rr * Math.sin(a);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#14201a'; ctx.lineWidth = 2.5; ctx.stroke();
+    }
+    // Facet crevice lines across the main chunk, a highlight matching the light source
+    // used elsewhere (top-left), and a couple of moss speckles to tie it into the grass.
+    ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(s.x - r.radius * 0.22, s.y - r.radius * 0.52);
+    ctx.lineTo(s.x + r.radius * 0.05, s.y - r.radius * 0.05);
+    ctx.lineTo(s.x - r.radius * 0.15, s.y + r.radius * 0.42);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    ctx.beginPath(); ctx.arc(s.x - r.radius * 0.28, s.y - r.radius * 0.34, r.radius * 0.26, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(120,150,90,0.3)';
+    ctx.beginPath(); ctx.arc(s.x + r.radius * 0.3, s.y + r.radius * 0.16, r.radius * 0.1, 0, Math.PI * 2); ctx.fill();
   }
   if (r.hp < r.maxHp) {
     const w = r.radius * 2;
