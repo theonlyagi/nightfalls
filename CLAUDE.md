@@ -379,35 +379,58 @@ see `server/NOTICE.md`):**
   patch involved, removal synced identically on both clients. Destruction
   is now a genuine, testable mechanic, not just reachable cleanup code.
 
-- ⚠️ **`main` has diverged again, 2026-07-22 — check `git fetch origin` +
-  `git log b4c94ab..origin/main` before assuming this branch's merge base
-  is still current.** As of this writing `origin/main` is 4 commits ahead
-  of `b4c94ab` (this branch's merge base) — a Florr.io-style menu/GUI
-  redesign, cannon/mortar/sniper PNG-asset tower rendering (2-layer
-  base+turret), and most importantly **"Add structure remove feature,
-  floating inspection UI, 32px tile scaling, and tier wall assets."** This
-  branch (`multiplayer-full-sync-wip`) has *not* merged these yet — a clean
-  symmetric divergence (4 ahead on main, 7 ahead on this branch as of
-  2026-07-22), not yet reconciled like the previous one was.
-  - **`removeInspectedStructure()` (`src/ui/shopUI.ts`) is client-only and
-    not net-aware** — it directly does `structures.splice(idx, 1)` and
-    refunds resources on the local `player` object, with no `inNetMatch`
-    branch at all (unlike `tryBuildOrUpgrade`/`upgradeInspectedStructure`,
-    which both branch on `inNetMatch` to call `sendNetBuild`/
-    `sendNetUpgrade` instead of mutating local state). If merged as-is,
-    clicking "remove" in a live match would delete the structure locally
-    but never tell the server — the next `structures` snapshot broadcast
-    would just make it reappear (`setStructures()` overwrites the array
-    wholesale). **Needs the same `inNetMatch`-branch + a new `remove`
-    packet type (client → server) before/if this gets merged** — this is
-    new protocol work, not just a merge conflict, and hasn't been started.
-  - The `TILE`/`BUILD_REACH` rescale (64→32 tile, reach 3→6 tiles) on main
-    happens to still equal the same absolute `BUILD_REACH=192` the server
-    hardcodes (`server/src/protocol.ts`), so no numeric break today — but
-    it's a reminder the server keeps its own duplicated copy of these
-    constants (documented in `protocol.ts`'s header) rather than importing
-    from `src/`, so future client-side balance tweaks silently won't reach
-    the server unless mirrored by hand.
+- ✅ **`main`'s divergence reconciled, 2026-07-22** (was flagged above as
+  outstanding for most of the day — a teammate's push not showing up on
+  `night-falls.xyz` is what prompted actually doing this). Merged
+  `origin/main`'s 4 commits (Florr.io menu/GUI redesign, PNG-asset tower
+  rendering, structure remove feature + floating inspection UI + 32px tile
+  scaling) into `multiplayer-full-sync-wip`. Real conflicts were only in
+  `src/ui/shopUI.ts` (simple additive import conflict — both sides added
+  different imports to the same block, resolved by keeping both) plus the
+  two generated files (`docs/index.html`, `public/game.js`, resolved by
+  rebuilding via `build:share`/`build` rather than hand-merging, same
+  practice as the PR #8 merge). Verified after: clean typecheck (both
+  client and server), a DOM-id integrity check (every `byId()` target in
+  source has a matching element in `public/index.html`), and a live
+  solo-mode smoke test (menu loads, no console errors). Landed as three
+  commits: the zombie-AI/structure-damage work from earlier the same day,
+  the deployment tooling, and the merge itself.
+  - **`removeInspectedStructure()`'s missing network-awareness — fixed as
+    part of this merge, not left broken.** Added a `RemovePacket` type +
+    `isRemovePacket` validator (`server/src/protocol.ts`),
+    `Room.handleRemove()` (`server/src/index.ts` wires it up) — same
+    reach/existence validation as `handleUpgrade`, no ownership
+    restriction, matching the existing Phase 1 model. Client:
+    `sendRemove`/`sendNetRemove` added alongside the existing
+    `sendBuild`/`sendUpgrade` pair; `removeInspectedStructure()` now
+    branches on `inNetMatch` exactly like `upgradeInspectedStructure()` —
+    refund/particle effects fire immediately either way (client-local
+    bookkeeping, same as build/upgrade cost), but the actual structure
+    deletion goes through the server in a net match instead of mutating
+    `structures` directly. **Verified via a raw two-client WebSocket test**
+    (build a wall, send `remove` for its id, confirm *both* connected
+    clients' subsequent `structures` snapshots show it gone) — this
+    exercises the exact server-side mechanism the real UI button calls.
+    Live canvas-click UI verification (actually clicking the 🗑️ REMOVE
+    button in a browser) was attempted but kept getting beaten by this
+    environment's own flakiness (aggressive chase AI killing test
+    characters mid-setup, and one instance of the render loop's RAF calls
+    dropping to zero requiring a full page reload to recover — see updated
+    quirks entries below) rather than any actual code issue; confidence
+    here rests on the protocol-level test plus the client change being a
+    structural mirror of the already-proven `upgrade` path, not a live
+    click-through.
+  - The `TILE`/`BUILD_REACH` rescale (64→32 tile, reach 3→6 tiles) from
+    main still equals the same absolute `BUILD_REACH=192` the server
+    hardcodes (`server/src/protocol.ts`), so no numeric break — but it's a
+    reminder the server keeps its own duplicated copy of these constants
+    rather than importing from `src/`, so future client-side balance
+    tweaks silently won't reach the server unless mirrored by hand.
+  - ⚠️ **`night-falls.xyz` has NOT been redeployed with any of this yet**
+    as of this writing — the live site is still running the pre-merge
+    build. Confirm with the user before redeploying (same rule as every
+    other production action this session) — don't assume it's wanted
+    immediately just because the merge is done.
 
 **Recommended next steps, in order:**
 1. ~~Finish visually verifying remote-player/zombie/bullet rendering~~ —
@@ -451,16 +474,25 @@ see `server/NOTICE.md`):**
    was effectively non-functional for real users from the first deploy
    until this fix, same day** — worth knowing if anyone reports having
    bounced off the site earlier.
-9. **Before merging anything further**: reconcile the `main` divergence
-   (see the ⚠️ bullet above) — in particular `removeInspectedStructure()`
-   needs net-awareness added *before or during* that merge, or it ships
-   broken for multiplayer that's now live in production.
-10. Then: day/night + Blood Moon sync, then shop/weapon/mutation sync — each
+9. ~~Reconcile the `main` divergence, including fixing
+   `removeInspectedStructure()`'s missing network-awareness~~ — done
+   2026-07-22, prompted by the user noticing a teammate's push wasn't
+   showing up on `night-falls.xyz` (see the ✅ bullet above for the full
+   story). Not merged-and-left-broken — the remove-networking gap was
+   fixed as part of the same work, verified via a raw two-client
+   WebSocket test.
+10. **`night-falls.xyz` needs a redeploy to actually pick up any of this**
+    — the merge, the zombie AI/structure damage fixes, and the
+    remove-networking fix are all only committed locally so far, not yet
+    pushed to the live site. Confirm with the user before running
+    `npm run deploy` again (standing rule: every deploy needs fresh
+    go-ahead, per the classifier's own enforcement earlier the same day).
+11. Then: day/night + Blood Moon sync, then shop/weapon/mutation sync — each
     its own real chunk (new packet types, new server state), test-as-you-go.
     **This is now post-launch work** — the site is live with a subset of
     "sync everything" — confirm with the user whether/when these still
     matter now that something real is already up.
-11. Only open a PR once the user says it's ready — they were explicit
+12. Only open a PR once the user says it's ready — they were explicit
     about this. Note the deployed server code is running directly off
     this branch's build output, not off `main` — the branch-vs-PR
     question is about the *repo*, separate from what's live on the VPS.
@@ -659,3 +691,34 @@ straight to the canvas-dump workaround below.
   existing. Space test placements at least 100+ screen px apart (or check
   `__debugStructures`'s length after each placement) if you need several
   distinct structures near one spawn point.
+- **The `requestAnimationFrame` shim can silently stop ticking partway
+  through a session, even after being confirmed working** — hit this
+  2026-07-22 testing the redesigned UI (after the main-merge): a fresh
+  page load + shim install + full queue/ready/match-start flow completed
+  normally, but a `requestAnimationFrame` call counter read back 0 over a
+  500ms window right after — meaning the render loop (and therefore
+  `camera.x/y`, which only updates inside it) had gone stale, so canvas
+  clicks computed against `mouse.pos + camera` landed nowhere near where
+  they visually appeared to. **Symptom to watch for**: canvas clicks that
+  should obviously hit something (dead-on player/structure position)
+  silently do nothing. Fix that worked: reload the tab fresh, reinstall
+  the shim, and explicitly re-verify the counter increments (don't just
+  trust that "it worked earlier this session" carries forward) before
+  relying on any canvas-coordinate math again — this is a cheap check
+  worth doing before *every* click-based UI test, not just the first one
+  per session.
+- **Zombie chase AI (see the corrected zombie-model entry above) makes
+  match setup itself a race against the clock in a way it wasn't before
+  2026-07-22.** Beyond the already-documented risk of a test character
+  dying if left alone too long, a *build+click+build* sequence spread
+  across several tool calls with real round-trip latency in between can
+  easily run past the point where zombies converge and kill the test
+  player — several attempts this session lost a freshly-placed test
+  structure to zombie damage, or lost the player themselves, before a
+  planned follow-up action (like opening a structure's inspector) could
+  run. Budget for this: assume test characters may not survive more than
+  a few real seconds unattended once a match goes active, and prefer
+  proving server-side mechanics via a raw two-client WebSocket script
+  (immune to all of the above — no canvas, no render loop, no zombies to
+  outrun) when a live in-browser click-through keeps getting beaten by
+  timing rather than revealing an actual code problem.
