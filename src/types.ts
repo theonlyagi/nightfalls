@@ -57,6 +57,10 @@ export interface Bullet {
   explosive?: boolean; explodeRadius?: number; burn?: boolean;
   slowProj?: boolean;
 
+  // present only for server-synced bullets (net/matchSync.ts) — lets
+  // per-frame interpolation match a bullet across successive snapshots.
+  id?: string;
+
   // tower bullet fields
   mortarLevel?: number;
   isMortar?: boolean;

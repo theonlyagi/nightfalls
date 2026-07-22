@@ -20,7 +20,7 @@ import { updatePlayer, updateBullets, updateStructures, updateZombies, updatePar
 import { setXpCallbacks } from './systems/combat';
 import { generateWorld, updateBloodMoon, updateDayNight, updateWaves, resetZombieId } from './systems/wave';
 import { render } from './render/renderer';
-import { initMatchSync, startNetMatch, stopNetMatch } from './net/matchSync';
+import { initMatchSync, startNetMatch, stopNetMatch, updateNetInterpolation } from './net/matchSync';
 import { disconnect as disconnectNet, isConnected as isNetConnected } from './net/socket';
 import {
   renderMetaPanel, renderStartBonuses, renderMetaSkins, renderModeSelect,
@@ -92,6 +92,8 @@ function loop(t: number): void {
       updateBullets(dt);
       updateStructures(dt);
       updateZombies(dt, dayNight.factor);
+    } else {
+      updateNetInterpolation(dt);
     }
     updateParticles(dt);
     updateBloodMoon();
