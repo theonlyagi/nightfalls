@@ -141,9 +141,8 @@ function resetGame(): void {
   setPowerups([]); setBloodDecals([]);
   setWave(0); setWaveState('idle'); setIsBossWave(false); setActiveBoss(null);
 
-  dayNight.time = 0; dayNight.factor = 0; dayNight.isNight = false; dayNight.nightSpawnTimer = 6000;
-  bloodMoon.active = false; bloodMoon.endsAt = 0;
-  bloodMoon.nextAt = performance.now() + rand(BLOOD_MOON_MIN_GAP_MS, BLOOD_MOON_MAX_GAP_MS);
+  dayNight.time = 0; dayNight.factor = 0; dayNight.isNight = false; dayNight.nightSpawnTimer = 6000; dayNight.nightCount = 0;
+  bloodMoon.active = false; bloodMoon.endsAt = 0; bloodMoon.nextAt = 0;
 
   const bossBar = byId('bossBar'); if (bossBar) bossBar.classList.remove('show');
   setShopOpen(false); byId('shopPanel').classList.add('hidden');

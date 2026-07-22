@@ -185,18 +185,7 @@ export function spawnZombie(forceType?: ZombieKind, atX?: number, atY?: number):
 }
 
 export function updateBloodMoon(): void {
-  const now = performance.now();
-  if (bloodMoon.active) {
-    if (now >= bloodMoon.endsAt) {
-      bloodMoon.active = false;
-      bloodMoon.nextAt = now + rand(BLOOD_MOON_MIN_GAP_MS, BLOOD_MOON_MAX_GAP_MS);
-      showBanner('BLOOD MOON FADES', 'The red sky clears...', 'blood');
-    }
-  } else if (now >= bloodMoon.nextAt) {
-    bloodMoon.active = true;
-    bloodMoon.endsAt = now + BLOOD_MOON_DURATION_MS;
-    showBanner('BLOOD MOON RISING', 'Zombies spawn faster and hit harder...', 'blood');
-  }
+  // Blood moon is now triggered periodically on specific nights inside updateDayNight()
 }
 
 export function updateDayNight(dt: number): void {
@@ -205,9 +194,24 @@ export function updateDayNight(dt: number): void {
   dayNight.factor = (1 - Math.cos(frac * Math.PI * 2)) / 2;
   const wasNight = dayNight.isNight;
   dayNight.isNight = dayNight.factor > 0.5;
+
   if (dayNight.isNight !== wasNight) {
-    if (dayNight.isNight) showBanner('NIGHTFALL', 'Zombies grow bolder and faster...', 'night');
-    else showBanner('DAYBREAK', 'A short reprieve...');
+    if (dayNight.isNight) {
+      dayNight.nightCount = (dayNight.nightCount || 0) + 1;
+      // Periodic Blood Moon: Triggers every 3rd night (Night 3, Night 6, Night 9...)
+      if (dayNight.nightCount % 3 === 0) {
+        bloodMoon.active = true;
+        showBanner('BLOOD MOON RISING', 'A cursed red night begins! Fast & vicious zombies inbound!', 'blood');
+      } else {
+        bloodMoon.active = false;
+        showBanner('NIGHTFALL', 'Zombies emerge from the dark! Defend your base!', 'night');
+      }
+    } else {
+      if (bloodMoon.active) {
+        bloodMoon.active = false;
+      }
+      showBanner('DAYBREAK', 'Safe daylight! Prepare & build your base.', 'night');
+    }
   }
   
   // Calculate remaining time for current phase
@@ -226,20 +230,20 @@ export function updateDayNight(dt: number): void {
 
   const label = byId('phaseLabel');
   if (bloodMoon.active) {
-    const bmRemaining = Math.max(0, Math.ceil((bloodMoon.endsAt - performance.now()) / 1000));
-    label.textContent = `BLOOD MOON | ${bmRemaining}s`;
+    label.textContent = `BLOOD MOON | ${timeLeftSec}s (DANGER!)`;
     label.className = 'pill hud-font blood';
   }
   else if (dayNight.isNight) {
-    label.textContent = `NIGHT | ${timeLeftSec}s`;
+    label.textContent = `NIGHT | ${timeLeftSec}s (ATTACK)`;
     label.className = 'pill hud-font night';
   }
   else {
-    label.textContent = `DAY | ${timeLeftSec}s`;
+    label.textContent = `DAY | ${timeLeftSec}s (SAFE - BUILD TIME)`;
     label.className = 'pill hud-font day';
   }
 
-  if (dayNight.factor > 0.55) {
+  // Night random spawns — strictly active ONLY at night
+  if (dayNight.isNight && dayNight.factor > 0.55) {
     dayNight.nightSpawnTimer -= dt;
     if (dayNight.nightSpawnTimer <= 0 && zombies.length < 45) {
       spawnZombie(Math.random() < 0.7 ? 'normal' : 'scout');
@@ -253,7 +257,15 @@ export function updateDayNight(dt: number): void {
 export function updateWaves(dt: number): void {
   if (waveState === 'idle') {
     startWave(1);
-  } else if (waveState === 'spawning' || waveState === 'spawning-boss') {
+    return;
+  }
+
+  // NO ZOMBIE SPAWNING DURING DAYTIME — Dedicated safe time to build & fortify base
+  if (!dayNight.isNight && !bloodMoon.active) {
+    return;
+  }
+
+  if (waveState === 'spawning' || waveState === 'spawning-boss') {
     setSpawnTimer(spawnTimer - dt);
     if (spawnTimer <= 0 && zombiesToSpawn > 0) {
       if (waveState === 'spawning-boss' && zombiesToSpawn === 1) {
