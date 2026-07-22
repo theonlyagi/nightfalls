@@ -2,6 +2,7 @@ import uWS from 'uWebSockets.js';
 import {
   WORLD_W, WORLD_H, ROOM_MAX_PLAYERS, ROOM_MIN_PLAYERS, MATCH_START_COUNTDOWN_MS, TICK_MS,
   ZOMBIE_MAX, ZOMBIE_SPAWN_INTERVAL_MS, ZOMBIE_RADIUS, ZOMBIE_DAMAGE, ZOMBIE_HIT_COOLDOWN_MS, ZOMBIE_KILL_XP,
+  ZOMBIE_CHASE_SPEED,
   BULLET_SPEED, BULLET_LIFE_TICKS, BULLET_RADIUS, BULLET_DAMAGE,
   PLAYER_RADIUS, PLAYER_MAX_HP, MAX_PLAYER_SPEED_PER_MS, MIN_SHOT_INTERVAL_MS,
   BUILD_REACH, STRUCTURE_MAX, STRUCTURE_DEFS, TOWER_LEVELS, towerMaxHp,
@@ -49,6 +50,7 @@ export interface ZombieState {
   maxHp: number;
   lastHitPlayerAt: number;
   lastSpikeHitAt: number;
+  lastHitStructureAt: number;
 }
 
 export interface BulletState {
@@ -406,13 +408,40 @@ export class Room {
       hp: 30, maxHp: 30,
       lastHitPlayerAt: 0,
       lastSpikeHitAt: 0,
+      lastHitStructureAt: 0,
     });
   }
 
+  /** Each zombie beelines for the nearest alive player at a flat chase speed
+   *  (see ZOMBIE_CHASE_SPEED's doc comment — no per-type speeds server-side).
+   *  Falls back to the old random jitter only when no one is alive to chase,
+   *  so zombies don't freeze in place rather than a deliberate "safe" state.
+   *  No obstacle avoidance/collision with structures — matches the rest of
+   *  this server's model, where proximity drives damage but never blocks
+   *  movement (see the zombie-vs-structure damage loop in resolveCollisions
+   *  for the same simplification applied there). */
   private tickZombiesMovement(): void {
+    const alivePlayers = Array.from(this.players.values()).filter(p => p.alive);
+    const moveDist = ZOMBIE_CHASE_SPEED * (TICK_MS / 1000);
+
     for (const z of this.zombies.values()) {
-      z.x = clamp(z.x + (Math.random() - 0.5) * 20, 0, WORLD_W);
-      z.y = clamp(z.y + (Math.random() - 0.5) * 20, 0, WORLD_H);
+      if (alivePlayers.length === 0) {
+        z.x = clamp(z.x + (Math.random() - 0.5) * 20, 0, WORLD_W);
+        z.y = clamp(z.y + (Math.random() - 0.5) * 20, 0, WORLD_H);
+        continue;
+      }
+
+      let target = alivePlayers[0];
+      let bestDist = dist(z.x, z.y, target.x, target.y);
+      for (const p of alivePlayers) {
+        const d = dist(z.x, z.y, p.x, p.y);
+        if (d < bestDist) { bestDist = d; target = p; }
+      }
+
+      const dx = target.x - z.x, dy = target.y - z.y;
+      const len = bestDist || 1;
+      z.x = clamp(z.x + (dx / len) * moveDist, 0, WORLD_W);
+      z.y = clamp(z.y + (dy / len) * moveDist, 0, WORLD_H);
     }
   }
 
@@ -454,6 +483,23 @@ export class Room {
           p.hp = Math.max(0, p.hp - ZOMBIE_DAMAGE);
           z.lastHitPlayerAt = now;
           if (p.hp === 0) p.alive = false;
+          break; // one hit per zombie per cooldown window
+        }
+      }
+    }
+
+    // Zombie-vs-structure: same flat-damage/cooldown shape as zombie-vs-player
+    // above, reusing ZOMBIE_DAMAGE/ZOMBIE_HIT_COOLDOWN_MS rather than adding
+    // new constants (roughly matches the client's solo-mode ~14/sec melee
+    // rate over a 600ms window). Actual removal happens in tickStructures()'s
+    // existing hp<=0 cleanup, which runs right after this in the same tick.
+    for (const z of this.zombies.values()) {
+      if (now - z.lastHitStructureAt < ZOMBIE_HIT_COOLDOWN_MS) continue;
+      for (const s of this.structures.values()) {
+        const reach = STRUCTURE_DEFS[s.type].radius + ZOMBIE_RADIUS;
+        if (dist(z.x, z.y, s.x, s.y) < reach) {
+          s.hp -= ZOMBIE_DAMAGE;
+          z.lastHitStructureAt = now;
           break; // one hit per zombie per cooldown window
         }
       }

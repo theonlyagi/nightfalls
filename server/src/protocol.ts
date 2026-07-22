@@ -23,6 +23,14 @@ export const ZOMBIE_DAMAGE = 8;
 export const ZOMBIE_HIT_COOLDOWN_MS = 600;
 export const ZOMBIE_KILL_XP = 10;
 
+/** World units/sec while chasing the nearest alive player. There's no
+ *  existing server-side value to match — the client's per-type speedMul
+ *  system isn't ported (server has one generic zombie, see the zombie-model
+ *  gap in CLAUDE.md) — so this is a fresh constant, picked at ~75% of
+ *  measured player movement speed (~120 u/s) so zombies threaten but don't
+ *  guarantee a catch. Tune freely. */
+export const ZOMBIE_CHASE_SPEED = 90;
+
 export const BULLET_SPEED = 9.5;
 export const BULLET_LIFE_TICKS = 60;
 export const BULLET_RADIUS = 5;
