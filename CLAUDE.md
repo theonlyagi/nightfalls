@@ -33,6 +33,18 @@ still outstanding** — the stuff a new session wouldn't otherwise know.
   `constants.ts`, `game.ts`, `render/`, `state.ts`, `systems/`, `ui/`,
   `utils.ts` (a teammate's refactor — the very old monolithic
   single-file `game.ts` is gone).
+- ⚠️ **`npm run build` now runs through `scripts/build-client.js`** (added
+  2026-07-22, replacing a raw `esbuild` CLI call) so `WS_URL` can be baked
+  in from the environment at build time — see the multiplayer section's
+  deployment-status entry for the full mechanism. **New failure mode this
+  adds, in the same family as the `docs/` staleness risk above**: running
+  `npm run build:share` for a real release *without* first setting
+  `WS_URL=wss://night-falls.xyz` will silently publish `docs/index.html`
+  pointing at `ws://localhost:8081` — no error, just a broken multiplayer
+  connect for anyone who loads the live site. `npm run watch` is
+  unaffected (still the old raw esbuild CLI, always defaults to
+  localhost) — this only matters for whichever build produces the release
+  that actually gets published.
 - Debug/cheat console: press **Home** in-game, password **`agi123`**. It's a
   local testing tool, not a real security gate (says so on the panel itself).
 
@@ -41,12 +53,167 @@ still outstanding** — the stuff a new session wouldn't otherwise know.
 The user's plan: instant-queue Team Mode (no browsing rooms), 2-4 players,
 everyone readies up, a 3s countdown that cancels on unready/new-joiner, then
 the match starts for real. User wants deployment on `night-falls.xyz`
-(Linode VPS + Cloudflare DNS-only for the WS subdomain + Let's Encrypt) —
-**not started yet as of this writing**, confirm current status before
-assuming otherwise. User has explicitly said: **sync everything** (not a
-stripped-down v1) — structures, day/night, Blood Moon, shop, and
-weapon/mutation choices should all eventually be server-authoritative too,
-not just position/zombies/bullets.
+(Linode VPS + Cloudflare DNS-only for the WS subdomain + Let's Encrypt).
+User has explicitly said: **sync everything** (not a stripped-down v1) —
+structures, day/night, Blood Moon, shop, and weapon/mutation choices should
+all eventually be server-authoritative too, not just position/zombies/bullets.
+
+⚠️ **Deployment status: LIVE as of 2026-07-22.** `night-falls.xyz` is up
+and running the multiplayer server for real — see "First real run" further
+down for the deploy itself and the permission bug that was found and fixed
+along the way. Infra side (VPS/DNS/TLS/nginx/systemd) was originally set up
+in a *separate* Claude session with actual VPS console access ("Claude
+console" per the user); this session gained actual SSH access partway
+through (the key the other session set up at `~/.ssh/nightfalls_key` turned
+out to also be present here) and used it, with the user's explicit
+go-ahead, to run the deploy and fix the permission bug directly. As
+reported/found: Linode VPS at `74.207.234.155`, Ubuntu 24.04, DNS for
+`night-falls.xyz`/`www.night-falls.xyz` live, Let's Encrypt cert (auto-
+renews, HTTP→HTTPS redirect), nginx reverse-proxying 443/80 →
+`127.0.0.1:3000` (WS upgrade headers on `/ws`, static files served
+directly from `/var/www/nightfalls/public` for `/`), Node.js 22, and a
+`nightfalls.service` systemd unit (user `nightfalls`, working dir
+`/var/www/nightfalls`, `PORT=3000`) — now actually running the deployed
+code, confirmed via a live WebSocket test, not just "service is active."
+
+⚠️ **Second, more severe deploy bug found and fixed same day, after the
+first deploy already "succeeded": `scripts/deploy.sh` baked in
+`WS_URL="wss://night-falls.xyz"` — missing the `/ws` path.** This meant
+every *real* browser client (not my own raw WebSocket test scripts, which
+had `/ws` hardcoded) was connecting to `/` — nginx's static-file location —
+instead of `/ws`, the one actually proxied to the game server. The
+handshake just silently failed for real users; two players queuing would
+never see each other (each stuck alone in their own client-side lobby
+state, showing 0/4 or 1/4 depending on timing, never converging), even
+though the server's own room-assignment logic (`RoomManager.assign()`) was
+completely correct the whole time — confirmed by testing it directly with
+raw WebSocket connections both locally and against production (4 landed in
+one room, a 5th correctly got a new one) *before* finding this bug, which
+is what made it clear the problem was in the URL, not the room logic.
+**Found by reproducing the exact user-reported symptom** ("queue shows
+1/4, friend joins, still shows 1/4, never end up together") with two real
+browser tabs against the live site (properly cleared `localStorage`
+between them, ruling out the unrelated shared-token quirk noted in this
+doc's environment-quirks section) plus a runtime `WebSocket` constructor
+wrapper to log the actual connection URL each client used — that's what
+directly exposed the missing `/ws`. **Fixed**: `scripts/deploy.sh`'s
+`WS_URL` now reads `wss://night-falls.xyz/ws`; redeployed (client-only
+change, no server code touched) and reverified with two real browser tabs
+— both now correctly see each other and stay in sync in real time. Every
+multiplayer connection between the first deploy and this fix would have
+been broken for real users, worth keeping in mind if anyone reports having
+tried the site earlier in the day and bounced off it.
+
+**Code-side readiness for that setup, checked/fixed 2026-07-22:**
+- `ALLOWED_ORIGINS` — **already correct, no change needed.**
+  `server/src/index.ts` reads `process.env.ALLOWED_ORIGINS`, splits on
+  comma, trims each entry, filters empties — `https://night-falls.xyz,
+  https://www.night-falls.xyz` (with or without a space after the comma)
+  will parse correctly as-is. Just needs that env var actually set on the
+  VPS side (systemd unit or equivalent) — nothing to change here in code.
+- `WS_URL` — **fixed, now build-time env-driven instead of a hardcoded
+  constant.** Client JS has no runtime `process.env` (it's a static browser
+  bundle), so build time is the only point a production URL can be baked
+  in. Added `scripts/build-client.js` (a thin Node wrapper around esbuild's
+  JS API, replacing the old raw `esbuild` CLI call in `npm run build`) that
+  reads `process.env.WS_URL` and passes it to esbuild's `define` as
+  `__WS_URL__`; `src/constants.ts` now reads `WS_URL` from that
+  build-time constant, falling back to `ws://localhost:8081/ws` if unset
+  (kept safe via a `typeof __WS_URL__ !== 'undefined'` guard, so `npm run
+  watch` — still the old raw CLI, untouched — keeps working for local dev
+  without ever needing to define it). **To produce the real production
+  bundle**: set `WS_URL=wss://night-falls.xyz` (no port — nginx terminates
+  TLS and proxies internally to 3000, matching what's reported set up)
+  before running `npm run build` or `npm run build:share`. Verified both
+  paths: unset build still bakes in localhost, `WS_URL=wss://night-falls.xyz
+  npm run build` correctly bakes the real URL into `public/game.js` (grepped
+  the output to confirm), then rebuilt back to the localhost default
+  afterward so local dev/testing wasn't left pointing at production.
+- **Entry point — fixed 2026-07-22 from the VPS-console session (the "other
+  session" this doc previously referred to).** `ExecStart` in
+  `nightfalls.service` now points at `node dist/index.js` (matches
+  `server/package.json`'s actual compiled output), no longer the incorrect
+  flat `server.js`. `ALLOWED_ORIGINS=https://night-falls.xyz,
+  https://www.night-falls.xyz` is now also set directly in the systemd unit
+  (`Environment=` line), so nothing needs to be done code-side for it —
+  confirmed already env-driven as noted below.
+- ⚠️ **New gap found by the VPS session, 2026-07-22, not previously known
+  to either session: the uWebSockets server never serves the client's
+  static files.** `server/src/index.ts` only defines `/health` and `/ws`
+  routes (`app.get`/`app.ws`) — there is no static-file serving for
+  `index.html`/`game.js`/`styles.css`/`assets/` at all. The VPS's nginx
+  config was originally proxying *everything* to the Node process, which
+  would have 404'd the actual game page. **Fixed on the nginx side**: nginx
+  now serves `/var/www/nightfalls/public` directly as static files (`root`
+  + `try_files`) for `/`, and only reverse-proxies `/ws` and `/health` to
+  `127.0.0.1:3000`. **This means the deploy flow needs to land the built
+  `public/` directory (repo root's `public/`, built via `npm run build` /
+  `build:share` with `WS_URL` set) into `/var/www/nightfalls/public`**, in
+  addition to `server/dist/` (→ `/var/www/nightfalls/dist`) and
+  `server/package.json` for `npm install`. Full expected layout on the VPS:
+  ```
+  /var/www/nightfalls/
+    dist/            (server/dist/*, compiled via tsc)
+    package.json     (server/package.json, for npm install — has the
+                       native uWebSockets.js dependency, must be installed
+                       ON the VPS/matching arch, not copied from a dev
+                       machine's node_modules)
+    public/           (repo-root public/*, built with WS_URL set)
+  ```
+  `scripts/deploy.sh` (run via `npm run deploy`) builds the server
+  (`server`: `npm run build`) and client (root: `WS_URL=wss://night-falls.xyz
+  npm run build`), uploads `server/dist/`, `server/package.json`, and
+  `public/` to `/var/www/nightfalls` via `scp` (using
+  `~/.ssh/nightfalls_key`), runs `npm install --omit=dev` **on the VPS**
+  (required — `uWebSockets.js` is a native module and must be installed on
+  the target arch, not copied from a dev machine's `node_modules`), then
+  `chown`s to the `nightfalls` user and restarts `nightfalls.service`.
+  Known limitation: uses `scp`, not `rsync --delete`, so files removed
+  locally aren't removed from the VPS — fine for now.
+
+  ⚠️ **First real run, 2026-07-22 — site is now live, but read this before
+  the next deploy.** The script itself ran clean (build → upload → `npm
+  install` → restart, service came up active). The site still 404'd on
+  first load, though — a bug the script's success didn't reveal:
+  `/var/www/nightfalls` itself was `750` (`nightfalls:nightfalls`, no
+  "other" access) from whenever the directory was first created, and
+  nginx's worker runs as `www-data`, which isn't `nightfalls` and isn't in
+  that group. `www-data` therefore couldn't even *traverse into*
+  `/var/www/nightfalls` to reach `public/` — irrelevant that `public/`
+  itself and everything under it was already correctly `755`/world-
+  readable, since Linux directory traversal requires execute permission on
+  every parent in the path, not just the final one. `try_files ... =404`
+  turns a permission-denied stat/open at any point in that chain into a
+  plain 404, not a 403, which is why it looked like a missing-file problem
+  rather than a permissions one. **Fixed**: `chmod o+x /var/www/nightfalls`
+  — adds *only* traverse, not read, so `www-data` can reach the known
+  `public/` subpath without being able to `ls` the directory and see
+  `dist/`/`package.json`/`node_modules` exist. This is a one-time fix to
+  the directory as it exists now; `deploy.sh` doesn't set this permission
+  itself (it only `chown`s, never `chmod`s), so if `/var/www/nightfalls`
+  is ever recreated from scratch this will need reapplying — worth adding
+  a `chmod o+x` step to `deploy.sh` itself if that's ever a concern, not
+  done yet.
+
+  **Confirmed live and fully working after the permission fix**: page
+  loads with no console errors, and a raw WebSocket test
+  (`node -e` with the built-in `WebSocket` global, against
+  `wss://night-falls.xyz/ws`) connected and received a correct `players`
+  snapshot from the server — the actual multiplayer path works end-to-end
+  in production, not just "the process is running."
+
+  ⚠️ **Separate, non-blocking issue found while checking this: `/health`
+  returns 505** ("HTTP Version Not Supported"). The `location /health`
+  block in nginx proxies to the Node process without `proxy_http_version
+  1.1;` — nginx defaults to `1.0` for the upstream connection when that
+  directive is omitted, and uWebSockets explicitly rejects HTTP/1.0
+  requests. The `location /ws` block already has `proxy_http_version 1.1;`
+  set (needed for the WS upgrade), which is exactly why the actual game
+  connection is unaffected — this only breaks the standalone health-check
+  endpoint, nothing gameplay-related. **Not fixed** — it's a one-line
+  nginx config addition + reload, but nginx config is the VPS-console
+  session's domain, not edited from here without checking first; flagged
+  for a decision rather than changed unilaterally.
 
 **Server (`server/`, standalone Node/TypeScript/uWebSockets.js, AGPL-3.0 —
 see `server/NOTICE.md`):**
@@ -57,11 +224,24 @@ see `server/NOTICE.md`):**
   here). New joiners never land in an already-active room even with open
   slots. Player moves now carry `angle`; `PlayerSnapshot`/`LobbyPlayerSnapshot`
   broadcast `name` + `angle` too.
-- Zombie model is still **generic/flat** — one wander-and-chase archetype,
-  no types (normal/scout/brute/wolf/spider/witch/etc. from the client don't
-  exist server-side). This is the biggest gap for true "sync everything"
-  parity — porting `ZTYPE`/`pickZombieType`/the ranged & explode & summon AI
-  from `src/systems/update.ts` to the server is unstarted.
+- Zombie model is still **generic/flat** — no types (normal/scout/brute/
+  wolf/spider/witch/etc. from the client don't exist server-side). This is
+  the biggest gap for true "sync everything" parity — porting `ZTYPE`/
+  `pickZombieType`/the ranged & explode & summon AI from
+  `src/systems/update.ts` to the server is unstarted.
+  ⚠️ **Corrected 2026-07-22, then fixed same day**: this was previously
+  described as a "wander-and-chase archetype" — that was wrong at the time
+  (`tickZombiesMovement()` was pure random jitter, zero reference to player
+  position). **Now actually implemented**: `tickZombiesMovement()` finds
+  the nearest *alive* player and moves the zombie straight at them at a
+  flat `ZOMBIE_CHASE_SPEED` (90 u/s, a fresh constant in `protocol.ts` —
+  there's no prior client-side value to match since the client's per-type
+  `speedMul` system isn't ported). Falls back to the old random jitter only
+  when no one is alive (so zombies don't freeze mid-map). **Confirmed live
+  2026-07-22**: a zombie closed 255→3 world units on a stationary player in
+  ~3 real seconds, moving in a clean straight line. Still just one generic
+  archetype/speed — no scout/brute/wolf variety, no ranged/explode/summon
+  behavior; that porting work is unchanged/unstarted.
 - Bullets are single-generic-type only — no weapon awareness (no pellet
   count/spread for shotgun/dualguns, no explosive/burn). `ShootPacket` only
   carries `angle`.
@@ -78,6 +258,29 @@ see `server/NOTICE.md`):**
   list). No traveling bullet entities for tower shots either — damage
   applies directly on cooldown, same as how `sniper` already worked
   client-side.
+  ⚠️ **Gap found 2026-07-22, fixed same day**: there was no code path
+  server-side that damaged a *structure's* hp — `resolveCollisions()` only
+  did bullet-vs-zombie and zombie-vs-player; `tickStructures()` only did
+  structures-attacking-zombies/players, never the reverse. **Now fixed**:
+  `resolveCollisions()` has a new zombie-vs-structure loop, same
+  cooldown-gated-flat-damage shape as the existing zombie-vs-player loop
+  right above it (reuses `ZOMBIE_DAMAGE`/`ZOMBIE_HIT_COOLDOWN_MS` rather
+  than new constants — roughly matches the client's solo-mode ~14/sec
+  melee-vs-structure rate over a 600ms window). `ZombieState` gained a
+  `lastHitStructureAt` field, independent of `lastHitPlayerAt`, so a zombie
+  can damage a player and a structure in the same tick if both are in
+  range. **Deliberately does not add collision/blocking physics** — unlike
+  the client's solo-mode version (which pushes the zombie back and treats
+  the structure as a real obstacle), server zombies walk straight through
+  structures the same way they already walk through players/each other;
+  only proximity-based damage was added, matching this server's existing
+  no-collision movement model everywhere else. **Confirmed live
+  2026-07-22**: a freshly-placed 40hp spike was destroyed by real zombie
+  contact within ~4 seconds of a fresh match starting, removed identically
+  on both clients — via the actual gameplay trigger this time, not the
+  temporary forced-test patch from earlier in the day (see below). The
+  existing `if (s.hp <= 0) this.structures.delete(s.id)` cleanup in
+  `tickStructures()` is no longer dead code.
 - Day/night, Blood Moon, shop, weapon/mutation choice: **zero server-side
   sync**, not started.
 
@@ -148,17 +351,63 @@ see `server/NOTICE.md`):**
   the documented "server doesn't model armor" gap). Verified after with a
   typecheck, full rebuild, a DOM-id integrity check (every `byId()` target
   still exists in the merged HTML), and a live 2-player match test.
-- **Structures sync landed 2026-07-21, partially verified — read this
-  before doing anything else with structures.** Placement sync and upgrade
-  sync (including cross-player upgrades — any player can upgrade any
-  structure, no ownership check) are each confirmed **twice**, with real
-  two-browser-client tests, including one direct structure-state comparison
-  showing byte-identical objects on both clients. **NOT yet exercised
-  live**, though implemented in the same tick loop and typechecked/built
-  clean: tower-vs-zombie combat, campfire healing a damaged player, and
-  structure destruction/removal actually propagating. Verify those three
-  first before building day/night/shop/etc. on top — the session that built
-  this ran out of time/usage before finishing that part of the checklist.
+- **Structures sync landed 2026-07-21; verification checklist now fully
+  closed out as of 2026-07-22 — read this before doing anything else with
+  structures.** Placement sync and upgrade sync (including cross-player
+  upgrades — any player can upgrade any structure, no ownership check) are
+  each confirmed **twice**, with real two-browser-client tests, including
+  one direct structure-state comparison showing byte-identical objects on
+  both clients.
+  **Tower-vs-zombie combat: confirmed live 2026-07-22.** Built a cannon
+  next to a manually-walked-in zombie in a real 2-client match; the
+  zombie's hp dropped to 0 and it was removed from `__debugZombies`
+  identically on both clients, with the cannon's `aimAngle` reflecting
+  live target-tracking.
+  **Campfire healing a damaged player: confirmed live 2026-07-22.** Took a
+  real zombie hit (100→92 hp, matches `ZOMBIE_DAMAGE=8`), placed a campfire
+  within `CAMPFIRE_HEAL_RADIUS`, watched hp recover back to 100 — synced
+  identically on both clients.
+  **Structure destruction/removal propagating: confirmed twice, 2026-07-22.**
+  First pass (earlier that day) verified the removal/broadcast plumbing
+  only — nothing could reduce a structure's hp yet, so a spike's hp was
+  temporarily forced to 0 via a `setTimeout` in `handleBuild` (marked
+  `// TEMP`, reverted/rebuilt before finishing) to prove
+  `tickStructures()`'s delete-and-broadcast path worked in isolation.
+  Second pass (later that same day, after the zombie-vs-structure damage
+  fix above) confirmed the **real** end-to-end path: a freshly-placed spike
+  was destroyed by actual zombie contact within ~4 seconds, no artificial
+  patch involved, removal synced identically on both clients. Destruction
+  is now a genuine, testable mechanic, not just reachable cleanup code.
+
+- ⚠️ **`main` has diverged again, 2026-07-22 — check `git fetch origin` +
+  `git log b4c94ab..origin/main` before assuming this branch's merge base
+  is still current.** As of this writing `origin/main` is 4 commits ahead
+  of `b4c94ab` (this branch's merge base) — a Florr.io-style menu/GUI
+  redesign, cannon/mortar/sniper PNG-asset tower rendering (2-layer
+  base+turret), and most importantly **"Add structure remove feature,
+  floating inspection UI, 32px tile scaling, and tier wall assets."** This
+  branch (`multiplayer-full-sync-wip`) has *not* merged these yet — a clean
+  symmetric divergence (4 ahead on main, 7 ahead on this branch as of
+  2026-07-22), not yet reconciled like the previous one was.
+  - **`removeInspectedStructure()` (`src/ui/shopUI.ts`) is client-only and
+    not net-aware** — it directly does `structures.splice(idx, 1)` and
+    refunds resources on the local `player` object, with no `inNetMatch`
+    branch at all (unlike `tryBuildOrUpgrade`/`upgradeInspectedStructure`,
+    which both branch on `inNetMatch` to call `sendNetBuild`/
+    `sendNetUpgrade` instead of mutating local state). If merged as-is,
+    clicking "remove" in a live match would delete the structure locally
+    but never tell the server — the next `structures` snapshot broadcast
+    would just make it reappear (`setStructures()` overwrites the array
+    wholesale). **Needs the same `inNetMatch`-branch + a new `remove`
+    packet type (client → server) before/if this gets merged** — this is
+    new protocol work, not just a merge conflict, and hasn't been started.
+  - The `TILE`/`BUILD_REACH` rescale (64→32 tile, reach 3→6 tiles) on main
+    happens to still equal the same absolute `BUILD_REACH=192` the server
+    hardcodes (`server/src/protocol.ts`), so no numeric break today — but
+    it's a reminder the server keeps its own duplicated copy of these
+    constants (documented in `protocol.ts`'s header) rather than importing
+    from `src/`, so future client-side balance tweaks silently won't reach
+    the server unless mirrored by hand.
 
 **Recommended next steps, in order:**
 1. ~~Finish visually verifying remote-player/zombie/bullet rendering~~ —
@@ -167,20 +416,61 @@ see `server/NOTICE.md`):**
    user chose to merge now; done.
 3. ~~Reconcile `multiplayer-full-sync-wip` against `main`'s divergence~~ —
    user chose to do this now rather than keep deferring; done.
-4. **Finish verifying structures sync** (see bullet above) — tower combat,
-   campfire heal, structure destruction. All three should just work (same
-   code path as the two already-verified pieces) but haven't been watched
-   happen live yet.
-5. Then: day/night + Blood Moon sync, then shop/weapon/mutation sync — each
-   its own real chunk (new packet types, new server state), test-as-you-go.
-6. Only open a PR once the user says it's ready — they were explicit about
-   this.
+4. ~~Finish verifying structures sync~~ — tower combat, campfire heal, and
+   (as of later the same day) real structure destruction all confirmed live
+   2026-07-22.
+5. ~~Port zombie-vs-structure melee damage + fix the missing chase AI~~ —
+   done 2026-07-22, same session as step 4, once the user confirmed they
+   wanted these closed before considering a launch (see below). Both are
+   now real, confirmed-live mechanics, not just plumbing.
+6. ~~Confirm `ALLOWED_ORIGINS`/`WS_URL` are ready for the real domain~~ —
+   done 2026-07-22. `ALLOWED_ORIGINS` needed no code change (already
+   env-driven); `WS_URL` is now build-time env-driven via
+   `scripts/build-client.js`. Entry-point naming was resolved by the
+   VPS-console session (`ExecStart` now points at `dist/index.js`), not by
+   changing the build.
+7. ~~First real deploy to `night-falls.xyz`~~ — done 2026-07-22, with the
+   user's explicit go-ahead. `npm run deploy` (`scripts/deploy.sh`) ran
+   clean end-to-end; hit a site-wide 404 from a pre-existing directory-
+   permission gap (unrelated to the script itself), diagnosed and fixed
+   live (see the deploy-status section's "First real run" entry for the
+   full story). My own raw-WebSocket smoke test passed right after, but
+   that turned out to be a false green — see next item. One small
+   non-blocking loose end still open: `/health` returns 505 (separate
+   nginx config gap, doesn't affect gameplay) — flagged, not fixed, needs
+   a decision on who touches nginx config next.
+8. ~~Fix real multiplayer connections actually working for real users~~ —
+   done 2026-07-22, same day as the first deploy. The user reported two
+   players queuing never seeing each other (stuck at 0/4 or 1/4,
+   inconsistently) — root cause was `deploy.sh`'s `WS_URL` missing the
+   `/ws` path, so every real browser client silently failed its WS
+   handshake against the wrong nginx location. Full story in the
+   deployment-status section's second ⚠️ bullet. Fixed, redeployed
+   (client-only), reverified live with two real browser tabs actually
+   seeing each other and syncing in real time. **This means multiplayer
+   was effectively non-functional for real users from the first deploy
+   until this fix, same day** — worth knowing if anyone reports having
+   bounced off the site earlier.
+9. **Before merging anything further**: reconcile the `main` divergence
+   (see the ⚠️ bullet above) — in particular `removeInspectedStructure()`
+   needs net-awareness added *before or during* that merge, or it ships
+   broken for multiplayer that's now live in production.
+10. Then: day/night + Blood Moon sync, then shop/weapon/mutation sync — each
+    its own real chunk (new packet types, new server state), test-as-you-go.
+    **This is now post-launch work** — the site is live with a subset of
+    "sync everything" — confirm with the user whether/when these still
+    matter now that something real is already up.
+11. Only open a PR once the user says it's ready — they were explicit
+    about this. Note the deployed server code is running directly off
+    this branch's build output, not off `main` — the branch-vs-PR
+    question is about the *repo*, separate from what's live on the VPS.
 
 **Do not push directly to `main`** — branch protection will reject it
-anyway; use a feature branch + PR. **Do not deploy/expose the server
-publicly** without checking `ALLOWED_ORIGINS` is set to the real domain
-first, and without the user's explicit go-ahead (this touches shared/public
-infrastructure once live).
+anyway; use a feature branch + PR. **Deploying/exposing the server
+publicly now requires re-confirming with the user each time**, same as
+before — the fact that the first deploy already happened with explicit
+go-ahead (2026-07-22) doesn't carry forward as standing authorization for
+future deploys; ask again.
 
 ## Known environment quirks (only relevant if testing in this Browser pane)
 
@@ -250,3 +540,122 @@ straight to the canvas-dump workaround below.
   before finalizing` and actually remove it (and rebuild) before treating
   the work as done. Left in this session's structures-sync commit history
   but removed before the final commit — grep for `__debug` if in doubt.
+  Note this only needs installing on the *client* — server-side combat/
+  sync ticks run on the Node process's own timer, completely independent
+  of any browser tab's visibility state, so waiting/polling for
+  server-driven state changes (combat, healing, destruction) via plain
+  `sleep` + a separate check call is fine; the quirks below about
+  needing real in-page timing are specific to *client-driven input*
+  (movement, UI), not to observing server broadcasts.
+- **`get_page_text` is unreliable for this app — confirmed 2026-07-22.**
+  It reads a fixed element (looked like `<main>`) regardless of whether
+  it (or an ancestor) is actually `display:none`; it happily returned the
+  full main-menu text (name field, mode select, etc.) while that overlay
+  was confirmed hidden and a completely different overlay was the one
+  actually visible. Don't use it to confirm *which* overlay/screen is
+  currently shown in this app's overlay-stack UI. Use direct DOM queries
+  instead: `el.offsetParent !== null` (or `getComputedStyle(el).display`)
+  on the specific heading/button you expect, e.g.
+  `Array.from(document.querySelectorAll('h1,h2,h3')).filter(h =>
+  h.offsetParent !== null).map(h => h.textContent)`.
+- **Ref-based clicking (`computer{action:"left_click", ref:...}`) silently
+  fails for this app's custom clickable elements** — e.g. the mode-select
+  cards and other `div`-with-onclick elements (not real `<button>` tags)
+  resolved to a `(0,0)` coordinate and clicked nothing, with no error.
+  `read_page`'s `interactive` filter also badly undercounts elements in
+  this app (misses things later confirmed clickable, and inconsistently
+  omits elements that showed up moments earlier under the `all` filter).
+  Most reliable approach found: skip `computer`/`read_page`-ref clicking
+  for this app entirely and dispatch synthetic DOM events directly via
+  `javascript_tool` (`el.click()`, or `dispatchEvent(new MouseEvent(...))`
+  for canvas coordinates) — confirm success by checking resulting state
+  (e.g. a CSS class change, a button's text changing to "QUEUE UP") rather
+  than trusting the click call's own return value.
+- **Debug-console interactions (Home-key panel: unlock, grant resources,
+  etc.) also need real elapsed time between steps**, same underlying cause
+  as the `requestAnimationFrame`-shim issue below — the panel's state
+  change (e.g. becoming unlocked, revealing the resource-grant inputs)
+  is gated behind a render tick that won't happen if everything is
+  dispatched synchronously in one script with no `await` in between.
+  Cramming open→unlock→set-value→click-add into one synchronous script
+  silently no-ops (values stay at 0); adding real waits (~300-400ms) via
+  `await new Promise(r => setTimeout(r, ms))` between each step fixes it.
+- **Short/precise player-movement bursts are unreliable, and this is a
+  refinement of the `requestAnimationFrame`-shim quirk above, not a
+  separate issue.** The shim's own `setTimeout(fn, 16)` callbacks are
+  *themselves* subject to the same background-tab throttling — in a
+  sufficiently-backgrounded tab, Chrome can clamp them to firing far less
+  often than every 16ms. A brief keydown-then-keyup (a few hundred ms)
+  dispatched between two separate tool calls can land entirely *between*
+  two rare shim firings and register as if the key was never pressed —
+  and because each tool call round-trip itself adds unpredictable real
+  elapsed time on top of any explicit `sleep`, two nominally-identical
+  "hold key for 150ms" attempts can produce wildly different (or
+  wrong-direction) results. Fix: control hold duration with a real
+  in-page timer inside **one** `javascript_tool` script — `await new
+  Promise(r => setTimeout(r, ms))` between a `keydown` and its matching
+  `keyup` — never split a single timed hold across two separate tool
+  calls (a `sleep` in between measures the wrong thing). Prefer holds of
+  500ms or longer for reliable, reproducible distance; anything shorter is
+  a coin flip in this environment. First calibrate speed with one clean
+  single-axis hold (e.g. hold `d` alone for exactly 500ms via the in-page
+  timer) before trying to navigate anywhere — measured this session at
+  ~120 units/sec for a base-speed player, single axis.
+- **Zombies drift randomly if no one is alive to chase, which can still
+  invalidate a precomputed heading.** (Historical note: this was written
+  when zombie movement was pure random jitter with no chase AI at all —
+  see the corrected zombie-movement entry above, chase AI now exists as of
+  2026-07-22. The jitter fallback only applies now when every player is
+  dead.) If you still need to walk a player to a specific zombie for any
+  reason, use a closed-loop pursuit *inside one script*: recompute the
+  direction from current positions every ~150-200ms, tap the corresponding
+  keys for just that interval, and break out the moment either hp drops
+  (contact happened) or distance crosses a small threshold (~40-50 units)
+  — don't commit to one long fixed-direction hold aimed at a stale
+  position. In practice, with chase AI now live, it's usually easier to
+  just stand still and let a zombie come to you (see the player-death
+  bullet below for why that's now riskier too).
+- **Player death is permanent for a match — there is no respawn.**
+  `Room.ts` sets `p.alive = false` at 0 hp and nothing ever sets it back;
+  `handleMove`/`handleShoot`/`handleBuild`/`handleUpgrade` all early-return
+  on `!p.alive`, so a dead player's client silently stops affecting
+  anything server-side (their character will appear frozen — this is
+  *expected*, not a bug, if you see it mid-test). `ZOMBIE_DAMAGE` is a
+  mild 8 hp per hit with a 600ms per-zombie cooldown
+  (`server/src/protocol.ts`), but **lingering near a zombie across several
+  slow tool-call round-trips lets multiple cooldown windows elapse
+  unnoticed**, and the damage adds up fast enough to kill from full hp
+  within what feels like "just checking the distance a couple more
+  times." Retreat hard (and check `alive`, not just `hp`) the moment any
+  hp drop is detected, in the same script, rather than reacting in a
+  follow-up tool call.
+  ⚠️ **This got much more dangerous 2026-07-22 once zombie chase AI was
+  fixed** (see above) — zombies now reliably reach a stationary player
+  within a few real seconds instead of never. Twice this session, both
+  test players died fully unattended (spawned, then simply weren't acted
+  on for the next several tool calls) because multiple zombies converged
+  on the shared spawn point faster than expected. **Any multi-step flow
+  spanning "match starts" needs to happen in as few real tool-call
+  round-trips as possible** — every gap between calls is extra real
+  wall-clock time (your own reasoning/typing time counts too, not just
+  explicit `sleep`s) for zombies to close in. What worked reliably: do
+  ready-up → poll-until-active (via an in-page loop checking
+  `document.querySelectorAll('h1,h2,h3')` for zero visible headings,
+  *inside the same script*, not a separate `sleep`-then-check) →
+  debug-console grant → build, all as **one continuous `javascript_tool`
+  call** per player, rather than spreading these steps across separate
+  tool calls with reasoning in between. If you only need to prove a
+  server-tick-driven mechanic (combat, healing, destruction) and don't
+  need the specific player to survive, it's fine to let them die after
+  their one required action — the structure/zombie state keeps updating
+  and syncing regardless of player alive-state.
+- **Placing two structures close together can silently upgrade instead of
+  placing a second one.** `tryBuildOrUpgrade()` (`src/ui/shopUI.ts`) checks
+  for an existing "occupant" near the target cell first; if found, it
+  attempts to *upgrade* that occupant (costs `points`, not wood/stone)
+  instead of placing something new — and silently no-ops if the player has
+  0 points, which they will by default. Discovered when two placements
+  offset by only ~60px from each other resulted in just one structure
+  existing. Space test placements at least 100+ screen px apart (or check
+  `__debugStructures`'s length after each placement) if you need several
+  distinct structures near one spawn point.
