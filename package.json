@@ -4,12 +4,13 @@
   "private": true,
   "description": "Top-down browser zombie survival game.",
   "scripts": {
-    "build": "esbuild src/game.ts --bundle --outfile=public/game.js --target=es2020",
+    "build": "node scripts/build-client.js",
     "watch": "esbuild src/game.ts --bundle --outfile=public/game.js --watch --target=es2020",
     "typecheck": "tsc --noEmit",
     "build:scripts": "tsc -p scripts/tsconfig.json",
     "build:share": "npm run build && npm run build:scripts && node scripts/build-share.js",
-    "serve": "npx --yes serve public -l 8080"
+    "serve": "npx --yes serve public -l 8080",
+    "deploy": "bash scripts/deploy.sh"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

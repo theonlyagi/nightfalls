@@ -4,7 +4,7 @@
   var WORLD_H = 4200;
   var TILE = 64;
   var BUILD_REACH = TILE * 3;
-  var WS_URL = "ws://localhost:8081/ws";
+  var WS_URL = true ? "ws://localhost:8081/ws" : "ws://localhost:8081/ws";
   var BASE_STATS = {
     radius: 22,
     maxHp: 100,
