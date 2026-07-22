@@ -31,7 +31,14 @@ export const ZOMBIE_KILL_XP = 10;
  *  guarantee a catch. Tune freely. */
 export const ZOMBIE_CHASE_SPEED = 90;
 
-export const BULLET_SPEED = 9.5;
+/** World units/sec. Matches the client's effective solo-mode bullet speed
+ *  (BASE_STATS.bulletSpeed=9.5 applied per rendered frame at ~60fps, i.e.
+ *  9.5*60). The server ticks at TICK_MS not 60fps, so callers must scale
+ *  this by (TICK_MS/1000) to get the correct per-tick displacement — same
+ *  pattern as ZOMBIE_CHASE_SPEED below. Previously this constant held the
+ *  raw per-frame value (9.5) and was applied directly as a per-tick
+ *  displacement, making multiplayer bullets ~6x slower than intended. */
+export const BULLET_SPEED_PER_SEC = 9.5 * 60;
 export const BULLET_LIFE_TICKS = 60;
 export const BULLET_RADIUS = 5;
 export const BULLET_DAMAGE = 12;
