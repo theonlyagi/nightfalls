@@ -1,6 +1,6 @@
 import {
   camera, player, resources, crates, powerups, structures, zombies,
-  shake, bloodMoon, dayNight
+  shake, bloodMoon, dayNight, remotePlayers
 } from '../state';
 import { WORLD_W, WORLD_H } from '../constants';
 import { clamp, rand } from '../utils';
@@ -10,7 +10,7 @@ import {
   drawFireZones, drawToxicClouds, drawSniperLasers, drawTeslaChains
 } from './drawWorld';
 import { drawZombie } from './drawZombie';
-import { drawBullets, drawPlayer, drawParticles, drawPowerup } from './drawPlayer';
+import { drawBullets, drawPlayer, drawParticles, drawPowerup, drawRemotePlayer } from './drawPlayer';
 
 export function drawNightOverlay(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement): void {
   if (bloodMoon.active) {
@@ -98,6 +98,7 @@ export function render(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement)
   drawBuildPreview(ctx);
   for (const z of zombies) drawZombie(ctx, canvas, z);
   drawBullets(ctx);
+  for (const rp of remotePlayers) drawRemotePlayer(ctx, rp);
   drawPlayer(ctx);
   drawParticles(ctx);
 

@@ -14,12 +14,14 @@ import {
   setManualBuildAngle, shopOpen, setShopOpen, factoryOpen, setFactoryOpen,
   inspectedStructure, setInspectedStructure,
   weaponChoiceOpen, setWeaponChoiceOpen,
-  mutationChoiceOpen, setMutationChoiceOpen, zombies, zombiesToSpawn, wave
+  mutationChoiceOpen, setMutationChoiceOpen, zombies, zombiesToSpawn, wave,
+  inNetMatch,
 } from '../state';
 import { byId, snapAngleToCardinal } from '../utils';
 import { applyPowerup, showBanner, spawnParticle, spawnBurst } from '../systems/combat';
 import { findNearestShop, findNearestFactory } from '../systems/update';
 import { getBuildTarget, getPlacementAngle, worldToScreen } from '../render/drawWorld';
+import { sendNetBuild, sendNetUpgrade, sendNetRemove } from '../net/matchSync';
 
 const imgCannonBase = new Image();
 imgCannonBase.src = 'assets/structures/cannon_base.png';
@@ -416,10 +418,14 @@ export function tryBuildOrUpgrade(): void {
       if (next) {
         if (player.points >= next.pointsCost) {
           player.points -= next.pointsCost;
-          occupant.tier = curTier + 1;
-          occupant.maxHp = next.hpMax;
-          occupant.hp = next.hpMax;
-          if (occupant.type === 'spike') { occupant.damage = next.damage; }
+          if (inNetMatch && occupant.id) {
+            sendNetUpgrade(occupant.id);
+          } else {
+            occupant.tier = curTier + 1;
+            occupant.maxHp = next.hpMax;
+            occupant.hp = next.hpMax;
+            if (occupant.type === 'spike') { occupant.damage = next.damage; }
+          }
           spawnParticle(occupant.x, occupant.y - 30, next.name.toUpperCase() + ' ' + occupant.type.toUpperCase(), '#c7cfd2');
         } else {
           spawnParticle(player.x, player.y - 30, 'need ' + next.pointsCost + ' points', '#ff8080');
@@ -448,14 +454,18 @@ export function tryBuildOrUpgrade(): void {
         
         if (player[res] >= amt) {
           player[res] -= amt;
-          occupant.level = curLvl + 1;
-          
-          const hpFactor = 1.0 + (occupant.level - 1) * 0.50;
-          const baseHp = BUILD_DEFS[occupant.type].hp;
-          occupant.maxHp = Math.round(baseHp * hpFactor);
-          occupant.hp = occupant.maxHp;
-          
-          spawnParticle(occupant.x, occupant.y - 30, 'Lv.' + occupant.level + ' ' + occupant.type.toUpperCase() + '!', '#ffd76a');
+          if (inNetMatch && occupant.id) {
+            sendNetUpgrade(occupant.id);
+          } else {
+            occupant.level = curLvl + 1;
+
+            const hpFactor = 1.0 + (occupant.level - 1) * 0.50;
+            const baseHp = BUILD_DEFS[occupant.type].hp;
+            occupant.maxHp = Math.round(baseHp * hpFactor);
+            occupant.hp = occupant.maxHp;
+          }
+
+          spawnParticle(occupant.x, occupant.y - 30, 'Lv.' + (curLvl + 1) + ' ' + occupant.type.toUpperCase() + '!', '#ffd76a');
           spawnBurst(occupant.x, occupant.y, '#ffd76a', 12);
         } else {
           spawnParticle(player.x, player.y - 30, 'need ' + amt + ' ' + res, '#ff8080');
@@ -484,6 +494,13 @@ export function tryBuildOrUpgrade(): void {
   player.wood -= wCost; player.stone -= sCost;
 
   const placedAngle = getPlacementAngle();
+  if (inNetMatch) {
+    // The server is authoritative for the structure itself once in a net
+    // match — it'll appear once its snapshot arrives (one tick, ~100ms),
+    // same latency already present for other synced entities.
+    sendNetBuild(selectedBuild, target.cx, target.cy, placedAngle);
+    return;
+  }
   const s = { type: selectedBuild, x: target.cx, y: target.cy, radius: def.radius, hp: def.hp, maxHp: def.hp, angle: placedAngle } as any;
   if (selectedBuild === 'wall') s.tier = 0;
   if (selectedBuild === 'spike') { s.damage = def.damage; s.tier = 0; }
@@ -818,13 +835,17 @@ export function upgradeInspectedStructure(): void {
       const amt = costInfo.amount;
       if (player[res] >= amt) {
         player[res] -= amt;
-        st.level = curLvl + 1;
-        const hpFactor = 1.0 + (st.level - 1) * 0.50;
-        const baseHp = BUILD_DEFS[st.type].hp;
-        st.maxHp = Math.round(baseHp * hpFactor);
-        st.hp = st.maxHp;
+        if (inNetMatch && st.id) {
+          sendNetUpgrade(st.id);
+        } else {
+          st.level = curLvl + 1;
+          const hpFactor = 1.0 + (st.level - 1) * 0.50;
+          const baseHp = BUILD_DEFS[st.type].hp;
+          st.maxHp = Math.round(baseHp * hpFactor);
+          st.hp = st.maxHp;
+        }
 
-        spawnParticle(st.x, st.y - 30, 'Lv.' + st.level + ' ' + st.type.toUpperCase() + '!', '#ffd76a');
+        spawnParticle(st.x, st.y - 30, 'Lv.' + (curLvl + 1) + ' ' + st.type.toUpperCase() + '!', '#ffd76a');
         spawnBurst(st.x, st.y, '#ffd76a', 12);
         renderStructureInspector();
       } else {
@@ -838,10 +859,14 @@ export function upgradeInspectedStructure(): void {
     if (next) {
       if (player.points >= next.pointsCost) {
         player.points -= next.pointsCost;
-        st.tier = curTier + 1;
-        st.maxHp = next.hpMax;
-        st.hp = next.hpMax;
-        if (st.type === 'spike') st.damage = next.damage;
+        if (inNetMatch && st.id) {
+          sendNetUpgrade(st.id);
+        } else {
+          st.tier = curTier + 1;
+          st.maxHp = next.hpMax;
+          st.hp = next.hpMax;
+          if (st.type === 'spike') st.damage = next.damage;
+        }
         spawnParticle(st.x, st.y - 30, next.name.toUpperCase() + ' ' + st.type.toUpperCase(), '#c7cfd2');
         renderStructureInspector();
       } else {
@@ -856,18 +881,26 @@ export function upgradeInspectedStructure(): void {
 export function removeInspectedStructure(): void {
   if (!inspectedStructure) return;
   const st = inspectedStructure;
-  const idx = structures.indexOf(st);
-  if (idx !== -1) {
-    structures.splice(idx, 1);
-    const def = BUILD_DEFS[st.type];
-    if (def) {
-      const wRefund = Math.floor(def.wood * 0.5);
-      const sRefund = Math.floor(def.stone * 0.5);
-      if (wRefund > 0) player.wood += wRefund;
-      if (sRefund > 0) player.stone += sRefund;
-      spawnParticle(st.x, st.y - 20, `+${wRefund} W  +${sRefund} S`, '#8bd17c');
-    }
-    spawnBurst(st.x, st.y, '#ff5c5c', 16);
+
+  const def = BUILD_DEFS[st.type];
+  if (def) {
+    const wRefund = Math.floor(def.wood * 0.5);
+    const sRefund = Math.floor(def.stone * 0.5);
+    if (wRefund > 0) player.wood += wRefund;
+    if (sRefund > 0) player.stone += sRefund;
+    spawnParticle(st.x, st.y - 20, `+${wRefund} W  +${sRefund} S`, '#8bd17c');
+  }
+  spawnBurst(st.x, st.y, '#ff5c5c', 16);
+
+  // Structural removal is server-authoritative in a net match — the server
+  // broadcasts an updated structures snapshot (~1 tick, same latency already
+  // accepted for build/upgrade) rather than mutating the shared array here
+  // directly, so every player's removal is actually visible to everyone else.
+  if (inNetMatch && st.id) {
+    sendNetRemove(st.id);
+  } else {
+    const idx = structures.indexOf(st);
+    if (idx !== -1) structures.splice(idx, 1);
   }
   closeStructureInspector();
 }

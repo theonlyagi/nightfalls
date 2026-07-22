@@ -4,9 +4,11 @@ import {
   structures, setStructures, crates, setCrates, powerups, setPowerups,
   particles, setParticles, bursts, setBursts, bloodDecals, shake, keys, mouse,
   godMode, running, setRunning, meta, wave, playerName, shopOpen, touchMove, touchAim,
+  inNetMatch,
   fireZones, setFireZones, toxicClouds, setToxicClouds,
   teslaChains, setTeslaChains, sniperLasers, setSniperLasers
 } from '../state';
+import { maybeSendMove } from '../net/matchSync';
 import {
   POWERUP_LIFETIME_MS, BURN_DURATION_MS, BURN_DAMAGE_FRACTION,
   OVERHEAT_DECAY_PER_SEC, ZTYPE, STRUCTURE_TIERS, BUILD_DEFS,
@@ -118,6 +120,8 @@ export function updatePlayer(dt: number, camera: { x: number; y: number }): void
     const mWorld = mouseWorldPos(mouse, camera);
     player.angle = Math.atan2(mWorld.y - player.y, mWorld.x - player.x);
   }
+
+  if (inNetMatch) maybeSendMove(performance.now());
 
   if (mouse.down) tryShoot(performance.now());
 

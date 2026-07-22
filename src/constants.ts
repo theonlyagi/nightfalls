@@ -10,9 +10,12 @@ export const WORLD_H = 4200;
 export const TILE = 32;
 export const BUILD_REACH = TILE * 6;
 
-// Swap this for wss://ws.night-falls.xyz/ws once the VPS/domain are live —
-// nothing else in the networking code needs to change.
-export const WS_URL = 'ws://localhost:8081/ws';
+// Baked in at build time from the WS_URL env var (see scripts/build-client.js)
+// so this doesn't need hand-editing per release; falls back to local dev if
+// the build didn't define it (e.g. `npm run watch`'s raw esbuild CLI, which
+// doesn't go through build-client.js and never sets __WS_URL__ at all).
+declare const __WS_URL__: string | undefined;
+export const WS_URL = typeof __WS_URL__ !== 'undefined' ? __WS_URL__ : 'ws://localhost:8081/ws';
 
 export const BASE_STATS = {
   radius: 22, maxHp: 100, maxSpeed: 4.2, accel: 0.55, friction: 0.87,

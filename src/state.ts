@@ -18,6 +18,20 @@ export function setIsTouchActive(val: boolean): void { isTouchActive = val; }
 export let running = false;
 export function setRunning(val: boolean): void { running = val; }
 
+// ---------------- Multiplayer match state ----------------
+// True only while actually playing an active server-driven match (after the
+// lobby countdown completes) — see src/net/matchSync.ts. Solo play never
+// touches this; it stays false and every system behaves exactly as before.
+export let inNetMatch = false;
+export function setInNetMatch(val: boolean): void { inNetMatch = val; }
+
+export interface RemotePlayer {
+  id: string; name: string; x: number; y: number; angle: number;
+  hp: number; maxHp: number; alive: boolean;
+}
+export let remotePlayers: RemotePlayer[] = [];
+export function setRemotePlayers(val: RemotePlayer[]): void { remotePlayers = val; }
+
 export let paused = false;
 export function setPaused(val: boolean): void { paused = val; }
 
