@@ -146,3 +146,4 @@ export function sendBuild(kind: StructureKind, x: number, y: number, angle: numb
   send({ type: 'build', kind, x, y, angle });
 }
 export function sendUpgrade(structureId: string): void { send({ type: 'upgrade', structureId }); }
+export function sendRemove(structureId: string): void { send({ type: 'remove', structureId }); }

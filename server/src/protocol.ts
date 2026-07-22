@@ -99,7 +99,12 @@ export interface UpgradePacket {
   structureId: string;
 }
 
-export type ClientPacket = MovePacket | ShootPacket | ReadyPacket | BuildPacket | UpgradePacket;
+export interface RemovePacket {
+  type: 'remove';
+  structureId: string;
+}
+
+export type ClientPacket = MovePacket | ShootPacket | ReadyPacket | BuildPacket | UpgradePacket | RemovePacket;
 
 // ---------------- Structure stats (Phase 1: flat per-level numbers only) ----------------
 // Deliberately simplified server-side model — see server/src/Room.ts's
@@ -287,6 +292,10 @@ export function isBuildPacket(value: any): value is BuildPacket {
 
 export function isUpgradePacket(value: any): value is UpgradePacket {
   return value && value.type === 'upgrade' && typeof value.structureId === 'string';
+}
+
+export function isRemovePacket(value: any): value is RemovePacket {
+  return value && value.type === 'remove' && typeof value.structureId === 'string';
 }
 
 export function clamp(v: number, lo: number, hi: number): number {

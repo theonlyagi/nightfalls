@@ -345,6 +345,22 @@ export class Room {
     this.broadcastStructures();
   }
 
+  /** Validated remove: same reach/existence check as build/upgrade, no
+   *  ownership restriction (matches upgrade's "any player can upgrade any
+   *  structure" Phase 1 model). Resource refund is client-local bookkeeping
+   *  only, same as build cost — the server doesn't track wood/stone. */
+  handleRemove(id: string, structureId: string): void {
+    if (this.phase !== 'active') return;
+    const p = this.players.get(id);
+    if (!p || !p.alive) return;
+    const s = this.structures.get(structureId);
+    if (!s) return;
+    if (dist(p.x, p.y, s.x, s.y) > BUILD_REACH) return;
+
+    this.structures.delete(structureId);
+    this.broadcastStructures();
+  }
+
   /**
    * Any membership or ready-state change lands here. Any in-progress countdown
    * is always cancelled first, then a fresh one starts if the room currently

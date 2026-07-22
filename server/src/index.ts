@@ -1,6 +1,6 @@
 import uWS from 'uWebSockets.js';
 import crypto from 'node:crypto';
-import { PROTOCOL_VERSION, SESSION_GRACE_MS, isMovePacket, isShootPacket, isReadyPacket, isBuildPacket, isUpgradePacket } from './protocol.js';
+import { PROTOCOL_VERSION, SESSION_GRACE_MS, isMovePacket, isShootPacket, isReadyPacket, isBuildPacket, isUpgradePacket, isRemovePacket } from './protocol.js';
 import { ConnectionData, PlayerState } from './Room.js';
 import { RoomManager, SessionStore } from './RoomManager.js';
 
@@ -136,6 +136,10 @@ app.ws<ConnectionData>('/ws', {
     }
     if (isUpgradePacket(parsed)) {
       room.handleUpgrade(data.id, parsed.structureId);
+      return;
+    }
+    if (isRemovePacket(parsed)) {
+      room.handleRemove(data.id, parsed.structureId);
       return;
     }
   },

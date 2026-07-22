@@ -11,7 +11,7 @@
 // work, not forgotten.
 
 import {
-  net, sendMove, sendShoot, sendBuild, sendUpgrade, getMyId,
+  net, sendMove, sendShoot, sendBuild, sendUpgrade, sendRemove, getMyId,
   NetZombieSnapshot, NetBulletSnapshot, NetStructureSnapshot,
 } from './socket';
 import {
@@ -155,4 +155,4 @@ export function maybeSendMove(now: number): void {
   sendMove(player.x, player.y, player.angle);
 }
 
-export { sendShoot as sendNetShoot, sendBuild as sendNetBuild, sendUpgrade as sendNetUpgrade };
+export { sendShoot as sendNetShoot, sendBuild as sendNetBuild, sendUpgrade as sendNetUpgrade, sendRemove as sendNetRemove };
