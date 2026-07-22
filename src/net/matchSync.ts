@@ -52,8 +52,12 @@ const remotePlayerRenderPos = new Map<string, VecAngle>();
 const remotePlayerTargetPos = new Map<string, VecAngle>();
 
 /** Time constant for the easing — small enough to stay visually tight to the
- *  true server position, large enough to fully smooth out a 100ms-tick jump. */
-const NET_SMOOTH_TAU_MS = 90;
+ *  true server position, large enough to fully smooth out a tick's worth of
+ *  gap between snapshots. Server ticks at ~33ms (server/src/protocol.ts's
+ *  TICK_MS) — tuned proportionally down from 90 (which matched the old
+ *  100ms tick) so smoothing doesn't lag noticeably behind the now-more-
+ *  frequent real updates. */
+const NET_SMOOTH_TAU_MS = 30;
 
 function smoothFactor(dtMs: number): number {
   return 1 - Math.exp(-dtMs / NET_SMOOTH_TAU_MS);
@@ -209,7 +213,7 @@ export function initMatchSync(): void {
       // (moved instantly off local input in updatePlayer(), never gated on
       // the network — see systems/update.ts), so under normal conditions the
       // server's copy of "mine" merely lags behind by about one send
-      // interval (moves are sent every ~80ms — see MOVE_SEND_INTERVAL_MS)
+      // interval (moves are sent every ~33ms — see MOVE_SEND_INTERVAL_MS)
       // and this never needs to do anything. It exists only as a safety net:
       // without it, a single move the server ever rejects (e.g. the
       // anti-speed-hack check in Room.ts's handleMove tripping from network
@@ -217,7 +221,7 @@ export function initMatchSync(): void {
       // position everyone else (other players, zombie targeting/collision)
       // actually sees, with no way to recover. RECONCILE_THRESHOLD is set
       // well above the largest gap normal one-tick send latency can produce
-      // (~120 u/s * 80ms =~ 10 units) so it only fires on a real desync, not
+      // (~120 u/s * 33ms =~ 4 units) so it only fires on a real desync, not
       // routine prediction lag.
       const driftDist = dist(player.x, player.y, mine.x, mine.y);
       if (driftDist > RECONCILE_THRESHOLD) {
@@ -290,10 +294,14 @@ export function stopNetMatch(): void {
 }
 
 let lastSentMoveAt = 0;
-const MOVE_SEND_INTERVAL_MS = 80;
+/** Matches server/src/protocol.ts's TICK_MS (~33ms/~30Hz) — was 80ms (~12.5Hz,
+ *  tuned for the old 100ms server tick), which meant other players only ever
+ *  saw your position update at less than half the rate the server could
+ *  actually relay it at. */
+const MOVE_SEND_INTERVAL_MS = 33;
 
 /** Called from the local update loop every frame while inNetMatch — throttled
- *  so we're not sending 60 packets/sec for a game with a 100ms server tick. */
+ *  so we're not sending 60 packets/sec for a game with a ~33ms server tick. */
 export function maybeSendMove(now: number): void {
   if (now - lastSentMoveAt < MOVE_SEND_INTERVAL_MS) return;
   lastSentMoveAt = now;

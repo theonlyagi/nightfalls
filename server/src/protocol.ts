@@ -14,7 +14,12 @@ export const ROOM_MIN_PLAYERS = 2;
 /** How long everyone must stay ready, uninterrupted, before a match actually starts. */
 export const MATCH_START_COUNTDOWN_MS = 3000;
 
-export const TICK_MS = 100;
+/** ~30 ticks/sec. Was 100 (10 TPS) - low enough to look choppy even with
+ *  client-side interpolation smoothing over the gaps, since hit detection,
+ *  zombie movement, and structure combat are all only as fresh as the last
+ *  tick. Room counts are small (max 4 players) so the extra broadcast/CPU
+ *  cost of ~3x the tick rate is modest. */
+export const TICK_MS = 33;
 
 export const ZOMBIE_MAX = 10;
 export const ZOMBIE_SPAWN_INTERVAL_MS = 3000;
@@ -39,7 +44,13 @@ export const ZOMBIE_CHASE_SPEED = 90;
  *  raw per-frame value (9.5) and was applied directly as a per-tick
  *  displacement, making multiplayer bullets ~6x slower than intended. */
 export const BULLET_SPEED_PER_SEC = 9.5 * 60;
-export const BULLET_LIFE_TICKS = 60;
+/** Real-time duration a bullet lives for, independent of tick rate — was a
+ *  raw tick count (60) picked back when TICK_MS was 100 (i.e. 6s); left as
+ *  a tick count it would have silently become ~2s once TICK_MS dropped to
+ *  33. BULLET_LIFE_TICKS below is derived from this at load time so tuning
+ *  TICK_MS again in the future can't accidentally change bullet range. */
+export const BULLET_LIFE_MS = 6000;
+export const BULLET_LIFE_TICKS = Math.round(BULLET_LIFE_MS / TICK_MS);
 export const BULLET_RADIUS = 5;
 export const BULLET_DAMAGE = 12;
 

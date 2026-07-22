@@ -952,7 +952,7 @@
   var bulletTargetPos = /* @__PURE__ */ new Map();
   var remotePlayerRenderPos = /* @__PURE__ */ new Map();
   var remotePlayerTargetPos = /* @__PURE__ */ new Map();
-  var NET_SMOOTH_TAU_MS = 90;
+  var NET_SMOOTH_TAU_MS = 30;
   function smoothFactor(dtMs) {
     return 1 - Math.exp(-dtMs / NET_SMOOTH_TAU_MS);
   }
@@ -1145,7 +1145,7 @@
     remotePlayerTargetPos.clear();
   }
   var lastSentMoveAt = 0;
-  var MOVE_SEND_INTERVAL_MS = 80;
+  var MOVE_SEND_INTERVAL_MS = 33;
   function maybeSendMove(now) {
     if (now - lastSentMoveAt < MOVE_SEND_INTERVAL_MS) return;
     lastSentMoveAt = now;
