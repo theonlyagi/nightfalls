@@ -146,7 +146,7 @@ export interface ZombieTypeDef {
 }
 export interface PowerUpDef { label: string; color: string; symbol: string; duration?: number; }
 
-export interface DayNightState { time: number; total: number; factor: number; isNight: boolean; nightSpawnTimer: number; }
+export interface DayNightState { time: number; total: number; factor: number; isNight: boolean; nightSpawnTimer: number; nightCount: number; }
 export interface BloodMoonState { active: boolean; endsAt: number; nextAt: number; }
 export interface CameraState { x: number; y: number; }
 export interface LobbyPlayer { id: string; name: string; ready: boolean; isLocal: boolean; }

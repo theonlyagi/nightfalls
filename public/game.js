@@ -198,8 +198,6 @@
   ];
   var CLOTH_COLORS = ["#5a2a2a", "#2a3a5a", "#3a3a3a", "#4a3320", "#2a4a3a", null];
   var BLOOD_MOON_DURATION_MS = 6e4;
-  var BLOOD_MOON_MIN_GAP_MS = 6e4;
-  var BLOOD_MOON_MAX_GAP_MS = 18e5;
   var ARM_SHADOW = "#4d3f7a";
   var GRASS_DAY = "#8fa72d";
   var GRASS_NIGHT = "#26330f";
@@ -261,7 +259,7 @@
     playerName = val;
   }
   var shake = { time: 0, mag: 0 };
-  var dayNight = { time: 0, total: 11e4, factor: 0, isNight: false, nightSpawnTimer: 6e3 };
+  var dayNight = { time: 0, total: 11e4, factor: 0, isNight: false, nightSpawnTimer: 6e3, nightCount: 0 };
   var bloodMoon = { active: false, endsAt: 0, nextAt: 0 };
   var player = {
     x: WORLD_W / 2,
@@ -1565,18 +1563,6 @@
     }
   }
   function updateBloodMoon() {
-    const now = performance.now();
-    if (bloodMoon.active) {
-      if (now >= bloodMoon.endsAt) {
-        bloodMoon.active = false;
-        bloodMoon.nextAt = now + rand(BLOOD_MOON_MIN_GAP_MS, BLOOD_MOON_MAX_GAP_MS);
-        showBanner("BLOOD MOON FADES", "The red sky clears...", "blood");
-      }
-    } else if (now >= bloodMoon.nextAt) {
-      bloodMoon.active = true;
-      bloodMoon.endsAt = now + BLOOD_MOON_DURATION_MS;
-      showBanner("BLOOD MOON RISING", "Zombies spawn faster and hit harder...", "blood");
-    }
   }
   function updateDayNight(dt) {
     dayNight.time = (dayNight.time + dt) % dayNight.total;
@@ -1585,8 +1571,21 @@
     const wasNight = dayNight.isNight;
     dayNight.isNight = dayNight.factor > 0.5;
     if (dayNight.isNight !== wasNight) {
-      if (dayNight.isNight) showBanner("NIGHTFALL", "Zombies grow bolder and faster...", "night");
-      else showBanner("DAYBREAK", "A short reprieve...");
+      if (dayNight.isNight) {
+        dayNight.nightCount = (dayNight.nightCount || 0) + 1;
+        if (dayNight.nightCount % 3 === 0) {
+          bloodMoon.active = true;
+          showBanner("BLOOD MOON RISING", "A cursed red night begins! Fast & vicious zombies inbound!", "blood");
+        } else {
+          bloodMoon.active = false;
+          showBanner("NIGHTFALL", "Zombies emerge from the dark! Defend your base!", "night");
+        }
+      } else {
+        if (bloodMoon.active) {
+          bloodMoon.active = false;
+        }
+        showBanner("DAYBREAK", "Safe daylight! Prepare & build your base.", "night");
+      }
     }
     let timeLeftSec = 0;
     if (dayNight.isNight) {
@@ -1600,17 +1599,16 @@
     }
     const label = byId("phaseLabel");
     if (bloodMoon.active) {
-      const bmRemaining = Math.max(0, Math.ceil((bloodMoon.endsAt - performance.now()) / 1e3));
-      label.textContent = `BLOOD MOON | ${bmRemaining}s`;
+      label.textContent = `BLOOD MOON | ${timeLeftSec}s (DANGER!)`;
       label.className = "pill hud-font blood";
     } else if (dayNight.isNight) {
-      label.textContent = `NIGHT | ${timeLeftSec}s`;
+      label.textContent = `NIGHT | ${timeLeftSec}s (ATTACK)`;
       label.className = "pill hud-font night";
     } else {
-      label.textContent = `DAY | ${timeLeftSec}s`;
+      label.textContent = `DAY | ${timeLeftSec}s (SAFE - BUILD TIME)`;
       label.className = "pill hud-font day";
     }
-    if (dayNight.factor > 0.55) {
+    if (dayNight.isNight && dayNight.factor > 0.55) {
       dayNight.nightSpawnTimer -= dt;
       if (dayNight.nightSpawnTimer <= 0 && zombies.length < 45) {
         spawnZombie(Math.random() < 0.7 ? "normal" : "scout");
@@ -1623,7 +1621,12 @@
   function updateWaves(dt) {
     if (waveState === "idle") {
       startWave(1);
-    } else if (waveState === "spawning" || waveState === "spawning-boss") {
+      return;
+    }
+    if (!dayNight.isNight && !bloodMoon.active) {
+      return;
+    }
+    if (waveState === "spawning" || waveState === "spawning-boss") {
       setSpawnTimer(spawnTimer - dt);
       if (spawnTimer <= 0 && zombiesToSpawn > 0) {
         if (waveState === "spawning-boss" && zombiesToSpawn === 1) {
@@ -7303,9 +7306,10 @@
     dayNight.factor = 0;
     dayNight.isNight = false;
     dayNight.nightSpawnTimer = 6e3;
+    dayNight.nightCount = 0;
     bloodMoon.active = false;
     bloodMoon.endsAt = 0;
-    bloodMoon.nextAt = performance.now() + rand(BLOOD_MOON_MIN_GAP_MS, BLOOD_MOON_MAX_GAP_MS);
+    bloodMoon.nextAt = 0;
     const bossBar = byId("bossBar");
     if (bossBar) bossBar.classList.remove("show");
     setShopOpen(false);

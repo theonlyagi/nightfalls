@@ -57,7 +57,7 @@ export function setPlayerName(val: string): void { playerName = val; }
 
 export const shake: ShakeState = { time: 0, mag: 0 };
 
-export const dayNight: DayNightState = { time: 0, total: 110000, factor: 0, isNight: false, nightSpawnTimer: 6000 };
+export const dayNight: DayNightState = { time: 0, total: 110000, factor: 0, isNight: false, nightSpawnTimer: 6000, nightCount: 0 };
 
 export const bloodMoon: BloodMoonState = { active: false, endsAt: 0, nextAt: 0 };
 
