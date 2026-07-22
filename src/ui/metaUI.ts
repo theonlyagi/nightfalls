@@ -70,7 +70,7 @@ export function renderMetaSkins(): void {
   wrap.innerHTML = '';
   const equipDefault = document.createElement('div');
   equipDefault.className = 'meta-btn' + (meta.equippedSkin === null ? ' equipped' : '');
-  equipDefault.innerHTML = `<b>Default</b><div class="cost">${meta.equippedSkin === null ? 'EQUIPPED' : 'EQUIP'}</div>`;
+  equipDefault.innerHTML = `<b>Default</b><div>Standard survivor outfit</div><div class="cost">${meta.equippedSkin === null ? 'EQUIPPED' : 'EQUIP'}</div>`;
   equipDefault.onclick = async () => {
     meta.equippedSkin = null;
     await saveMeta();
@@ -84,7 +84,7 @@ export function renderMetaSkins(): void {
     const affordable = meta.metaPoints >= s.cost;
     const btn = document.createElement('div');
     btn.className = 'meta-btn' + (equipped ? ' equipped' : (!owned && !affordable ? ' disabled' : ''));
-    btn.innerHTML = `<b>${s.label}</b><div class="cost">${owned ? (equipped ? 'EQUIPPED' : 'EQUIP') : s.cost + ' pts'}</div>`;
+    btn.innerHTML = `<b>${s.label}</b><div>Custom survivor skin</div><div class="cost">${owned ? (equipped ? 'EQUIPPED' : 'EQUIP') : s.cost + ' pts'}</div>`;
     btn.onclick = async () => {
       if (!owned) {
         if (meta.metaPoints < s.cost) return;
@@ -106,11 +106,10 @@ export async function renderLeaderboard(): Promise<void> {
   if (!el) return;
   if (!list.length) { el.innerHTML = '<div class="lb-empty">No runs yet — be the first survivor.</div>'; return; }
   el.innerHTML = list.map((e, i) => `
-    <div class="lb-row">
-      <span class="lb-rank">#${i + 1}</span>
-      <span>${escapeHtml(e.name || 'Survivor')}</span>
-      <span>wave ${e.wave}</span>
-      <span>${e.kills} kills</span>
+    <div class="florr-lb-item">
+      <span class="florr-lb-rank">#${i + 1}</span>
+      <span class="florr-lb-name">${escapeHtml(e.name || 'Survivor')}</span>
+      <span class="florr-lb-stat">W${e.wave} &bull; ${e.kills} kills</span>
     </div>
   `).join('');
 }
@@ -121,9 +120,10 @@ export function renderModeSelect(): void {
   wrap.innerHTML = '';
   (Object.keys(MODE_DEFS) as ('solo' | 'team')[]).forEach(key => {
     const def = MODE_DEFS[key];
+    const icon = key === 'solo' ? 'person' : 'groups';
     const card = document.createElement('div');
-    card.className = 'class-card' + (selectedMode === key ? ' active' : '');
-    card.innerHTML = `<b>${def.label}</b><span>${def.desc}</span>`;
+    card.className = 'florr-mode-card' + (selectedMode === key ? ' active' : '');
+    card.innerHTML = `<span class="material-symbols-outlined mode-icon">${icon}</span><b>${def.label}</b><span>${def.desc}</span>`;
     card.onclick = () => { setSelectedMode(key); renderModeSelect(); updateStartBtnLabel(); };
     wrap.appendChild(card);
   });
@@ -131,7 +131,48 @@ export function renderModeSelect(): void {
 
 export function updateStartBtnLabel(): void {
   const btn = byId('startBtn');
-  if (btn) btn.textContent = selectedMode === 'team' ? 'QUEUE UP' : 'ENTER THE FOREST';
+  if (btn) {
+    const labelText = selectedMode === 'team' ? 'QUEUE UP' : 'ENTER THE ZONE';
+    btn.innerHTML = `${labelText} <span class="material-symbols-outlined btn-icon">rocket_launch</span>`;
+  }
+}
+
+export function openMetaModal(tab: 'upgrades' | 'bonuses' | 'skins'): void {
+  const modal = byId('metaModal');
+  const title = byId('metaModalTitle');
+  const upgradesSec = byId('metaModalUpgradesSection');
+  const bonusesSec = byId('metaModalBonusesSection');
+  const skinsSec = byId('metaModalSkinsSection');
+  if (!modal) return;
+
+  if (upgradesSec) upgradesSec.classList.toggle('hidden', tab !== 'upgrades');
+  if (bonusesSec) bonusesSec.classList.toggle('hidden', tab !== 'bonuses');
+  if (skinsSec) skinsSec.classList.toggle('hidden', tab !== 'skins');
+
+  if (title) {
+    if (tab === 'upgrades') title.textContent = 'PERMANENT UPGRADES';
+    else if (tab === 'bonuses') title.textContent = 'STARTING BONUSES';
+    else if (tab === 'skins') title.textContent = 'SURVIVOR SKINS';
+  }
+
+  modal.classList.remove('hidden');
+}
+
+export function closeMetaModal(): void {
+  const modal = byId('metaModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+export function setupMetaModalTabs(): void {
+  const uBtn = byId('tabUpgradesBtn');
+  const bBtn = byId('tabBonusesBtn');
+  const sBtn = byId('tabSkinsBtn');
+  const closeBtn = byId('metaModalCloseBtn');
+
+  if (uBtn) uBtn.onclick = () => openMetaModal('upgrades');
+  if (bBtn) bBtn.onclick = () => openMetaModal('bonuses');
+  if (sBtn) sBtn.onclick = () => openMetaModal('skins');
+  if (closeBtn) closeBtn.onclick = () => closeMetaModal();
 }
 
 export function renderClassSelect(onConfirm?: () => void): void {
@@ -174,6 +215,7 @@ export async function initMenu(): Promise<void> {
   renderModeSelect();
   renderClassSelect();
   renderLeaderboard();
+  setupMetaModalTabs();
 }
 
 // ---------------- Real multiplayer lobby (wired to the game server) ----------------

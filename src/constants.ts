@@ -7,8 +7,8 @@ import {
 
 export const WORLD_W = 4200;
 export const WORLD_H = 4200;
-export const TILE = 64;
-export const BUILD_REACH = TILE * 3;
+export const TILE = 32;
+export const BUILD_REACH = TILE * 6;
 
 // Baked in at build time from the WS_URL env var (see scripts/build-client.js)
 // so this doesn't need hand-editing per release; falls back to local dev if
@@ -101,8 +101,8 @@ export const CLASS_DEFS: Record<string, ClassDef> = {
 };
 
 export const BUILD_DEFS: Record<StructureKind, BuildDef> = {
-  wall:     { label: 'Wall',          wood: 15, stone: 0,  hp: 80,  radius: 26, color: ['#c9a668', '#9aa3a6', '#c7cfd2'] },
-  spike:    { label: 'Spike',         wood: 10, stone: 5,  hp: 40,  radius: 18, damage: 9 },
+  wall:     { label: 'Wall',          wood: 15, stone: 0,  hp: 80,  radius: 14, color: ['#c9a668', '#9aa3a6', '#c7cfd2'] },
+  spike:    { label: 'Spike',         wood: 10, stone: 5,  hp: 40,  radius: 10, damage: 9 },
   campfire: { label: 'Campfire',      wood: 20, stone: 0,  hp: 50,  radius: 20, healRadius: 150, healRate: 5 },
   shop:     { label: 'Shop',          wood: 40, stone: 35, hp: 120, radius: 24 },
   factory:  { label: 'Factory',       wood: 50, stone: 40, hp: 150, radius: 28 },

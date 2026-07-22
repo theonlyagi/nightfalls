@@ -29,7 +29,7 @@ import {
 import {
   renderUpgradePanel, renderBuildBar, tryBuildOrUpgrade, selectBuild,
   openWeaponChoice, openMutationChoice, updateHud, toggleShop, toggleFactory,
-  closeStructureInspector, upgradeInspectedStructure
+  closeStructureInspector, upgradeInspectedStructure, removeInspectedStructure
 } from './ui/shopUI';
 import { openSettings, closeSettings, renderSettingsUI } from './ui/settingsUI';
 import { setupDebugUI, toggleDebugPanel } from './ui/debugUI';
@@ -221,6 +221,10 @@ byId('inspectorCloseBtn').onclick = () => {
 
 byId('inspectorUpgradeBtn').onclick = () => {
   try { upgradeInspectedStructure(); } catch (err) { showFatalError(err); }
+};
+
+byId('inspectorRemoveBtn').onclick = () => {
+  try { removeInspectedStructure(); } catch (err) { showFatalError(err); }
 };
 
 lobby.onPlayersChanged = renderLobby;

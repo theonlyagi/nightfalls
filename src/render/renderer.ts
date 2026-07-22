@@ -69,8 +69,10 @@ export function drawFlashlight(ctx: CanvasRenderingContext2D, canvas: HTMLCanvas
 }
 
 export function render(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement): void {
-  camera.x = clamp(player.x - canvas.width / 2, 0, WORLD_W - canvas.width);
-  camera.y = clamp(player.y - canvas.height / 2, 0, WORLD_H - canvas.height);
+  // Center camera directly on player to preserve true FOV and mouse alignment
+  camera.x = player.x - canvas.width / 2;
+  camera.y = player.y - canvas.height / 2;
+
   if (shake.time > 0) {
     camera.x += rand(-shake.mag, shake.mag);
     camera.y += rand(-shake.mag, shake.mag);
@@ -86,7 +88,13 @@ export function render(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement)
   for (const r of resources) drawResource(ctx, canvas, r);
   for (const c of crates) drawCrate(ctx, c);
   for (const p of powerups) drawPowerup(ctx, canvas, p);
-  for (const st of structures) drawStructure(ctx, st);
+  // Render ground structures (walls & spikes) first, then towers on top
+  for (const st of structures) {
+    if (st.type === 'wall' || st.type === 'spike') drawStructure(ctx, st);
+  }
+  for (const st of structures) {
+    if (st.type !== 'wall' && st.type !== 'spike') drawStructure(ctx, st);
+  }
   drawBuildPreview(ctx);
   for (const z of zombies) drawZombie(ctx, canvas, z);
   drawBullets(ctx);

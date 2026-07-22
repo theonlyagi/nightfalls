@@ -22,6 +22,28 @@ imgStone.src = 'assets/stone.png';
 const imgIron = new Image();
 imgIron.src = 'assets/iron.png';
 
+const imgCannonBase = new Image();
+imgCannonBase.src = 'assets/structures/cannon_base.png';
+const imgCannonTurret = new Image();
+imgCannonTurret.src = 'assets/structures/cannon_turret.png';
+
+const imgMortarBase = new Image();
+imgMortarBase.src = 'assets/structures/mortar_base.png';
+const imgMortarTurret = new Image();
+imgMortarTurret.src = 'assets/structures/mortar_turret.png';
+
+const imgSniperBase = new Image();
+imgSniperBase.src = 'assets/structures/sniper_base.png';
+const imgSniperTurret = new Image();
+imgSniperTurret.src = 'assets/structures/sniper_turret.png';
+
+const imgWallWood = new Image();
+imgWallWood.src = 'assets/structures/wall_wood.png';
+const imgWallStone = new Image();
+imgWallStone.src = 'assets/structures/wall_stone.png';
+const imgWallIron = new Image();
+imgWallIron.src = 'assets/structures/wall_iron.png';
+
 export function worldToScreen(x: number, y: number): Vec2 {
   return { x: x - camera.x, y: y - camera.y };
 }
@@ -551,24 +573,22 @@ export function drawStructure(ctx: CanvasRenderingContext2D, st: Structure): voi
   const lvl = st.level || 1;
 
   if (st.type === 'wall') {
-    const tierGray = ['#8f9498', '#a9aeb2', '#c3c8cc'];
-    const col = tierGray[st.tier ?? 0];
-    const w = st.radius * 2.3, h = st.radius * 1.0;
+    const tierImgs = [imgWallWood, imgWallStone, imgWallIron];
+    const curImg = tierImgs[st.tier ?? 0];
+    const w = TILE, h = TILE;
     ctx.save();
     ctx.translate(s.x, s.y);
-    ctx.rotate(ang + Math.PI / 2);
-    ctx.fillStyle = col;
-    ctx.strokeStyle = '#2a2d30'; ctx.lineWidth = 4;
-    roundRectPath(ctx, -w / 2, -h / 2, w, h, 5);
-    ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = 'rgba(0,0,0,0.32)'; ctx.lineWidth = 2.5;
-    for (let i = 1; i < 3; i++) {
-      const dx = -w / 2 + i * (w / 3);
-      ctx.beginPath(); ctx.moveTo(dx, -h / 2 + 3); ctx.lineTo(dx, h / 2 - 3); ctx.stroke();
+    ctx.rotate(ang);
+    if (curImg && curImg.complete && curImg.naturalWidth !== 0) {
+      ctx.drawImage(curImg, -w / 2, -h / 2, w, h);
+    } else {
+      const tierGray = ['#c9a668', '#9aa3a6', '#c7cfd2'];
+      const col = tierGray[st.tier ?? 0];
+      ctx.fillStyle = col;
+      ctx.strokeStyle = '#2a2d30'; ctx.lineWidth = 4;
+      roundRectPath(ctx, -w / 2, -h / 2, w, h, 5);
+      ctx.fill(); ctx.stroke();
     }
-    ctx.beginPath(); ctx.moveTo(-w / 2 + 3, 0); ctx.lineTo(w / 2 - 3, 0); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(-w / 2 + 5, -h / 2 + 3); ctx.lineTo(w / 2 - 5, -h / 2 + 3); ctx.stroke();
     ctx.restore();
   } else if (st.type === 'spike') {
     const w = st.radius * 2.4, h = st.radius * 0.62;
@@ -602,71 +622,171 @@ export function drawStructure(ctx: CanvasRenderingContext2D, st: Structure): voi
   } else if (st.type === 'cannon') {
     ctx.save();
     ctx.translate(s.x, s.y);
+    const size = st.radius * 2.8;
+
+    // 0. Level Square Border (Lv1: None, Lv2: Wood #a06d3b, Lv3: Stone #8f9498, Lv4: Iron #597b7f, Lv5: Gold #ffd76a)
+    const levelColors: (string | null)[] = [null, '#a06d3b', '#8f9498', '#597b7f', '#ffd76a'];
+    const lvlColor = levelColors[Math.min(lvl - 1, 4)];
+    const bSize = size + 6;
     
-    const baseColors = ['#4a5a5e', '#597b7f', '#6a9a9e', '#3a7d8c', '#ffd76a'];
-    ctx.fillStyle = baseColors[lvl - 1];
-    ctx.strokeStyle = '#1c2426'; ctx.lineWidth = 3.5;
-    ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    
-    ctx.fillStyle = '#ffffff';
-    for (let i = 0; i < lvl; i++) {
-      const aDots = (i * Math.PI * 2) / lvl;
-      ctx.beginPath(); ctx.arc(Math.cos(aDots) * (st.radius * 0.6), Math.sin(aDots) * (st.radius * 0.6), 2, 0, Math.PI * 2); ctx.fill();
+    if (lvlColor) {
+      ctx.save();
+      ctx.fillStyle = lvlColor + '33';
+      roundRectPath(ctx, -bSize / 2 - 2, -bSize / 2 - 2, bSize + 4, bSize + 4, 10);
+      ctx.fill();
+
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 6;
+      roundRectPath(ctx, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+      ctx.stroke();
+
+      ctx.strokeStyle = lvlColor;
+      ctx.lineWidth = 3.5;
+      roundRectPath(ctx, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+      ctx.stroke();
+
+      ctx.fillStyle = '#000000';
+      const cOff = bSize / 2 - 4;
+      [[-cOff, -cOff], [cOff, -cOff], [-cOff, cOff], [cOff, cOff]].forEach(([cx, cy]) => {
+        ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.restore();
     }
-    
+
+    // 1. Base (Fixed)
+    if (imgCannonBase.complete && imgCannonBase.naturalWidth !== 0) {
+      ctx.drawImage(imgCannonBase, -size / 2, -size / 2, size, size);
+    } else {
+      const baseColors = ['#4a5a5e', '#597b7f', '#6a9a9e', '#3a7d8c', '#ffd76a'];
+      ctx.fillStyle = baseColors[lvl - 1];
+      ctx.strokeStyle = '#1c2426'; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+
+    // 2. Turret/Barrel (Rotated)
+    ctx.save();
     const aimA = st.aimAngle ?? -Math.PI / 2;
     ctx.rotate(aimA + Math.PI / 2);
-    ctx.fillStyle = '#2f3a3c';
-    ctx.strokeStyle = '#1c2426'; ctx.lineWidth = 2.5;
-    ctx.fillRect(-5, -st.radius - 8, 10, 11);
-    ctx.strokeRect(-5, -st.radius - 8, 10, 11);
-    ctx.fillStyle = lvl === 5 ? '#e74c3c' : '#ffd76a';
-    ctx.fillRect(-6, -st.radius - 12, 12, 4);
-    ctx.strokeRect(-6, -st.radius - 12, 12, 4);
+    if (imgCannonTurret.complete && imgCannonTurret.naturalWidth !== 0) {
+      ctx.drawImage(imgCannonTurret, -size / 2, -size / 2, size, size);
+    } else {
+      ctx.fillStyle = '#2f3a3c'; ctx.strokeStyle = '#1c2426'; ctx.lineWidth = 2.5;
+      ctx.fillRect(-5, -st.radius - 8, 10, 11); ctx.strokeRect(-5, -st.radius - 8, 10, 11);
+    }
+    ctx.restore();
+
+    // Level Dots
+    ctx.fillStyle = '#ffd76a';
+    for (let i = 0; i < lvl; i++) {
+      const aDots = (i * Math.PI * 2) / lvl;
+      ctx.beginPath(); ctx.arc(Math.cos(aDots) * (st.radius * 0.7), Math.sin(aDots) * (st.radius * 0.7), 2.5, 0, Math.PI * 2); ctx.fill();
+    }
     ctx.restore();
   } else if (st.type === 'mortar') {
     ctx.save();
     ctx.translate(s.x, s.y);
-    ctx.fillStyle = '#34495e';
-    ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    const size = st.radius * 2.8;
+
+    // 0. Level Square Border (Lv1: None, Lv2: Wood #a06d3b, Lv3: Stone #8f9498, Lv4: Iron #597b7f, Lv5: Gold #ffd76a)
+    const levelColors: (string | null)[] = [null, '#a06d3b', '#8f9498', '#597b7f', '#ffd76a'];
+    const lvlColor = levelColors[Math.min(lvl - 1, 4)];
+    const bSize = size + 6;
     
-    ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 2.5;
-    for (let i = 0; i < 8; i++) {
-      const edgeA = (i * Math.PI * 2) / 8;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(edgeA) * (st.radius - 3), Math.sin(edgeA) * (st.radius - 3));
-      ctx.lineTo(Math.cos(edgeA + 0.15) * st.radius, Math.sin(edgeA + 0.15) * st.radius);
+    if (lvlColor) {
+      ctx.save();
+      ctx.fillStyle = lvlColor + '33';
+      roundRectPath(ctx, -bSize / 2 - 2, -bSize / 2 - 2, bSize + 4, bSize + 4, 10);
+      ctx.fill();
+
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 6;
+      roundRectPath(ctx, -bSize / 2, -bSize / 2, bSize, bSize, 8);
       ctx.stroke();
+
+      ctx.strokeStyle = lvlColor;
+      ctx.lineWidth = 3.5;
+      roundRectPath(ctx, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+      ctx.stroke();
+
+      ctx.fillStyle = '#000000';
+      const cOff = bSize / 2 - 4;
+      [[-cOff, -cOff], [cOff, -cOff], [-cOff, cOff], [cOff, cOff]].forEach(([cx, cy]) => {
+        ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.restore();
     }
 
+    // 1. Base (Fixed)
+    if (imgMortarBase.complete && imgMortarBase.naturalWidth !== 0) {
+      ctx.drawImage(imgMortarBase, -size / 2, -size / 2, size, size);
+    } else {
+      ctx.fillStyle = '#34495e'; ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+
+    // 2. Turret/Barrel (Rotated)
+    ctx.save();
     const aimA = st.aimAngle ?? -Math.PI / 2;
     ctx.rotate(aimA + Math.PI / 2);
-    ctx.fillStyle = '#2c3e50';
-    ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 2;
-    ctx.fillRect(-7, -st.radius - 3, 14, 12);
-    ctx.strokeRect(-7, -st.radius - 3, 14, 12);
-    ctx.fillStyle = '#111';
-    ctx.beginPath(); ctx.arc(0, -st.radius - 1, 5, 0, Math.PI * 2); ctx.fill();
+    if (imgMortarTurret.complete && imgMortarTurret.naturalWidth !== 0) {
+      ctx.drawImage(imgMortarTurret, -size / 2, -size / 2, size, size);
+    } else {
+      ctx.fillStyle = '#2c3e50'; ctx.fillRect(-7, -st.radius - 3, 14, 12);
+    }
+    ctx.restore();
     ctx.restore();
   } else if (st.type === 'sniper') {
     ctx.save();
     ctx.translate(s.x, s.y);
-    ctx.fillStyle = '#7f8c8d';
-    ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 3.5;
-    ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    const size = st.radius * 2.8;
+
+    // 0. Level Square Border (Lv1: None, Lv2: Wood #a06d3b, Lv3: Stone #8f9498, Lv4: Iron #597b7f, Lv5: Gold #ffd76a)
+    const levelColors: (string | null)[] = [null, '#a06d3b', '#8f9498', '#597b7f', '#ffd76a'];
+    const lvlColor = levelColors[Math.min(lvl - 1, 4)];
+    const bSize = size + 6;
     
-    ctx.fillStyle = '#34495e';
-    ctx.beginPath(); ctx.arc(0, 0, st.radius * 0.6, 0, Math.PI * 2); ctx.fill();
-    
+    if (lvlColor) {
+      ctx.save();
+      ctx.fillStyle = lvlColor + '33';
+      roundRectPath(ctx, -bSize / 2 - 2, -bSize / 2 - 2, bSize + 4, bSize + 4, 10);
+      ctx.fill();
+
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 6;
+      roundRectPath(ctx, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+      ctx.stroke();
+
+      ctx.strokeStyle = lvlColor;
+      ctx.lineWidth = 3.5;
+      roundRectPath(ctx, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+      ctx.stroke();
+
+      ctx.fillStyle = '#000000';
+      const cOff = bSize / 2 - 4;
+      [[-cOff, -cOff], [cOff, -cOff], [-cOff, cOff], [cOff, cOff]].forEach(([cx, cy]) => {
+        ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    // 1. Base (Fixed)
+    if (imgSniperBase.complete && imgSniperBase.naturalWidth !== 0) {
+      ctx.drawImage(imgSniperBase, -size / 2, -size / 2, size, size);
+    } else {
+      ctx.fillStyle = '#7f8c8d'; ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.arc(0, 0, st.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+
+    // 2. Turret/Barrel (Rotated)
+    ctx.save();
     const aimA = st.aimAngle ?? -Math.PI / 2;
     ctx.rotate(aimA + Math.PI / 2);
-    ctx.fillStyle = '#333333';
-    ctx.strokeStyle = '#000000'; ctx.lineWidth = 1.5;
-    ctx.fillRect(-2, -st.radius - 16, 4, 18);
-    ctx.strokeRect(-2, -st.radius - 16, 4, 18);
-    ctx.fillStyle = '#e74c3c';
-    ctx.beginPath(); ctx.arc(0, -st.radius - 16, 2.5, 0, Math.PI * 2); ctx.fill();
+    if (imgSniperTurret.complete && imgSniperTurret.naturalWidth !== 0) {
+      ctx.drawImage(imgSniperTurret, -size / 2, -size / 2, size, size);
+    } else {
+      ctx.fillStyle = '#333333'; ctx.fillRect(-2, -st.radius - 16, 4, 18);
+    }
+    ctx.restore();
     ctx.restore();
   } else if (st.type === 'tesla') {
     ctx.save();
@@ -881,7 +1001,9 @@ export function drawBuildPreview(ctx: CanvasRenderingContext2D): void {
 
   const target = getBuildTarget();
   const s = worldToScreen(target.cx, target.cy);
-  const half = TILE / 2;
+  const isTowerOrBuilding = selectedBuild !== 'wall' && selectedBuild !== 'spike';
+  const tileSize = isTowerOrBuilding ? TILE * 2 : TILE;
+  const half = tileSize / 2;
 
   let color = '#8bd17c';
   let label = '';
@@ -919,11 +1041,11 @@ export function drawBuildPreview(ctx: CanvasRenderingContext2D): void {
   ctx.strokeStyle = color;
   ctx.lineWidth = 2;
   ctx.setLineDash([5, 4]);
-  ctx.strokeRect(s.x - half, s.y - half, TILE, TILE);
+  ctx.strokeRect(s.x - half, s.y - half, tileSize, tileSize);
   ctx.setLineDash([]);
   ctx.globalAlpha = 0.12;
   ctx.fillStyle = color;
-  ctx.fillRect(s.x - half, s.y - half, TILE, TILE);
+  ctx.fillRect(s.x - half, s.y - half, tileSize, tileSize);
   ctx.globalAlpha = 1;
   ctx.restore();
 

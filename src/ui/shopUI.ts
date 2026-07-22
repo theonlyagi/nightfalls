@@ -20,8 +20,26 @@ import {
 import { byId, snapAngleToCardinal } from '../utils';
 import { applyPowerup, showBanner, spawnParticle, spawnBurst } from '../systems/combat';
 import { findNearestShop, findNearestFactory } from '../systems/update';
-import { getBuildTarget, getPlacementAngle } from '../render/drawWorld';
-import { sendNetBuild, sendNetUpgrade } from '../net/matchSync';
+import { getBuildTarget, getPlacementAngle, worldToScreen } from '../render/drawWorld';
+import { sendNetBuild, sendNetUpgrade, sendNetRemove } from '../net/matchSync';
+
+const imgCannonBase = new Image();
+imgCannonBase.src = 'assets/structures/cannon_base.png';
+const imgCannonTurret = new Image();
+imgCannonTurret.src = 'assets/structures/cannon_turret.png';
+
+const imgMortarBase = new Image();
+imgMortarBase.src = 'assets/structures/mortar_base.png';
+const imgMortarTurret = new Image();
+imgMortarTurret.src = 'assets/structures/mortar_turret.png';
+
+const imgSniperBase = new Image();
+imgSniperBase.src = 'assets/structures/sniper_base.png';
+const imgSniperTurret = new Image();
+imgSniperTurret.src = 'assets/structures/sniper_turret.png';
+
+const imgWallWood = new Image();
+imgWallWood.src = 'assets/structures/wall_wood.png';
 
 export function createShopItems(): ShopItemDef[] {
   return [
@@ -122,25 +140,18 @@ function drawBuildPreview(canvas: HTMLCanvasElement, key: StructureKind): void {
   if (key === 'wall') {
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.rotate(Math.PI / 6);
-    ctx.fillStyle = '#a9aeb2';
-    ctx.strokeStyle = '#2a2d30';
-    ctx.lineWidth = 2.0;
-    
-    const w = 26, h = 9;
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-w/2, -h/2, w, h, 2.5);
-    else ctx.rect(-w/2, -h/2, w, h);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.moveTo(-w/2 + w/3, -h/2); ctx.lineTo(-w/2 + w/3, h/2);
-    ctx.moveTo(w/2 - w/3, -h/2); ctx.lineTo(w/2 - w/3, h/2);
-    ctx.moveTo(-w/2, 0); ctx.lineTo(w/2, 0);
-    ctx.stroke();
+    const size = 26;
+    if (imgWallWood.complete && imgWallWood.naturalWidth !== 0) {
+      ctx.drawImage(imgWallWood, -size / 2, -size / 2, size, size);
+    } else {
+      ctx.fillStyle = '#c9a668';
+      ctx.strokeStyle = '#2a2d30';
+      ctx.lineWidth = 2.0;
+      const w = 26, h = 9;
+      if (ctx.roundRect) ctx.roundRect(-w/2, -h/2, w, h, 2.5);
+      else ctx.rect(-w/2, -h/2, w, h);
+      ctx.fill(); ctx.stroke();
+    }
     ctx.restore();
   } else if (key === 'spike') {
     ctx.save();
@@ -172,35 +183,35 @@ function drawBuildPreview(canvas: HTMLCanvasElement, key: StructureKind): void {
   } else if (key === 'cannon') {
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.fillStyle = '#6a9a9e';
-    ctx.strokeStyle = '#1c2426';
-    ctx.lineWidth = 2.0;
-    ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#2f3a3c';
-    ctx.fillRect(-2, -12, 4, 7);
-    ctx.strokeRect(-2, -12, 4, 7);
+    const size = 26;
+    if (imgCannonBase.complete && imgCannonBase.naturalWidth !== 0) {
+      ctx.drawImage(imgCannonBase, -size / 2, -size / 2, size, size);
+    }
+    if (imgCannonTurret.complete && imgCannonTurret.naturalWidth !== 0) {
+      ctx.drawImage(imgCannonTurret, -size / 2, -size / 2, size, size);
+    }
     ctx.restore();
   } else if (key === 'mortar') {
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.fillStyle = '#34495e';
-    ctx.strokeStyle = '#2c3e50';
-    ctx.lineWidth = 2.0;
-    ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#1a252f';
-    ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
+    const size = 26;
+    if (imgMortarBase.complete && imgMortarBase.naturalWidth !== 0) {
+      ctx.drawImage(imgMortarBase, -size / 2, -size / 2, size, size);
+    }
+    if (imgMortarTurret.complete && imgMortarTurret.naturalWidth !== 0) {
+      ctx.drawImage(imgMortarTurret, -size / 2, -size / 2, size, size);
+    }
     ctx.restore();
   } else if (key === 'sniper') {
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.fillStyle = '#7f8c8d';
-    ctx.strokeStyle = '#bdc3c7';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#333';
-    ctx.fillRect(-1, -14, 2, 10);
-    ctx.fillStyle = '#e74c3c';
-    ctx.beginPath(); ctx.arc(0, -14, 1.5, 0, Math.PI * 2); ctx.fill();
+    const size = 26;
+    if (imgSniperBase.complete && imgSniperBase.naturalWidth !== 0) {
+      ctx.drawImage(imgSniperBase, -size / 2, -size / 2, size, size);
+    }
+    if (imgSniperTurret.complete && imgSniperTurret.naturalWidth !== 0) {
+      ctx.drawImage(imgSniperTurret, -size / 2, -size / 2, size, size);
+    }
     ctx.restore();
   } else if (key === 'tesla') {
     ctx.save();
@@ -352,10 +363,28 @@ export function renderUpgradePanel(): void {
   if (!panel) return;
   panel.innerHTML = '';
   if (player.statPoints <= 0) return;
+
+  const iconMap: Record<string, string> = {
+    'Vitality': 'favorite',
+    'Speed': 'bolt',
+    'Power': 'swords',
+    'Reload': 'autorenew',
+    'Recovery': 'health_and_safety',
+    'Fortune': 'monetization_on'
+  };
+
   upgrades.forEach(u => {
+    const keyClass = 'upg-' + u.label.toLowerCase().replace(/[^a-z]/g, '');
+    const iconName = iconMap[u.label] || 'upgrade';
     const btn = document.createElement('div');
-    btn.className = 'upgrade-btn';
-    btn.innerHTML = `<b>${u.label}</b>${u.desc}`;
+    btn.className = `upgrade-btn ${keyClass} squishy squishy-hover animate-slide-in`;
+    btn.innerHTML = `
+      <div class="upg-badge"><span class="material-symbols-outlined">${iconName}</span></div>
+      <div class="upg-info">
+        <b>${u.label}</b>
+        <span>${u.desc}</span>
+      </div>
+    `;
     btn.onclick = () => {
       if (player.statPoints <= 0) return;
       u.apply();
@@ -679,6 +708,22 @@ export function renderStructureInspector(): void {
   const st = inspectedStructure;
   panel.classList.remove('hidden');
 
+  // Position modal right above the clicked structure in screen space
+  const s = worldToScreen(st.x, st.y);
+  const panelW = 260;
+  const panelH = 210;
+  let left = s.x - panelW / 2;
+  let top = s.y - st.radius - panelH - 12;
+
+  // Clamp within viewport padding
+  left = Math.max(16, Math.min(window.innerWidth - panelW - 16, left));
+  top = Math.max(16, Math.min(window.innerHeight - panelH - 16, top));
+
+  panel.style.left = `${left}px`;
+  panel.style.top = `${top}px`;
+  panel.style.bottom = 'auto';
+  panel.style.right = 'auto';
+
   const def = BUILD_DEFS[st.type];
   const nameEl = byId('inspectorName');
   const lvlEl = byId('inspectorLvl');
@@ -831,4 +876,31 @@ export function upgradeInspectedStructure(): void {
       spawnParticle(st.x, st.y - 30, 'MAX TIER', '#8bd17c');
     }
   }
+}
+
+export function removeInspectedStructure(): void {
+  if (!inspectedStructure) return;
+  const st = inspectedStructure;
+
+  const def = BUILD_DEFS[st.type];
+  if (def) {
+    const wRefund = Math.floor(def.wood * 0.5);
+    const sRefund = Math.floor(def.stone * 0.5);
+    if (wRefund > 0) player.wood += wRefund;
+    if (sRefund > 0) player.stone += sRefund;
+    spawnParticle(st.x, st.y - 20, `+${wRefund} W  +${sRefund} S`, '#8bd17c');
+  }
+  spawnBurst(st.x, st.y, '#ff5c5c', 16);
+
+  // Structural removal is server-authoritative in a net match — the server
+  // broadcasts an updated structures snapshot (~1 tick, same latency already
+  // accepted for build/upgrade) rather than mutating the shared array here
+  // directly, so every player's removal is actually visible to everyone else.
+  if (inNetMatch && st.id) {
+    sendNetRemove(st.id);
+  } else {
+    const idx = structures.indexOf(st);
+    if (idx !== -1) structures.splice(idx, 1);
+  }
+  closeStructureInspector();
 }

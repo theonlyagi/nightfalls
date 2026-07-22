@@ -2,9 +2,9 @@
   // src/constants.ts
   var WORLD_W = 4200;
   var WORLD_H = 4200;
-  var TILE = 64;
-  var BUILD_REACH = TILE * 3;
-  var WS_URL = true ? "ws://localhost:8081/ws" : "ws://localhost:8081/ws";
+  var TILE = 32;
+  var BUILD_REACH = TILE * 6;
+  var WS_URL = "ws://localhost:8081/ws";
   var BASE_STATS = {
     radius: 22,
     maxHp: 100,
@@ -106,8 +106,8 @@
     } }
   };
   var BUILD_DEFS = {
-    wall: { label: "Wall", wood: 15, stone: 0, hp: 80, radius: 26, color: ["#c9a668", "#9aa3a6", "#c7cfd2"] },
-    spike: { label: "Spike", wood: 10, stone: 5, hp: 40, radius: 18, damage: 9 },
+    wall: { label: "Wall", wood: 15, stone: 0, hp: 80, radius: 14, color: ["#c9a668", "#9aa3a6", "#c7cfd2"] },
+    spike: { label: "Spike", wood: 10, stone: 5, hp: 40, radius: 10, damage: 9 },
     campfire: { label: "Campfire", wood: 20, stone: 0, hp: 50, radius: 20, healRadius: 150, healRate: 5 },
     shop: { label: "Shop", wood: 40, stone: 35, hp: 120, radius: 24 },
     factory: { label: "Factory", wood: 50, stone: 40, hp: 150, radius: 28 },
@@ -222,14 +222,6 @@
   var running = false;
   function setRunning(val) {
     running = val;
-  }
-  var inNetMatch = false;
-  function setInNetMatch(val) {
-    inNetMatch = val;
-  }
-  var remotePlayers = [];
-  function setRemotePlayers(val) {
-    remotePlayers = val;
   }
   var paused = false;
   function setPaused(val) {
@@ -828,237 +820,6 @@
     window.addEventListener("gestureend", preventZoom, { passive: false });
   }
 
-  // src/net/socket.ts
-  var SESSION_TOKEN_KEY = "nightfall_session_token";
-  var socket = null;
-  var myId = null;
-  var myRoomId = null;
-  var net = {
-    onWelcome: null,
-    onLobby: null,
-    onPlayers: null,
-    onZombies: null,
-    onBullets: null,
-    onStructures: null,
-    onDisconnected: null
-  };
-  function isConnected() {
-    return !!socket && socket.readyState === WebSocket.OPEN;
-  }
-  function getMyId() {
-    return myId;
-  }
-  function getSavedToken() {
-    try {
-      return localStorage.getItem(SESSION_TOKEN_KEY) || "";
-    } catch {
-      return "";
-    }
-  }
-  function saveToken(token) {
-    try {
-      localStorage.setItem(SESSION_TOKEN_KEY, token);
-    } catch {
-    }
-  }
-  function connect(name) {
-    if (socket) disconnect();
-    const token = getSavedToken();
-    const params = new URLSearchParams();
-    if (token) params.set("token", token);
-    params.set("name", name);
-    const url = WS_URL + "?" + params.toString();
-    socket = new WebSocket(url);
-    socket.onmessage = (e) => {
-      let msg;
-      try {
-        msg = JSON.parse(e.data);
-      } catch {
-        return;
-      }
-      switch (msg.type) {
-        case "welcome":
-          myId = msg.id;
-          myRoomId = msg.roomId;
-          saveToken(msg.sessionToken);
-          net.onWelcome?.(msg);
-          break;
-        case "lobby":
-          net.onLobby?.(msg);
-          break;
-        case "players":
-          net.onPlayers?.(msg);
-          break;
-        case "zombies":
-          net.onZombies?.(msg);
-          break;
-        case "bullets":
-          net.onBullets?.(msg);
-          break;
-        case "structures":
-          net.onStructures?.(msg);
-          break;
-      }
-    };
-    socket.onclose = () => {
-      socket = null;
-      myId = null;
-      myRoomId = null;
-      net.onDisconnected?.();
-    };
-  }
-  function disconnect() {
-    if (socket) {
-      socket.onclose = null;
-      socket.close();
-      socket = null;
-    }
-    myId = null;
-    myRoomId = null;
-  }
-  function send(payload) {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(payload));
-    }
-  }
-  function sendReady(ready) {
-    send({ type: "ready", ready });
-  }
-  function sendMove(x, y, angle) {
-    send({ type: "move", x, y, angle });
-  }
-  function sendShoot(angle) {
-    send({ type: "shoot", angle });
-  }
-  function sendBuild(kind, x, y, angle) {
-    send({ type: "build", kind, x, y, angle });
-  }
-  function sendUpgrade(structureId) {
-    send({ type: "upgrade", structureId });
-  }
-
-  // src/net/matchSync.ts
-  function hashId(id) {
-    let h = 0;
-    for (let i = 0; i < id.length; i++) h = h * 31 + id.charCodeAt(i) >>> 0;
-    return h;
-  }
-  var HAIR_KINDS = ["bald", "hood", "tuft"];
-  var MOUTH_KINDS = ["open", "frown", "grimace"];
-  function toClientZombie(snap) {
-    const h = hashId(snap.id);
-    const variant = SKIN_VARIANTS[h % SKIN_VARIANTS.length];
-    return {
-      id: h,
-      type: "normal",
-      x: snap.x,
-      y: snap.y,
-      radius: 20,
-      hp: snap.hp,
-      maxHp: snap.maxHp,
-      speed: 0,
-      damage: 0,
-      armor: 0,
-      hitCooldown: 0,
-      wobble: h % 628 / 100,
-      flash: 0,
-      lastShot: 0,
-      fuseStart: null,
-      hairKind: HAIR_KINDS[h % HAIR_KINDS.length],
-      mouthKind: MOUTH_KINDS[(h >> 3) % MOUTH_KINDS.length],
-      squishX: 1,
-      squishY: 1,
-      skinColor: variant[0],
-      skinColor2: variant[1],
-      skinDark: variant[2],
-      clothColor: null
-    };
-  }
-  var lastBulletPos = /* @__PURE__ */ new Map();
-  function toClientBullet(snap) {
-    const prev = lastBulletPos.get(snap.id);
-    const vx = prev ? snap.x - prev.x : 0;
-    const vy = prev ? snap.y - prev.y : 0;
-    lastBulletPos.set(snap.id, { x: snap.x, y: snap.y });
-    return {
-      x: snap.x,
-      y: snap.y,
-      vx,
-      vy,
-      radius: 5,
-      damage: 0,
-      life: 1,
-      owner: "player"
-    };
-  }
-  function toClientStructure(snap) {
-    return {
-      id: snap.id,
-      type: snap.type,
-      x: snap.x,
-      y: snap.y,
-      angle: snap.angle,
-      aimAngle: snap.aimAngle,
-      radius: BUILD_DEFS[snap.type].radius,
-      hp: snap.hp,
-      maxHp: snap.maxHp,
-      tier: snap.tier,
-      level: snap.level
-    };
-  }
-  var wired = false;
-  function initMatchSync() {
-    if (wired) return;
-    wired = true;
-    net.onPlayers = (msg) => {
-      const myId2 = getMyId();
-      const others = msg.players.filter((p) => p.id !== myId2).map((p) => ({ id: p.id, name: p.name, x: p.x, y: p.y, angle: p.angle, hp: p.hp, maxHp: p.maxHp, alive: p.alive }));
-      setRemotePlayers(others);
-      const mine = msg.players.find((p) => p.id === myId2);
-      if (mine) {
-        player.hp = mine.hp;
-        player.maxHp = mine.maxHp;
-        player.alive = mine.alive;
-      }
-    };
-    net.onZombies = (msg) => {
-      setZombies(msg.zombies.map(toClientZombie));
-    };
-    net.onBullets = (msg) => {
-      const activeIds = new Set(msg.bullets.map((b) => b.id));
-      for (const id of lastBulletPos.keys()) {
-        if (!activeIds.has(id)) lastBulletPos.delete(id);
-      }
-      setBullets(msg.bullets.map(toClientBullet));
-    };
-    net.onStructures = (msg) => {
-      const next = msg.structures.map(toClientStructure);
-      setStructures(next);
-      if (inspectedStructure) {
-        setInspectedStructure(next.find((s) => s.id === inspectedStructure.id) ?? null);
-      }
-    };
-    net.onDisconnected = () => {
-      setInNetMatch(false);
-    };
-  }
-  function startNetMatch() {
-    setInNetMatch(true);
-    lastBulletPos.clear();
-  }
-  function stopNetMatch() {
-    setInNetMatch(false);
-    setRemotePlayers([]);
-    lastBulletPos.clear();
-  }
-  var lastSentMoveAt = 0;
-  var MOVE_SEND_INTERVAL_MS = 80;
-  function maybeSendMove(now) {
-    if (now - lastSentMoveAt < MOVE_SEND_INTERVAL_MS) return;
-    lastSentMoveAt = now;
-    sendMove(player.x, player.y, player.angle);
-  }
-
   // src/systems/codex.ts
   var CODEX_KEY = "nightfalls_codex_data_v1";
   var codex = {
@@ -1279,10 +1040,6 @@
         player.overheatedUntil = now + OVERHEAT_LOCKOUT_MS;
         showBanner("OVERHEATED", "weapon cooling down...", "power");
       }
-    }
-    if (inNetMatch) {
-      sendShoot(player.angle);
-      return;
     }
     const insta = now < player.instaKillUntil;
     const dmg = insta ? Math.max(player.damage, 500) : player.damage * damageBoostMul() * wdef.damageMul;
@@ -1756,7 +1513,6 @@
       const mWorld = mouseWorldPos(mouse, camera2);
       player.angle = Math.atan2(mWorld.y - player.y, mWorld.x - player.x);
     }
-    if (inNetMatch) maybeSendMove(performance.now());
     if (mouse.down) tryShoot(performance.now());
     if (player.mutation === "overclocked" && player.heat > 0) {
       player.heat = Math.max(0, player.heat - OVERHEAT_DECAY_PER_SEC * dt / 1e3);
@@ -2612,6 +2368,24 @@
   imgStone.src = "assets/stone.png";
   var imgIron = new Image();
   imgIron.src = "assets/iron.png";
+  var imgCannonBase = new Image();
+  imgCannonBase.src = "assets/structures/cannon_base.png";
+  var imgCannonTurret = new Image();
+  imgCannonTurret.src = "assets/structures/cannon_turret.png";
+  var imgMortarBase = new Image();
+  imgMortarBase.src = "assets/structures/mortar_base.png";
+  var imgMortarTurret = new Image();
+  imgMortarTurret.src = "assets/structures/mortar_turret.png";
+  var imgSniperBase = new Image();
+  imgSniperBase.src = "assets/structures/sniper_base.png";
+  var imgSniperTurret = new Image();
+  imgSniperTurret.src = "assets/structures/sniper_turret.png";
+  var imgWallWood = new Image();
+  imgWallWood.src = "assets/structures/wall_wood.png";
+  var imgWallStone = new Image();
+  imgWallStone.src = "assets/structures/wall_stone.png";
+  var imgWallIron = new Image();
+  imgWallIron.src = "assets/structures/wall_iron.png";
   function worldToScreen(x, y) {
     return { x: x - camera.x, y: y - camera.y };
   }
@@ -3086,37 +2860,24 @@
     const ang = st.angle || 0;
     const lvl = st.level || 1;
     if (st.type === "wall") {
-      const tierGray = ["#8f9498", "#a9aeb2", "#c3c8cc"];
-      const col = tierGray[st.tier ?? 0];
-      const w = st.radius * 2.3, h = st.radius * 1;
+      const tierImgs = [imgWallWood, imgWallStone, imgWallIron];
+      const curImg = tierImgs[st.tier ?? 0];
+      const w = TILE, h = TILE;
       ctx2.save();
       ctx2.translate(s.x, s.y);
-      ctx2.rotate(ang + Math.PI / 2);
-      ctx2.fillStyle = col;
-      ctx2.strokeStyle = "#2a2d30";
-      ctx2.lineWidth = 4;
-      roundRectPath(ctx2, -w / 2, -h / 2, w, h, 5);
-      ctx2.fill();
-      ctx2.stroke();
-      ctx2.strokeStyle = "rgba(0,0,0,0.32)";
-      ctx2.lineWidth = 2.5;
-      for (let i = 1; i < 3; i++) {
-        const dx = -w / 2 + i * (w / 3);
-        ctx2.beginPath();
-        ctx2.moveTo(dx, -h / 2 + 3);
-        ctx2.lineTo(dx, h / 2 - 3);
+      ctx2.rotate(ang);
+      if (curImg && curImg.complete && curImg.naturalWidth !== 0) {
+        ctx2.drawImage(curImg, -w / 2, -h / 2, w, h);
+      } else {
+        const tierGray = ["#c9a668", "#9aa3a6", "#c7cfd2"];
+        const col = tierGray[st.tier ?? 0];
+        ctx2.fillStyle = col;
+        ctx2.strokeStyle = "#2a2d30";
+        ctx2.lineWidth = 4;
+        roundRectPath(ctx2, -w / 2, -h / 2, w, h, 5);
+        ctx2.fill();
         ctx2.stroke();
       }
-      ctx2.beginPath();
-      ctx2.moveTo(-w / 2 + 3, 0);
-      ctx2.lineTo(w / 2 - 3, 0);
-      ctx2.stroke();
-      ctx2.strokeStyle = "rgba(255,255,255,0.22)";
-      ctx2.lineWidth = 2;
-      ctx2.beginPath();
-      ctx2.moveTo(-w / 2 + 5, -h / 2 + 3);
-      ctx2.lineTo(w / 2 - 5, -h / 2 + 3);
-      ctx2.stroke();
       ctx2.restore();
     } else if (st.type === "spike") {
       const w = st.radius * 2.4, h = st.radius * 0.62;
@@ -3164,88 +2925,166 @@
     } else if (st.type === "cannon") {
       ctx2.save();
       ctx2.translate(s.x, s.y);
-      const baseColors = ["#4a5a5e", "#597b7f", "#6a9a9e", "#3a7d8c", "#ffd76a"];
-      ctx2.fillStyle = baseColors[lvl - 1];
-      ctx2.strokeStyle = "#1c2426";
-      ctx2.lineWidth = 3.5;
-      ctx2.beginPath();
-      ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
-      ctx2.fill();
-      ctx2.stroke();
-      ctx2.fillStyle = "#ffffff";
+      const size = st.radius * 2.8;
+      const levelColors = [null, "#a06d3b", "#8f9498", "#597b7f", "#ffd76a"];
+      const lvlColor = levelColors[Math.min(lvl - 1, 4)];
+      const bSize = size + 6;
+      if (lvlColor) {
+        ctx2.save();
+        ctx2.fillStyle = lvlColor + "33";
+        roundRectPath(ctx2, -bSize / 2 - 2, -bSize / 2 - 2, bSize + 4, bSize + 4, 10);
+        ctx2.fill();
+        ctx2.strokeStyle = "#000000";
+        ctx2.lineWidth = 6;
+        roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+        ctx2.stroke();
+        ctx2.strokeStyle = lvlColor;
+        ctx2.lineWidth = 3.5;
+        roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+        ctx2.stroke();
+        ctx2.fillStyle = "#000000";
+        const cOff = bSize / 2 - 4;
+        [[-cOff, -cOff], [cOff, -cOff], [-cOff, cOff], [cOff, cOff]].forEach(([cx, cy]) => {
+          ctx2.beginPath();
+          ctx2.arc(cx, cy, 2.5, 0, Math.PI * 2);
+          ctx2.fill();
+        });
+        ctx2.restore();
+      }
+      if (imgCannonBase.complete && imgCannonBase.naturalWidth !== 0) {
+        ctx2.drawImage(imgCannonBase, -size / 2, -size / 2, size, size);
+      } else {
+        const baseColors = ["#4a5a5e", "#597b7f", "#6a9a9e", "#3a7d8c", "#ffd76a"];
+        ctx2.fillStyle = baseColors[lvl - 1];
+        ctx2.strokeStyle = "#1c2426";
+        ctx2.lineWidth = 3.5;
+        ctx2.beginPath();
+        ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.stroke();
+      }
+      ctx2.save();
+      const aimA = st.aimAngle ?? -Math.PI / 2;
+      ctx2.rotate(aimA + Math.PI / 2);
+      if (imgCannonTurret.complete && imgCannonTurret.naturalWidth !== 0) {
+        ctx2.drawImage(imgCannonTurret, -size / 2, -size / 2, size, size);
+      } else {
+        ctx2.fillStyle = "#2f3a3c";
+        ctx2.strokeStyle = "#1c2426";
+        ctx2.lineWidth = 2.5;
+        ctx2.fillRect(-5, -st.radius - 8, 10, 11);
+        ctx2.strokeRect(-5, -st.radius - 8, 10, 11);
+      }
+      ctx2.restore();
+      ctx2.fillStyle = "#ffd76a";
       for (let i = 0; i < lvl; i++) {
         const aDots = i * Math.PI * 2 / lvl;
         ctx2.beginPath();
-        ctx2.arc(Math.cos(aDots) * (st.radius * 0.6), Math.sin(aDots) * (st.radius * 0.6), 2, 0, Math.PI * 2);
+        ctx2.arc(Math.cos(aDots) * (st.radius * 0.7), Math.sin(aDots) * (st.radius * 0.7), 2.5, 0, Math.PI * 2);
         ctx2.fill();
       }
-      const aimA = st.aimAngle ?? -Math.PI / 2;
-      ctx2.rotate(aimA + Math.PI / 2);
-      ctx2.fillStyle = "#2f3a3c";
-      ctx2.strokeStyle = "#1c2426";
-      ctx2.lineWidth = 2.5;
-      ctx2.fillRect(-5, -st.radius - 8, 10, 11);
-      ctx2.strokeRect(-5, -st.radius - 8, 10, 11);
-      ctx2.fillStyle = lvl === 5 ? "#e74c3c" : "#ffd76a";
-      ctx2.fillRect(-6, -st.radius - 12, 12, 4);
-      ctx2.strokeRect(-6, -st.radius - 12, 12, 4);
       ctx2.restore();
     } else if (st.type === "mortar") {
       ctx2.save();
       ctx2.translate(s.x, s.y);
-      ctx2.fillStyle = "#34495e";
-      ctx2.strokeStyle = "#1a252f";
-      ctx2.lineWidth = 4;
-      ctx2.beginPath();
-      ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
-      ctx2.fill();
-      ctx2.stroke();
-      ctx2.strokeStyle = "#f1c40f";
-      ctx2.lineWidth = 2.5;
-      for (let i = 0; i < 8; i++) {
-        const edgeA = i * Math.PI * 2 / 8;
+      const size = st.radius * 2.8;
+      const levelColors = [null, "#a06d3b", "#8f9498", "#597b7f", "#ffd76a"];
+      const lvlColor = levelColors[Math.min(lvl - 1, 4)];
+      const bSize = size + 6;
+      if (lvlColor) {
+        ctx2.save();
+        ctx2.fillStyle = lvlColor + "33";
+        roundRectPath(ctx2, -bSize / 2 - 2, -bSize / 2 - 2, bSize + 4, bSize + 4, 10);
+        ctx2.fill();
+        ctx2.strokeStyle = "#000000";
+        ctx2.lineWidth = 6;
+        roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+        ctx2.stroke();
+        ctx2.strokeStyle = lvlColor;
+        ctx2.lineWidth = 3.5;
+        roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+        ctx2.stroke();
+        ctx2.fillStyle = "#000000";
+        const cOff = bSize / 2 - 4;
+        [[-cOff, -cOff], [cOff, -cOff], [-cOff, cOff], [cOff, cOff]].forEach(([cx, cy]) => {
+          ctx2.beginPath();
+          ctx2.arc(cx, cy, 2.5, 0, Math.PI * 2);
+          ctx2.fill();
+        });
+        ctx2.restore();
+      }
+      if (imgMortarBase.complete && imgMortarBase.naturalWidth !== 0) {
+        ctx2.drawImage(imgMortarBase, -size / 2, -size / 2, size, size);
+      } else {
+        ctx2.fillStyle = "#34495e";
+        ctx2.strokeStyle = "#1a252f";
+        ctx2.lineWidth = 4;
         ctx2.beginPath();
-        ctx2.moveTo(Math.cos(edgeA) * (st.radius - 3), Math.sin(edgeA) * (st.radius - 3));
-        ctx2.lineTo(Math.cos(edgeA + 0.15) * st.radius, Math.sin(edgeA + 0.15) * st.radius);
+        ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
+        ctx2.fill();
         ctx2.stroke();
       }
+      ctx2.save();
       const aimA = st.aimAngle ?? -Math.PI / 2;
       ctx2.rotate(aimA + Math.PI / 2);
-      ctx2.fillStyle = "#2c3e50";
-      ctx2.strokeStyle = "#1a252f";
-      ctx2.lineWidth = 2;
-      ctx2.fillRect(-7, -st.radius - 3, 14, 12);
-      ctx2.strokeRect(-7, -st.radius - 3, 14, 12);
-      ctx2.fillStyle = "#111";
-      ctx2.beginPath();
-      ctx2.arc(0, -st.radius - 1, 5, 0, Math.PI * 2);
-      ctx2.fill();
+      if (imgMortarTurret.complete && imgMortarTurret.naturalWidth !== 0) {
+        ctx2.drawImage(imgMortarTurret, -size / 2, -size / 2, size, size);
+      } else {
+        ctx2.fillStyle = "#2c3e50";
+        ctx2.fillRect(-7, -st.radius - 3, 14, 12);
+      }
+      ctx2.restore();
       ctx2.restore();
     } else if (st.type === "sniper") {
       ctx2.save();
       ctx2.translate(s.x, s.y);
-      ctx2.fillStyle = "#7f8c8d";
-      ctx2.strokeStyle = "#2c3e50";
-      ctx2.lineWidth = 3.5;
-      ctx2.beginPath();
-      ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
-      ctx2.fill();
-      ctx2.stroke();
-      ctx2.fillStyle = "#34495e";
-      ctx2.beginPath();
-      ctx2.arc(0, 0, st.radius * 0.6, 0, Math.PI * 2);
-      ctx2.fill();
+      const size = st.radius * 2.8;
+      const levelColors = [null, "#a06d3b", "#8f9498", "#597b7f", "#ffd76a"];
+      const lvlColor = levelColors[Math.min(lvl - 1, 4)];
+      const bSize = size + 6;
+      if (lvlColor) {
+        ctx2.save();
+        ctx2.fillStyle = lvlColor + "33";
+        roundRectPath(ctx2, -bSize / 2 - 2, -bSize / 2 - 2, bSize + 4, bSize + 4, 10);
+        ctx2.fill();
+        ctx2.strokeStyle = "#000000";
+        ctx2.lineWidth = 6;
+        roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+        ctx2.stroke();
+        ctx2.strokeStyle = lvlColor;
+        ctx2.lineWidth = 3.5;
+        roundRectPath(ctx2, -bSize / 2, -bSize / 2, bSize, bSize, 8);
+        ctx2.stroke();
+        ctx2.fillStyle = "#000000";
+        const cOff = bSize / 2 - 4;
+        [[-cOff, -cOff], [cOff, -cOff], [-cOff, cOff], [cOff, cOff]].forEach(([cx, cy]) => {
+          ctx2.beginPath();
+          ctx2.arc(cx, cy, 2.5, 0, Math.PI * 2);
+          ctx2.fill();
+        });
+        ctx2.restore();
+      }
+      if (imgSniperBase.complete && imgSniperBase.naturalWidth !== 0) {
+        ctx2.drawImage(imgSniperBase, -size / 2, -size / 2, size, size);
+      } else {
+        ctx2.fillStyle = "#7f8c8d";
+        ctx2.strokeStyle = "#2c3e50";
+        ctx2.lineWidth = 3.5;
+        ctx2.beginPath();
+        ctx2.arc(0, 0, st.radius, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.stroke();
+      }
+      ctx2.save();
       const aimA = st.aimAngle ?? -Math.PI / 2;
       ctx2.rotate(aimA + Math.PI / 2);
-      ctx2.fillStyle = "#333333";
-      ctx2.strokeStyle = "#000000";
-      ctx2.lineWidth = 1.5;
-      ctx2.fillRect(-2, -st.radius - 16, 4, 18);
-      ctx2.strokeRect(-2, -st.radius - 16, 4, 18);
-      ctx2.fillStyle = "#e74c3c";
-      ctx2.beginPath();
-      ctx2.arc(0, -st.radius - 16, 2.5, 0, Math.PI * 2);
-      ctx2.fill();
+      if (imgSniperTurret.complete && imgSniperTurret.naturalWidth !== 0) {
+        ctx2.drawImage(imgSniperTurret, -size / 2, -size / 2, size, size);
+      } else {
+        ctx2.fillStyle = "#333333";
+        ctx2.fillRect(-2, -st.radius - 16, 4, 18);
+      }
+      ctx2.restore();
       ctx2.restore();
     } else if (st.type === "tesla") {
       ctx2.save();
@@ -3495,7 +3334,9 @@
     if (!player.alive || shopOpen || !selectedBuild || findNearestShop(80)) return;
     const target = getBuildTarget();
     const s = worldToScreen(target.cx, target.cy);
-    const half = TILE / 2;
+    const isTowerOrBuilding = selectedBuild !== "wall" && selectedBuild !== "spike";
+    const tileSize = isTowerOrBuilding ? TILE * 2 : TILE;
+    const half = tileSize / 2;
     let color = "#8bd17c";
     let label = "";
     if (target.occupant && target.canUpgrade) {
@@ -3538,11 +3379,11 @@
     ctx2.strokeStyle = color;
     ctx2.lineWidth = 2;
     ctx2.setLineDash([5, 4]);
-    ctx2.strokeRect(s.x - half, s.y - half, TILE, TILE);
+    ctx2.strokeRect(s.x - half, s.y - half, tileSize, tileSize);
     ctx2.setLineDash([]);
     ctx2.globalAlpha = 0.12;
     ctx2.fillStyle = color;
-    ctx2.fillRect(s.x - half, s.y - half, TILE, TILE);
+    ctx2.fillRect(s.x - half, s.y - half, tileSize, tileSize);
     ctx2.globalAlpha = 1;
     ctx2.restore();
     if (!target.occupant && !target.blockedByResource) {
@@ -4876,38 +4717,6 @@
       });
     }
   }
-  function drawRemotePlayer(ctx2, rp) {
-    const s = worldToScreen(rp.x, rp.y);
-    const radius = 22;
-    const OUTLINE = "#4a3220";
-    drawShadow(ctx2, s.x, s.y, radius);
-    ctx2.fillStyle = rp.alive ? radialFill(ctx2, s.x, s.y, radius, "#ffd9ad", "#e0ac7a") : "#555";
-    ctx2.beginPath();
-    ctx2.arc(s.x, s.y, radius, 0, Math.PI * 2);
-    ctx2.fill();
-    ctx2.strokeStyle = OUTLINE;
-    ctx2.lineWidth = 3;
-    ctx2.stroke();
-    if (rp.alive) {
-      ctx2.fillStyle = "rgba(0,0,0,0.35)";
-      const tipX = s.x + Math.cos(rp.angle) * radius * 1.3, tipY = s.y + Math.sin(rp.angle) * radius * 1.3;
-      ctx2.beginPath();
-      ctx2.moveTo(s.x + Math.cos(rp.angle + 1.3) * radius * 0.6, s.y + Math.sin(rp.angle + 1.3) * radius * 0.6);
-      ctx2.lineTo(tipX, tipY);
-      ctx2.lineTo(s.x + Math.cos(rp.angle - 1.3) * radius * 0.6, s.y + Math.sin(rp.angle - 1.3) * radius * 0.6);
-      ctx2.closePath();
-      ctx2.fill();
-    }
-    ctx2.font = "11px 'Share Tech Mono', monospace";
-    ctx2.textAlign = "center";
-    ctx2.fillStyle = "#eaf3ec";
-    ctx2.fillText(rp.name, s.x, s.y - radius - 18);
-    const barW = radius * 2;
-    ctx2.fillStyle = "#00000088";
-    ctx2.fillRect(s.x - barW / 2, s.y - radius - 12, barW, 5);
-    ctx2.fillStyle = "#ff5c5c";
-    ctx2.fillRect(s.x - barW / 2, s.y - radius - 12, barW * Math.max(0, rp.hp / rp.maxHp), 5);
-  }
   function drawBullets(ctx2) {
     for (const b of bullets) {
       const s = worldToScreen(b.x, b.y);
@@ -5062,8 +4871,8 @@
     ctx2.restore();
   }
   function render(ctx2, canvas2) {
-    camera.x = clamp(player.x - canvas2.width / 2, 0, WORLD_W - canvas2.width);
-    camera.y = clamp(player.y - canvas2.height / 2, 0, WORLD_H - canvas2.height);
+    camera.x = player.x - canvas2.width / 2;
+    camera.y = player.y - canvas2.height / 2;
     if (shake.time > 0) {
       camera.x += rand(-shake.mag, shake.mag);
       camera.y += rand(-shake.mag, shake.mag);
@@ -5075,11 +4884,15 @@
     for (const r of resources) drawResource(ctx2, canvas2, r);
     for (const c of crates) drawCrate(ctx2, c);
     for (const p of powerups) drawPowerup(ctx2, canvas2, p);
-    for (const st of structures) drawStructure(ctx2, st);
+    for (const st of structures) {
+      if (st.type === "wall" || st.type === "spike") drawStructure(ctx2, st);
+    }
+    for (const st of structures) {
+      if (st.type !== "wall" && st.type !== "spike") drawStructure(ctx2, st);
+    }
     drawBuildPreview(ctx2);
     for (const z of zombies) drawZombie(ctx2, canvas2, z);
     drawBullets(ctx2);
-    for (const rp of remotePlayers) drawRemotePlayer(ctx2, rp);
     drawPlayer(ctx2);
     drawParticles(ctx2);
     drawSniperLasers(ctx2);
@@ -5093,6 +4906,96 @@
     ctx2.fillStyle = grad;
     ctx2.fillRect(0, 0, canvas2.width, canvas2.height);
     drawMinimap(ctx2, canvas2);
+  }
+
+  // src/net/socket.ts
+  var SESSION_TOKEN_KEY = "nightfall_session_token";
+  var socket = null;
+  var myId = null;
+  var myRoomId = null;
+  var net = {
+    onWelcome: null,
+    onLobby: null,
+    onPlayers: null,
+    onZombies: null,
+    onBullets: null,
+    onDisconnected: null
+  };
+  function getMyId() {
+    return myId;
+  }
+  function getSavedToken() {
+    try {
+      return localStorage.getItem(SESSION_TOKEN_KEY) || "";
+    } catch {
+      return "";
+    }
+  }
+  function saveToken(token) {
+    try {
+      localStorage.setItem(SESSION_TOKEN_KEY, token);
+    } catch {
+    }
+  }
+  function connect(name) {
+    if (socket) disconnect();
+    const token = getSavedToken();
+    const params = new URLSearchParams();
+    if (token) params.set("token", token);
+    params.set("name", name);
+    const url = WS_URL + "?" + params.toString();
+    socket = new WebSocket(url);
+    socket.onmessage = (e) => {
+      let msg;
+      try {
+        msg = JSON.parse(e.data);
+      } catch {
+        return;
+      }
+      switch (msg.type) {
+        case "welcome":
+          myId = msg.id;
+          myRoomId = msg.roomId;
+          saveToken(msg.sessionToken);
+          net.onWelcome?.(msg);
+          break;
+        case "lobby":
+          net.onLobby?.(msg);
+          break;
+        case "players":
+          net.onPlayers?.(msg);
+          break;
+        case "zombies":
+          net.onZombies?.(msg);
+          break;
+        case "bullets":
+          net.onBullets?.(msg);
+          break;
+      }
+    };
+    socket.onclose = () => {
+      socket = null;
+      myId = null;
+      myRoomId = null;
+      net.onDisconnected?.();
+    };
+  }
+  function disconnect() {
+    if (socket) {
+      socket.onclose = null;
+      socket.close();
+      socket = null;
+    }
+    myId = null;
+    myRoomId = null;
+  }
+  function send(payload) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(payload));
+    }
+  }
+  function sendReady(ready) {
+    send({ type: "ready", ready });
   }
 
   // src/ui/metaUI.ts
@@ -5158,7 +5061,7 @@
     wrap.innerHTML = "";
     const equipDefault = document.createElement("div");
     equipDefault.className = "meta-btn" + (meta.equippedSkin === null ? " equipped" : "");
-    equipDefault.innerHTML = `<b>Default</b><div class="cost">${meta.equippedSkin === null ? "EQUIPPED" : "EQUIP"}</div>`;
+    equipDefault.innerHTML = `<b>Default</b><div>Standard survivor outfit</div><div class="cost">${meta.equippedSkin === null ? "EQUIPPED" : "EQUIP"}</div>`;
     equipDefault.onclick = async () => {
       meta.equippedSkin = null;
       await saveMeta();
@@ -5171,7 +5074,7 @@
       const affordable = meta.metaPoints >= s.cost;
       const btn = document.createElement("div");
       btn.className = "meta-btn" + (equipped ? " equipped" : !owned && !affordable ? " disabled" : "");
-      btn.innerHTML = `<b>${s.label}</b><div class="cost">${owned ? equipped ? "EQUIPPED" : "EQUIP" : s.cost + " pts"}</div>`;
+      btn.innerHTML = `<b>${s.label}</b><div>Custom survivor skin</div><div class="cost">${owned ? equipped ? "EQUIPPED" : "EQUIP" : s.cost + " pts"}</div>`;
       btn.onclick = async () => {
         if (!owned) {
           if (meta.metaPoints < s.cost) return;
@@ -5195,11 +5098,10 @@
       return;
     }
     el.innerHTML = list.map((e, i) => `
-    <div class="lb-row">
-      <span class="lb-rank">#${i + 1}</span>
-      <span>${escapeHtml(e.name || "Survivor")}</span>
-      <span>wave ${e.wave}</span>
-      <span>${e.kills} kills</span>
+    <div class="florr-lb-item">
+      <span class="florr-lb-rank">#${i + 1}</span>
+      <span class="florr-lb-name">${escapeHtml(e.name || "Survivor")}</span>
+      <span class="florr-lb-stat">W${e.wave} &bull; ${e.kills} kills</span>
     </div>
   `).join("");
   }
@@ -5209,9 +5111,10 @@
     wrap.innerHTML = "";
     Object.keys(MODE_DEFS).forEach((key) => {
       const def = MODE_DEFS[key];
+      const icon = key === "solo" ? "person" : "groups";
       const card = document.createElement("div");
-      card.className = "class-card" + (selectedMode === key ? " active" : "");
-      card.innerHTML = `<b>${def.label}</b><span>${def.desc}</span>`;
+      card.className = "florr-mode-card" + (selectedMode === key ? " active" : "");
+      card.innerHTML = `<span class="material-symbols-outlined mode-icon">${icon}</span><b>${def.label}</b><span>${def.desc}</span>`;
       card.onclick = () => {
         setSelectedMode(key);
         renderModeSelect();
@@ -5222,7 +5125,41 @@
   }
   function updateStartBtnLabel() {
     const btn = byId("startBtn");
-    if (btn) btn.textContent = selectedMode === "team" ? "QUEUE UP" : "ENTER THE FOREST";
+    if (btn) {
+      const labelText = selectedMode === "team" ? "QUEUE UP" : "ENTER THE ZONE";
+      btn.innerHTML = `${labelText} <span class="material-symbols-outlined btn-icon">rocket_launch</span>`;
+    }
+  }
+  function openMetaModal(tab) {
+    const modal = byId("metaModal");
+    const title = byId("metaModalTitle");
+    const upgradesSec = byId("metaModalUpgradesSection");
+    const bonusesSec = byId("metaModalBonusesSection");
+    const skinsSec = byId("metaModalSkinsSection");
+    if (!modal) return;
+    if (upgradesSec) upgradesSec.classList.toggle("hidden", tab !== "upgrades");
+    if (bonusesSec) bonusesSec.classList.toggle("hidden", tab !== "bonuses");
+    if (skinsSec) skinsSec.classList.toggle("hidden", tab !== "skins");
+    if (title) {
+      if (tab === "upgrades") title.textContent = "PERMANENT UPGRADES";
+      else if (tab === "bonuses") title.textContent = "STARTING BONUSES";
+      else if (tab === "skins") title.textContent = "SURVIVOR SKINS";
+    }
+    modal.classList.remove("hidden");
+  }
+  function closeMetaModal() {
+    const modal = byId("metaModal");
+    if (modal) modal.classList.add("hidden");
+  }
+  function setupMetaModalTabs() {
+    const uBtn = byId("tabUpgradesBtn");
+    const bBtn = byId("tabBonusesBtn");
+    const sBtn = byId("tabSkinsBtn");
+    const closeBtn = byId("metaModalCloseBtn");
+    if (uBtn) uBtn.onclick = () => openMetaModal("upgrades");
+    if (bBtn) bBtn.onclick = () => openMetaModal("bonuses");
+    if (sBtn) sBtn.onclick = () => openMetaModal("skins");
+    if (closeBtn) closeBtn.onclick = () => closeMetaModal();
   }
   function renderClassSelect(onConfirm) {
     const wrap = byId("classSelect");
@@ -5263,6 +5200,7 @@
     renderModeSelect();
     renderClassSelect();
     renderLeaderboard();
+    setupMetaModalTabs();
   }
   var countdownTickTimer;
   function stopCountdownTicker() {
@@ -5355,6 +5293,20 @@
       player.fireRate += 0.45;
     } }
   ];
+  var imgCannonBase2 = new Image();
+  imgCannonBase2.src = "assets/structures/cannon_base.png";
+  var imgCannonTurret2 = new Image();
+  imgCannonTurret2.src = "assets/structures/cannon_turret.png";
+  var imgMortarBase2 = new Image();
+  imgMortarBase2.src = "assets/structures/mortar_base.png";
+  var imgMortarTurret2 = new Image();
+  imgMortarTurret2.src = "assets/structures/mortar_turret.png";
+  var imgSniperBase2 = new Image();
+  imgSniperBase2.src = "assets/structures/sniper_base.png";
+  var imgSniperTurret2 = new Image();
+  imgSniperTurret2.src = "assets/structures/sniper_turret.png";
+  var imgWallWood2 = new Image();
+  imgWallWood2.src = "assets/structures/wall_wood.png";
   function createShopItems() {
     return [
       { key: "buy_insta", category: "powerup", label: "Insta-Kill", desc: "20s of one-shot kills", cost: 80, apply: () => applyPowerup("insta") },
@@ -5496,26 +5448,19 @@
     if (key === "wall") {
       ctx2.save();
       ctx2.translate(cx, cy);
-      ctx2.rotate(Math.PI / 6);
-      ctx2.fillStyle = "#a9aeb2";
-      ctx2.strokeStyle = "#2a2d30";
-      ctx2.lineWidth = 2;
-      const w = 26, h = 9;
-      ctx2.beginPath();
-      if (ctx2.roundRect) ctx2.roundRect(-w / 2, -h / 2, w, h, 2.5);
-      else ctx2.rect(-w / 2, -h / 2, w, h);
-      ctx2.fill();
-      ctx2.stroke();
-      ctx2.strokeStyle = "rgba(0,0,0,0.2)";
-      ctx2.lineWidth = 0.8;
-      ctx2.beginPath();
-      ctx2.moveTo(-w / 2 + w / 3, -h / 2);
-      ctx2.lineTo(-w / 2 + w / 3, h / 2);
-      ctx2.moveTo(w / 2 - w / 3, -h / 2);
-      ctx2.lineTo(w / 2 - w / 3, h / 2);
-      ctx2.moveTo(-w / 2, 0);
-      ctx2.lineTo(w / 2, 0);
-      ctx2.stroke();
+      const size = 26;
+      if (imgWallWood2.complete && imgWallWood2.naturalWidth !== 0) {
+        ctx2.drawImage(imgWallWood2, -size / 2, -size / 2, size, size);
+      } else {
+        ctx2.fillStyle = "#c9a668";
+        ctx2.strokeStyle = "#2a2d30";
+        ctx2.lineWidth = 2;
+        const w = 26, h = 9;
+        if (ctx2.roundRect) ctx2.roundRect(-w / 2, -h / 2, w, h, 2.5);
+        else ctx2.rect(-w / 2, -h / 2, w, h);
+        ctx2.fill();
+        ctx2.stroke();
+      }
       ctx2.restore();
     } else if (key === "spike") {
       ctx2.save();
@@ -5546,48 +5491,35 @@
     } else if (key === "cannon") {
       ctx2.save();
       ctx2.translate(cx, cy);
-      ctx2.fillStyle = "#6a9a9e";
-      ctx2.strokeStyle = "#1c2426";
-      ctx2.lineWidth = 2;
-      ctx2.beginPath();
-      ctx2.arc(0, 0, 8, 0, Math.PI * 2);
-      ctx2.fill();
-      ctx2.stroke();
-      ctx2.fillStyle = "#2f3a3c";
-      ctx2.fillRect(-2, -12, 4, 7);
-      ctx2.strokeRect(-2, -12, 4, 7);
+      const size = 26;
+      if (imgCannonBase2.complete && imgCannonBase2.naturalWidth !== 0) {
+        ctx2.drawImage(imgCannonBase2, -size / 2, -size / 2, size, size);
+      }
+      if (imgCannonTurret2.complete && imgCannonTurret2.naturalWidth !== 0) {
+        ctx2.drawImage(imgCannonTurret2, -size / 2, -size / 2, size, size);
+      }
       ctx2.restore();
     } else if (key === "mortar") {
       ctx2.save();
       ctx2.translate(cx, cy);
-      ctx2.fillStyle = "#34495e";
-      ctx2.strokeStyle = "#2c3e50";
-      ctx2.lineWidth = 2;
-      ctx2.beginPath();
-      ctx2.arc(0, 0, 8, 0, Math.PI * 2);
-      ctx2.fill();
-      ctx2.stroke();
-      ctx2.fillStyle = "#1a252f";
-      ctx2.beginPath();
-      ctx2.arc(0, 0, 5, 0, Math.PI * 2);
-      ctx2.fill();
+      const size = 26;
+      if (imgMortarBase2.complete && imgMortarBase2.naturalWidth !== 0) {
+        ctx2.drawImage(imgMortarBase2, -size / 2, -size / 2, size, size);
+      }
+      if (imgMortarTurret2.complete && imgMortarTurret2.naturalWidth !== 0) {
+        ctx2.drawImage(imgMortarTurret2, -size / 2, -size / 2, size, size);
+      }
       ctx2.restore();
     } else if (key === "sniper") {
       ctx2.save();
       ctx2.translate(cx, cy);
-      ctx2.fillStyle = "#7f8c8d";
-      ctx2.strokeStyle = "#bdc3c7";
-      ctx2.lineWidth = 1.5;
-      ctx2.beginPath();
-      ctx2.arc(0, 0, 6, 0, Math.PI * 2);
-      ctx2.fill();
-      ctx2.stroke();
-      ctx2.fillStyle = "#333";
-      ctx2.fillRect(-1, -14, 2, 10);
-      ctx2.fillStyle = "#e74c3c";
-      ctx2.beginPath();
-      ctx2.arc(0, -14, 1.5, 0, Math.PI * 2);
-      ctx2.fill();
+      const size = 26;
+      if (imgSniperBase2.complete && imgSniperBase2.naturalWidth !== 0) {
+        ctx2.drawImage(imgSniperBase2, -size / 2, -size / 2, size, size);
+      }
+      if (imgSniperTurret2.complete && imgSniperTurret2.naturalWidth !== 0) {
+        ctx2.drawImage(imgSniperTurret2, -size / 2, -size / 2, size, size);
+      }
       ctx2.restore();
     } else if (key === "tesla") {
       ctx2.save();
@@ -5738,10 +5670,26 @@
     if (!panel) return;
     panel.innerHTML = "";
     if (player.statPoints <= 0) return;
+    const iconMap = {
+      "Vitality": "favorite",
+      "Speed": "bolt",
+      "Power": "swords",
+      "Reload": "autorenew",
+      "Recovery": "health_and_safety",
+      "Fortune": "monetization_on"
+    };
     upgrades.forEach((u) => {
+      const keyClass = "upg-" + u.label.toLowerCase().replace(/[^a-z]/g, "");
+      const iconName = iconMap[u.label] || "upgrade";
       const btn = document.createElement("div");
-      btn.className = "upgrade-btn";
-      btn.innerHTML = `<b>${u.label}</b>${u.desc}`;
+      btn.className = `upgrade-btn ${keyClass} squishy squishy-hover animate-slide-in`;
+      btn.innerHTML = `
+      <div class="upg-badge"><span class="material-symbols-outlined">${iconName}</span></div>
+      <div class="upg-info">
+        <b>${u.label}</b>
+        <span>${u.desc}</span>
+      </div>
+    `;
       btn.onclick = () => {
         if (player.statPoints <= 0) return;
         u.apply();
@@ -5783,15 +5731,11 @@
         if (next) {
           if (player.points >= next.pointsCost) {
             player.points -= next.pointsCost;
-            if (inNetMatch && occupant.id) {
-              sendUpgrade(occupant.id);
-            } else {
-              occupant.tier = curTier + 1;
-              occupant.maxHp = next.hpMax;
-              occupant.hp = next.hpMax;
-              if (occupant.type === "spike") {
-                occupant.damage = next.damage;
-              }
+            occupant.tier = curTier + 1;
+            occupant.maxHp = next.hpMax;
+            occupant.hp = next.hpMax;
+            if (occupant.type === "spike") {
+              occupant.damage = next.damage;
             }
             spawnParticle(occupant.x, occupant.y - 30, next.name.toUpperCase() + " " + occupant.type.toUpperCase(), "#c7cfd2");
           } else {
@@ -5816,16 +5760,12 @@
           const amt = costInfo.amount;
           if (player[res] >= amt) {
             player[res] -= amt;
-            if (inNetMatch && occupant.id) {
-              sendUpgrade(occupant.id);
-            } else {
-              occupant.level = curLvl + 1;
-              const hpFactor = 1 + (occupant.level - 1) * 0.5;
-              const baseHp = BUILD_DEFS[occupant.type].hp;
-              occupant.maxHp = Math.round(baseHp * hpFactor);
-              occupant.hp = occupant.maxHp;
-            }
-            spawnParticle(occupant.x, occupant.y - 30, "Lv." + (curLvl + 1) + " " + occupant.type.toUpperCase() + "!", "#ffd76a");
+            occupant.level = curLvl + 1;
+            const hpFactor = 1 + (occupant.level - 1) * 0.5;
+            const baseHp = BUILD_DEFS[occupant.type].hp;
+            occupant.maxHp = Math.round(baseHp * hpFactor);
+            occupant.hp = occupant.maxHp;
+            spawnParticle(occupant.x, occupant.y - 30, "Lv." + occupant.level + " " + occupant.type.toUpperCase() + "!", "#ffd76a");
             spawnBurst(occupant.x, occupant.y, "#ffd76a", 12);
           } else {
             spawnParticle(player.x, player.y - 30, "need " + amt + " " + res, "#ff8080");
@@ -5852,10 +5792,6 @@
     player.wood -= wCost;
     player.stone -= sCost;
     const placedAngle = getPlacementAngle();
-    if (inNetMatch) {
-      sendBuild(selectedBuild, target.cx, target.cy, placedAngle);
-      return;
-    }
     const s = { type: selectedBuild, x: target.cx, y: target.cy, radius: def.radius, hp: def.hp, maxHp: def.hp, angle: placedAngle };
     if (selectedBuild === "wall") s.tier = 0;
     if (selectedBuild === "spike") {
@@ -6058,6 +5994,17 @@
     }
     const st = inspectedStructure;
     panel.classList.remove("hidden");
+    const s = worldToScreen(st.x, st.y);
+    const panelW = 260;
+    const panelH = 210;
+    let left = s.x - panelW / 2;
+    let top = s.y - st.radius - panelH - 12;
+    left = Math.max(16, Math.min(window.innerWidth - panelW - 16, left));
+    top = Math.max(16, Math.min(window.innerHeight - panelH - 16, top));
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+    panel.style.bottom = "auto";
+    panel.style.right = "auto";
     const def = BUILD_DEFS[st.type];
     const nameEl = byId("inspectorName");
     const lvlEl = byId("inspectorLvl");
@@ -6168,16 +6115,12 @@
         const amt = costInfo.amount;
         if (player[res] >= amt) {
           player[res] -= amt;
-          if (inNetMatch && st.id) {
-            sendUpgrade(st.id);
-          } else {
-            st.level = curLvl + 1;
-            const hpFactor = 1 + (st.level - 1) * 0.5;
-            const baseHp = BUILD_DEFS[st.type].hp;
-            st.maxHp = Math.round(baseHp * hpFactor);
-            st.hp = st.maxHp;
-          }
-          spawnParticle(st.x, st.y - 30, "Lv." + (curLvl + 1) + " " + st.type.toUpperCase() + "!", "#ffd76a");
+          st.level = curLvl + 1;
+          const hpFactor = 1 + (st.level - 1) * 0.5;
+          const baseHp = BUILD_DEFS[st.type].hp;
+          st.maxHp = Math.round(baseHp * hpFactor);
+          st.hp = st.maxHp;
+          spawnParticle(st.x, st.y - 30, "Lv." + st.level + " " + st.type.toUpperCase() + "!", "#ffd76a");
           spawnBurst(st.x, st.y, "#ffd76a", 12);
           renderStructureInspector();
         } else {
@@ -6191,14 +6134,10 @@
       if (next) {
         if (player.points >= next.pointsCost) {
           player.points -= next.pointsCost;
-          if (inNetMatch && st.id) {
-            sendUpgrade(st.id);
-          } else {
-            st.tier = curTier + 1;
-            st.maxHp = next.hpMax;
-            st.hp = next.hpMax;
-            if (st.type === "spike") st.damage = next.damage;
-          }
+          st.tier = curTier + 1;
+          st.maxHp = next.hpMax;
+          st.hp = next.hpMax;
+          if (st.type === "spike") st.damage = next.damage;
           spawnParticle(st.x, st.y - 30, next.name.toUpperCase() + " " + st.type.toUpperCase(), "#c7cfd2");
           renderStructureInspector();
         } else {
@@ -6208,6 +6147,24 @@
         spawnParticle(st.x, st.y - 30, "MAX TIER", "#8bd17c");
       }
     }
+  }
+  function removeInspectedStructure() {
+    if (!inspectedStructure) return;
+    const st = inspectedStructure;
+    const idx = structures.indexOf(st);
+    if (idx !== -1) {
+      structures.splice(idx, 1);
+      const def = BUILD_DEFS[st.type];
+      if (def) {
+        const wRefund = Math.floor(def.wood * 0.5);
+        const sRefund = Math.floor(def.stone * 0.5);
+        if (wRefund > 0) player.wood += wRefund;
+        if (sRefund > 0) player.stone += sRefund;
+        spawnParticle(st.x, st.y - 20, `+${wRefund} W  +${sRefund} S`, "#8bd17c");
+      }
+      spawnBurst(st.x, st.y, "#ff5c5c", 16);
+    }
+    closeStructureInspector();
   }
 
   // src/ui/settingsUI.ts
@@ -7005,7 +6962,6 @@
     onMutationChoice: openMutationChoice,
     onUpgradePanel: renderUpgradePanel
   });
-  initMatchSync();
   var canvas = byId("game");
   var ctx = canvas.getContext("2d");
   function resize() {
@@ -7042,15 +6998,13 @@
       if (dt > 100 * debugSpeedMultiplier) dt = 100 * debugSpeedMultiplier;
       setLastTime(t);
       updatePlayer(dt, camera);
-      if (!inNetMatch) {
-        updateBullets(dt);
-        updateStructures(dt);
-        updateZombies(dt, dayNight.factor);
-      }
+      updateBullets(dt);
+      updateStructures(dt);
+      updateZombies(dt, dayNight.factor);
       updateParticles(dt);
       updateBloodMoon();
       updateDayNight(dt);
-      if (!inNetMatch) updateWaves(dt);
+      updateWaves(dt);
       updateHud();
       render(ctx, canvas);
     } catch (err) {
@@ -7160,8 +7114,6 @@
   }
   byId("restartBtn").onclick = async () => {
     try {
-      if (isConnected()) disconnect();
-      stopNetMatch();
       byId("overlay").classList.add("hidden");
       byId("startOverlay").style.display = "flex";
       renderMetaPanel();
@@ -7232,11 +7184,17 @@
       showFatalError(err);
     }
   };
+  byId("inspectorRemoveBtn").onclick = () => {
+    try {
+      removeInspectedStructure();
+    } catch (err) {
+      showFatalError(err);
+    }
+  };
   lobby.onPlayersChanged = renderLobby;
   lobby.onMatchStart = () => {
     setTimeout(() => {
       byId("lobbyOverlay").classList.add("hidden");
-      startNetMatch();
       resetGame();
     }, 600);
   };
