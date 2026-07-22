@@ -946,14 +946,43 @@
   }
   var HAIR_KINDS = ["bald", "hood", "tuft"];
   var MOUTH_KINDS = ["open", "frown", "grimace"];
+  var zombieRenderPos = /* @__PURE__ */ new Map();
+  var zombieTargetPos = /* @__PURE__ */ new Map();
+  var bulletRenderPos = /* @__PURE__ */ new Map();
+  var bulletTargetPos = /* @__PURE__ */ new Map();
+  var NET_SMOOTH_TAU_MS = 90;
+  function smoothFactor(dtMs) {
+    return 1 - Math.exp(-dtMs / NET_SMOOTH_TAU_MS);
+  }
+  function updateNetInterpolation(dt) {
+    const t = smoothFactor(dt);
+    for (const z of zombies) {
+      const target = zombieTargetPos.get(z.id);
+      if (!target) continue;
+      z.x += (target.x - z.x) * t;
+      z.y += (target.y - z.y) * t;
+      zombieRenderPos.set(z.id, { x: z.x, y: z.y });
+    }
+    for (const b of bullets) {
+      if (!b.id) continue;
+      const target = bulletTargetPos.get(b.id);
+      if (!target) continue;
+      b.x += (target.x - b.x) * t;
+      b.y += (target.y - b.y) * t;
+      bulletRenderPos.set(b.id, { x: b.x, y: b.y });
+    }
+  }
   function toClientZombie(snap) {
     const h = hashId(snap.id);
     const variant = SKIN_VARIANTS[h % SKIN_VARIANTS.length];
+    zombieTargetPos.set(h, { x: snap.x, y: snap.y });
+    const render2 = zombieRenderPos.get(h) ?? { x: snap.x, y: snap.y };
+    zombieRenderPos.set(h, render2);
     return {
       id: h,
       type: "normal",
-      x: snap.x,
-      y: snap.y,
+      x: render2.x,
+      y: render2.y,
       radius: 20,
       hp: snap.hp,
       maxHp: snap.maxHp,
@@ -981,9 +1010,13 @@
     const vx = prev ? snap.x - prev.x : 0;
     const vy = prev ? snap.y - prev.y : 0;
     lastBulletPos.set(snap.id, { x: snap.x, y: snap.y });
+    bulletTargetPos.set(snap.id, { x: snap.x, y: snap.y });
+    const render2 = bulletRenderPos.get(snap.id) ?? { x: snap.x, y: snap.y };
+    bulletRenderPos.set(snap.id, render2);
     return {
-      x: snap.x,
-      y: snap.y,
+      id: snap.id,
+      x: render2.x,
+      y: render2.y,
       vx,
       vy,
       radius: 5,
@@ -1023,12 +1056,25 @@
       }
     };
     net.onZombies = (msg) => {
+      const activeIds = new Set(msg.zombies.map((z) => hashId(z.id)));
+      for (const id of zombieRenderPos.keys()) {
+        if (!activeIds.has(id)) {
+          zombieRenderPos.delete(id);
+          zombieTargetPos.delete(id);
+        }
+      }
       setZombies(msg.zombies.map(toClientZombie));
     };
     net.onBullets = (msg) => {
       const activeIds = new Set(msg.bullets.map((b) => b.id));
       for (const id of lastBulletPos.keys()) {
         if (!activeIds.has(id)) lastBulletPos.delete(id);
+      }
+      for (const id of bulletRenderPos.keys()) {
+        if (!activeIds.has(id)) {
+          bulletRenderPos.delete(id);
+          bulletTargetPos.delete(id);
+        }
       }
       setBullets(msg.bullets.map(toClientBullet));
     };
@@ -1046,11 +1092,19 @@
   function startNetMatch() {
     setInNetMatch(true);
     lastBulletPos.clear();
+    zombieRenderPos.clear();
+    zombieTargetPos.clear();
+    bulletRenderPos.clear();
+    bulletTargetPos.clear();
   }
   function stopNetMatch() {
     setInNetMatch(false);
     setRemotePlayers([]);
     lastBulletPos.clear();
+    zombieRenderPos.clear();
+    zombieTargetPos.clear();
+    bulletRenderPos.clear();
+    bulletTargetPos.clear();
   }
   var lastSentMoveAt = 0;
   var MOVE_SEND_INTERVAL_MS = 80;
@@ -7218,6 +7272,8 @@
         updateBullets(dt);
         updateStructures(dt);
         updateZombies(dt, dayNight.factor);
+      } else {
+        updateNetInterpolation(dt);
       }
       updateParticles(dt);
       updateBloodMoon();

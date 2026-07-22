@@ -3,7 +3,7 @@ import {
   WORLD_W, WORLD_H, ROOM_MAX_PLAYERS, ROOM_MIN_PLAYERS, MATCH_START_COUNTDOWN_MS, TICK_MS,
   ZOMBIE_MAX, ZOMBIE_SPAWN_INTERVAL_MS, ZOMBIE_RADIUS, ZOMBIE_DAMAGE, ZOMBIE_HIT_COOLDOWN_MS, ZOMBIE_KILL_XP,
   ZOMBIE_CHASE_SPEED,
-  BULLET_SPEED, BULLET_LIFE_TICKS, BULLET_RADIUS, BULLET_DAMAGE,
+  BULLET_SPEED_PER_SEC, BULLET_LIFE_TICKS, BULLET_RADIUS, BULLET_DAMAGE,
   PLAYER_RADIUS, PLAYER_MAX_HP, MAX_PLAYER_SPEED_PER_MS, MIN_SHOT_INTERVAL_MS,
   BUILD_REACH, STRUCTURE_MAX, STRUCTURE_DEFS, TOWER_LEVELS, towerMaxHp,
   WALL_HP_BY_TIER, SPIKE_HP_BY_TIER, SPIKE_DAMAGE_BY_TIER, SPIKE_HIT_COOLDOWN_MS,
@@ -258,7 +258,11 @@ export class Room {
     p.lastMoveAt = now;
     p.lastMoveX = p.x;
     p.lastMoveY = p.y;
-    this.broadcastPlayers();
+    // No broadcast here — the tick loop already rebroadcasts every player at
+    // a fixed TICK_MS cadence. Broadcasting per-move-packet too meant every
+    // client's move (sent every 80ms regardless of whether they're actually
+    // moving) triggered its own full-roster serialize+send, stacking a
+    // broadcast storm on top of the tick that scaled with player count.
   }
 
   /** Validated shoot: rate-limited, ignored for dead players. */
@@ -272,10 +276,14 @@ export class Room {
     p.lastShotAt = now;
 
     const bid = generateBulletId();
+    // vx/vy are the per-tick displacement tickBulletsMovement() adds each
+    // tick, so the per-second speed must be scaled down by the tick
+    // interval here — same reasoning as ZOMBIE_CHASE_SPEED's moveDist.
+    const perTickSpeed = BULLET_SPEED_PER_SEC * (TICK_MS / 1000);
     this.bullets.set(bid, {
       id: bid, ownerId: id,
       x: p.x, y: p.y,
-      vx: Math.cos(angle) * BULLET_SPEED, vy: Math.sin(angle) * BULLET_SPEED,
+      vx: Math.cos(angle) * perTickSpeed, vy: Math.sin(angle) * perTickSpeed,
       life: BULLET_LIFE_TICKS,
     });
   }

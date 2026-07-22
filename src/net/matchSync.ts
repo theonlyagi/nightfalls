@@ -16,7 +16,7 @@ import {
 } from './socket';
 import {
   setInNetMatch, setRemotePlayers, RemotePlayer,
-  setZombies, setBullets, setStructures, player,
+  setZombies, setBullets, setStructures, player, zombies, bullets,
   inspectedStructure, setInspectedStructure,
 } from '../state';
 import { Zombie, Bullet, Structure, HairKind, MouthKind } from '../types';
@@ -33,13 +33,68 @@ function hashId(id: string): number {
 const HAIR_KINDS: HairKind[] = ['bald', 'hood', 'tuft'];
 const MOUTH_KINDS: MouthKind[] = ['open', 'frown', 'grimace'];
 
+// ---------------- Position interpolation (zombies + bullets) ----------------
+// Server snapshots arrive ~every 100ms; setZombies/setBullets used to snap
+// straight to each snapshot's x/y, so entities visibly teleported every tick
+// instead of moving smoothly. Fix: every frame, ease the rendered position
+// toward the latest known server position (exponential smoothing) instead of
+// jumping to it, and carry the *rendered* (not raw snapshot) position over
+// into the next snapshot-rebuilt object so the easing has continuity across
+// setZombies/setBullets swapping in fresh object references each time.
+interface Vec { x: number; y: number; }
+const zombieRenderPos = new Map<number, Vec>();
+const zombieTargetPos = new Map<number, Vec>();
+const bulletRenderPos = new Map<string, Vec>();
+const bulletTargetPos = new Map<string, Vec>();
+
+/** Time constant for the easing — small enough to stay visually tight to the
+ *  true server position, large enough to fully smooth out a 100ms-tick jump. */
+const NET_SMOOTH_TAU_MS = 90;
+
+function smoothFactor(dtMs: number): number {
+  return 1 - Math.exp(-dtMs / NET_SMOOTH_TAU_MS);
+}
+
+/** Called every frame from the local update loop while inNetMatch — eases
+ *  zombies'/bullets' rendered x/y toward their latest server position rather
+ *  than leaving them frozen between snapshots (which is what produced the
+ *  "teleport every tick" choppiness). */
+export function updateNetInterpolation(dt: number): void {
+  const t = smoothFactor(dt);
+
+  for (const z of zombies) {
+    const target = zombieTargetPos.get(z.id);
+    if (!target) continue;
+    z.x += (target.x - z.x) * t;
+    z.y += (target.y - z.y) * t;
+    zombieRenderPos.set(z.id, { x: z.x, y: z.y });
+  }
+
+  for (const b of bullets) {
+    if (!b.id) continue;
+    const target = bulletTargetPos.get(b.id);
+    if (!target) continue;
+    b.x += (target.x - b.x) * t;
+    b.y += (target.y - b.y) * t;
+    bulletRenderPos.set(b.id, { x: b.x, y: b.y });
+  }
+}
+
 function toClientZombie(snap: NetZombieSnapshot): Zombie {
   const h = hashId(snap.id);
   const variant = SKIN_VARIANTS[h % SKIN_VARIANTS.length];
+
+  zombieTargetPos.set(h, { x: snap.x, y: snap.y });
+  // A brand-new zombie spawns exactly at its true position (no false
+  // animate-in from elsewhere); an existing one starts from wherever its
+  // per-frame easing last left it, not the raw new snapshot value.
+  const render = zombieRenderPos.get(h) ?? { x: snap.x, y: snap.y };
+  zombieRenderPos.set(h, render);
+
   return {
     id: h,
     type: 'normal',
-    x: snap.x, y: snap.y, radius: 20,
+    x: render.x, y: render.y, radius: 20,
     hp: snap.hp, maxHp: snap.maxHp, speed: 0, damage: 0, armor: 0,
     hitCooldown: 0, wobble: (h % 628) / 100, flash: 0, lastShot: 0, fuseStart: null,
     hairKind: HAIR_KINDS[h % HAIR_KINDS.length], mouthKind: MOUTH_KINDS[(h >> 3) % MOUTH_KINDS.length],
@@ -49,7 +104,9 @@ function toClientZombie(snap: NetZombieSnapshot): Zombie {
 }
 
 /** Tracks each bullet's previous position so we can derive a rough velocity
- *  for the trail render (server snapshots carry position only, not vx/vy). */
+ *  for the trail render (server snapshots carry position only, not vx/vy).
+ *  Purely cosmetic (trail direction/length) — separate from the
+ *  render/target position maps above, which drive actual displayed motion. */
 const lastBulletPos = new Map<string, { x: number; y: number }>();
 
 function toClientBullet(snap: NetBulletSnapshot): Bullet {
@@ -57,8 +114,14 @@ function toClientBullet(snap: NetBulletSnapshot): Bullet {
   const vx = prev ? snap.x - prev.x : 0;
   const vy = prev ? snap.y - prev.y : 0;
   lastBulletPos.set(snap.id, { x: snap.x, y: snap.y });
+
+  bulletTargetPos.set(snap.id, { x: snap.x, y: snap.y });
+  const render = bulletRenderPos.get(snap.id) ?? { x: snap.x, y: snap.y };
+  bulletRenderPos.set(snap.id, render);
+
   return {
-    x: snap.x, y: snap.y, vx, vy, radius: 5, damage: 0, life: 1,
+    id: snap.id,
+    x: render.x, y: render.y, vx, vy, radius: 5, damage: 0, life: 1,
     owner: 'player',
   };
 }
@@ -103,6 +166,10 @@ export function initMatchSync(): void {
   };
 
   net.onZombies = (msg) => {
+    const activeIds = new Set(msg.zombies.map(z => hashId(z.id)));
+    for (const id of zombieRenderPos.keys()) {
+      if (!activeIds.has(id)) { zombieRenderPos.delete(id); zombieTargetPos.delete(id); }
+    }
     setZombies(msg.zombies.map(toClientZombie));
   };
 
@@ -110,6 +177,9 @@ export function initMatchSync(): void {
     const activeIds = new Set(msg.bullets.map(b => b.id));
     for (const id of lastBulletPos.keys()) {
       if (!activeIds.has(id)) lastBulletPos.delete(id);
+    }
+    for (const id of bulletRenderPos.keys()) {
+      if (!activeIds.has(id)) { bulletRenderPos.delete(id); bulletTargetPos.delete(id); }
     }
     setBullets(msg.bullets.map(toClientBullet));
   };
@@ -136,12 +206,20 @@ export function initMatchSync(): void {
 export function startNetMatch(): void {
   setInNetMatch(true);
   lastBulletPos.clear();
+  zombieRenderPos.clear();
+  zombieTargetPos.clear();
+  bulletRenderPos.clear();
+  bulletTargetPos.clear();
 }
 
 export function stopNetMatch(): void {
   setInNetMatch(false);
   setRemotePlayers([]);
   lastBulletPos.clear();
+  zombieRenderPos.clear();
+  zombieTargetPos.clear();
+  bulletRenderPos.clear();
+  bulletTargetPos.clear();
 }
 
 let lastSentMoveAt = 0;
