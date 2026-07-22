@@ -258,7 +258,11 @@ export class Room {
     p.lastMoveAt = now;
     p.lastMoveX = p.x;
     p.lastMoveY = p.y;
-    this.broadcastPlayers();
+    // No broadcast here — the tick loop already rebroadcasts every player at
+    // a fixed TICK_MS cadence. Broadcasting per-move-packet too meant every
+    // client's move (sent every 80ms regardless of whether they're actually
+    // moving) triggered its own full-roster serialize+send, stacking a
+    // broadcast storm on top of the tick that scaled with player count.
   }
 
   /** Validated shoot: rate-limited, ignored for dead players. */
