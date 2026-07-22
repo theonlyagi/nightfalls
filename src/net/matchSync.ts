@@ -16,11 +16,12 @@ import {
 } from './socket';
 import {
   setInNetMatch, setRemotePlayers, RemotePlayer,
-  setZombies, setBullets, setStructures, player, zombies, bullets,
+  setZombies, setBullets, setStructures, player, zombies, bullets, remotePlayers,
   inspectedStructure, setInspectedStructure,
 } from '../state';
 import { Zombie, Bullet, Structure, HairKind, MouthKind } from '../types';
 import { SKIN_VARIANTS, BUILD_DEFS } from '../constants';
+import { dist } from '../utils';
 
 /** Small deterministic hash so a given entity id always gets the same
  *  cosmetic look across snapshots, instead of re-randomizing every update. */
@@ -42,10 +43,13 @@ const MOUTH_KINDS: MouthKind[] = ['open', 'frown', 'grimace'];
 // into the next snapshot-rebuilt object so the easing has continuity across
 // setZombies/setBullets swapping in fresh object references each time.
 interface Vec { x: number; y: number; }
+interface VecAngle { x: number; y: number; angle: number; }
 const zombieRenderPos = new Map<number, Vec>();
 const zombieTargetPos = new Map<number, Vec>();
 const bulletRenderPos = new Map<string, Vec>();
 const bulletTargetPos = new Map<string, Vec>();
+const remotePlayerRenderPos = new Map<string, VecAngle>();
+const remotePlayerTargetPos = new Map<string, VecAngle>();
 
 /** Time constant for the easing — small enough to stay visually tight to the
  *  true server position, large enough to fully smooth out a 100ms-tick jump. */
@@ -55,10 +59,26 @@ function smoothFactor(dtMs: number): number {
   return 1 - Math.exp(-dtMs / NET_SMOOTH_TAU_MS);
 }
 
+/** See the reconciliation comment in net.onPlayers below for the full
+ *  reasoning — this must stay well above the normal per-send-interval
+ *  prediction lag (~10 units) so it only corrects genuine desync. */
+const RECONCILE_THRESHOLD = 80;
+
+/** Eases an angle toward a target the short way around the circle (e.g.
+ *  350deg -> 10deg turns forward through 360/0, not backward through 180),
+ *  instead of a plain numeric lerp which would spin the wrong direction
+ *  whenever a snapshot crosses the +-PI wraparound. */
+function easeAngle(current: number, target: number, t: number): number {
+  const diff = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  return current + diff * t;
+}
+
 /** Called every frame from the local update loop while inNetMatch — eases
- *  zombies'/bullets' rendered x/y toward their latest server position rather
- *  than leaving them frozen between snapshots (which is what produced the
- *  "teleport every tick" choppiness). */
+ *  zombies'/bullets'/remote players' rendered x/y (and heading, for players)
+ *  toward their latest server position rather than leaving them frozen
+ *  between snapshots (which is what produced the "teleport every tick"
+ *  choppiness — including other players visibly snapping to a new position
+ *  and facing angle every 100ms instead of turning/moving smoothly). */
 export function updateNetInterpolation(dt: number): void {
   const t = smoothFactor(dt);
 
@@ -77,6 +97,15 @@ export function updateNetInterpolation(dt: number): void {
     b.x += (target.x - b.x) * t;
     b.y += (target.y - b.y) * t;
     bulletRenderPos.set(b.id, { x: b.x, y: b.y });
+  }
+
+  for (const rp of remotePlayers) {
+    const target = remotePlayerTargetPos.get(rp.id);
+    if (!target) continue;
+    rp.x += (target.x - rp.x) * t;
+    rp.y += (target.y - rp.y) * t;
+    rp.angle = easeAngle(rp.angle, target.angle, t);
+    remotePlayerRenderPos.set(rp.id, { x: rp.x, y: rp.y, angle: rp.angle });
   }
 }
 
@@ -150,9 +179,22 @@ export function initMatchSync(): void {
 
   net.onPlayers = (msg) => {
     const myId = getMyId();
-    const others: RemotePlayer[] = msg.players
-      .filter(p => p.id !== myId)
-      .map(p => ({ id: p.id, name: p.name, x: p.x, y: p.y, angle: p.angle, hp: p.hp, maxHp: p.maxHp, alive: p.alive }));
+    const otherSnaps = msg.players.filter(p => p.id !== myId);
+
+    const activeIds = new Set(otherSnaps.map(p => p.id));
+    for (const id of remotePlayerRenderPos.keys()) {
+      if (!activeIds.has(id)) { remotePlayerRenderPos.delete(id); remotePlayerTargetPos.delete(id); }
+    }
+
+    const others: RemotePlayer[] = otherSnaps.map(p => {
+      remotePlayerTargetPos.set(p.id, { x: p.x, y: p.y, angle: p.angle });
+      // A brand-new player renders exactly at their true position (no false
+      // animate-in from elsewhere); an existing one starts from wherever its
+      // per-frame easing last left it, not the raw new snapshot value.
+      const render = remotePlayerRenderPos.get(p.id) ?? { x: p.x, y: p.y, angle: p.angle };
+      remotePlayerRenderPos.set(p.id, render);
+      return { id: p.id, name: p.name, x: render.x, y: render.y, angle: render.angle, hp: p.hp, maxHp: p.maxHp, alive: p.alive };
+    });
     setRemotePlayers(others);
 
     // The server is authoritative for the local player's HP/alive too, once
@@ -162,6 +204,27 @@ export function initMatchSync(): void {
       player.hp = mine.hp;
       player.maxHp = mine.maxHp;
       player.alive = mine.alive;
+
+      // Reconciliation: the local player's x/y is always client-predicted
+      // (moved instantly off local input in updatePlayer(), never gated on
+      // the network — see systems/update.ts), so under normal conditions the
+      // server's copy of "mine" merely lags behind by about one send
+      // interval (moves are sent every ~80ms — see MOVE_SEND_INTERVAL_MS)
+      // and this never needs to do anything. It exists only as a safety net:
+      // without it, a single move the server ever rejects (e.g. the
+      // anti-speed-hack check in Room.ts's handleMove tripping from network
+      // jitter) would leave the client silently diverged forever from the
+      // position everyone else (other players, zombie targeting/collision)
+      // actually sees, with no way to recover. RECONCILE_THRESHOLD is set
+      // well above the largest gap normal one-tick send latency can produce
+      // (~120 u/s * 80ms =~ 10 units) so it only fires on a real desync, not
+      // routine prediction lag.
+      const driftDist = dist(player.x, player.y, mine.x, mine.y);
+      if (driftDist > RECONCILE_THRESHOLD) {
+        console.warn(`[net] reconciling local player position, drifted ${driftDist.toFixed(0)} units from server`);
+        player.x = mine.x;
+        player.y = mine.y;
+      }
     }
   };
 
@@ -210,6 +273,8 @@ export function startNetMatch(): void {
   zombieTargetPos.clear();
   bulletRenderPos.clear();
   bulletTargetPos.clear();
+  remotePlayerRenderPos.clear();
+  remotePlayerTargetPos.clear();
 }
 
 export function stopNetMatch(): void {
@@ -220,6 +285,8 @@ export function stopNetMatch(): void {
   zombieTargetPos.clear();
   bulletRenderPos.clear();
   bulletTargetPos.clear();
+  remotePlayerRenderPos.clear();
+  remotePlayerTargetPos.clear();
 }
 
 let lastSentMoveAt = 0;

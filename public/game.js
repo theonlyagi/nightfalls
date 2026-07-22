@@ -950,9 +950,16 @@
   var zombieTargetPos = /* @__PURE__ */ new Map();
   var bulletRenderPos = /* @__PURE__ */ new Map();
   var bulletTargetPos = /* @__PURE__ */ new Map();
+  var remotePlayerRenderPos = /* @__PURE__ */ new Map();
+  var remotePlayerTargetPos = /* @__PURE__ */ new Map();
   var NET_SMOOTH_TAU_MS = 90;
   function smoothFactor(dtMs) {
     return 1 - Math.exp(-dtMs / NET_SMOOTH_TAU_MS);
+  }
+  var RECONCILE_THRESHOLD = 80;
+  function easeAngle(current, target, t) {
+    const diff = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+    return current + diff * t;
   }
   function updateNetInterpolation(dt) {
     const t = smoothFactor(dt);
@@ -970,6 +977,14 @@
       b.x += (target.x - b.x) * t;
       b.y += (target.y - b.y) * t;
       bulletRenderPos.set(b.id, { x: b.x, y: b.y });
+    }
+    for (const rp of remotePlayers) {
+      const target = remotePlayerTargetPos.get(rp.id);
+      if (!target) continue;
+      rp.x += (target.x - rp.x) * t;
+      rp.y += (target.y - rp.y) * t;
+      rp.angle = easeAngle(rp.angle, target.angle, t);
+      remotePlayerRenderPos.set(rp.id, { x: rp.x, y: rp.y, angle: rp.angle });
     }
   }
   function toClientZombie(snap) {
@@ -1046,13 +1061,32 @@
     wired = true;
     net.onPlayers = (msg) => {
       const myId2 = getMyId();
-      const others = msg.players.filter((p) => p.id !== myId2).map((p) => ({ id: p.id, name: p.name, x: p.x, y: p.y, angle: p.angle, hp: p.hp, maxHp: p.maxHp, alive: p.alive }));
+      const otherSnaps = msg.players.filter((p) => p.id !== myId2);
+      const activeIds = new Set(otherSnaps.map((p) => p.id));
+      for (const id of remotePlayerRenderPos.keys()) {
+        if (!activeIds.has(id)) {
+          remotePlayerRenderPos.delete(id);
+          remotePlayerTargetPos.delete(id);
+        }
+      }
+      const others = otherSnaps.map((p) => {
+        remotePlayerTargetPos.set(p.id, { x: p.x, y: p.y, angle: p.angle });
+        const render2 = remotePlayerRenderPos.get(p.id) ?? { x: p.x, y: p.y, angle: p.angle };
+        remotePlayerRenderPos.set(p.id, render2);
+        return { id: p.id, name: p.name, x: render2.x, y: render2.y, angle: render2.angle, hp: p.hp, maxHp: p.maxHp, alive: p.alive };
+      });
       setRemotePlayers(others);
       const mine = msg.players.find((p) => p.id === myId2);
       if (mine) {
         player.hp = mine.hp;
         player.maxHp = mine.maxHp;
         player.alive = mine.alive;
+        const driftDist = dist(player.x, player.y, mine.x, mine.y);
+        if (driftDist > RECONCILE_THRESHOLD) {
+          console.warn(`[net] reconciling local player position, drifted ${driftDist.toFixed(0)} units from server`);
+          player.x = mine.x;
+          player.y = mine.y;
+        }
       }
     };
     net.onZombies = (msg) => {
@@ -1096,6 +1130,8 @@
     zombieTargetPos.clear();
     bulletRenderPos.clear();
     bulletTargetPos.clear();
+    remotePlayerRenderPos.clear();
+    remotePlayerTargetPos.clear();
   }
   function stopNetMatch() {
     setInNetMatch(false);
@@ -1105,6 +1141,8 @@
     zombieTargetPos.clear();
     bulletRenderPos.clear();
     bulletTargetPos.clear();
+    remotePlayerRenderPos.clear();
+    remotePlayerTargetPos.clear();
   }
   var lastSentMoveAt = 0;
   var MOVE_SEND_INTERVAL_MS = 80;
