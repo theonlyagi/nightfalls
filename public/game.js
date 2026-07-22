@@ -937,219 +937,11 @@
   function sendRemove(structureId) {
     send({ type: "remove", structureId });
   }
-
-  // src/net/matchSync.ts
-  function hashId(id) {
-    let h = 0;
-    for (let i = 0; i < id.length; i++) h = h * 31 + id.charCodeAt(i) >>> 0;
-    return h;
+  function sendWeaponChoice(weapon) {
+    send({ type: "weaponChoice", weapon });
   }
-  var HAIR_KINDS = ["bald", "hood", "tuft"];
-  var MOUTH_KINDS = ["open", "frown", "grimace"];
-  var zombieRenderPos = /* @__PURE__ */ new Map();
-  var zombieTargetPos = /* @__PURE__ */ new Map();
-  var bulletRenderPos = /* @__PURE__ */ new Map();
-  var bulletTargetPos = /* @__PURE__ */ new Map();
-  var remotePlayerRenderPos = /* @__PURE__ */ new Map();
-  var remotePlayerTargetPos = /* @__PURE__ */ new Map();
-  var NET_SMOOTH_TAU_MS = 30;
-  function smoothFactor(dtMs) {
-    return 1 - Math.exp(-dtMs / NET_SMOOTH_TAU_MS);
-  }
-  var RECONCILE_THRESHOLD = 80;
-  function easeAngle(current, target, t) {
-    const diff = Math.atan2(Math.sin(target - current), Math.cos(target - current));
-    return current + diff * t;
-  }
-  function updateNetInterpolation(dt) {
-    const t = smoothFactor(dt);
-    for (const z of zombies) {
-      const target = zombieTargetPos.get(z.id);
-      if (!target) continue;
-      z.x += (target.x - z.x) * t;
-      z.y += (target.y - z.y) * t;
-      zombieRenderPos.set(z.id, { x: z.x, y: z.y });
-    }
-    for (const b of bullets) {
-      if (!b.id) continue;
-      const target = bulletTargetPos.get(b.id);
-      if (!target) continue;
-      b.x += (target.x - b.x) * t;
-      b.y += (target.y - b.y) * t;
-      bulletRenderPos.set(b.id, { x: b.x, y: b.y });
-    }
-    for (const rp of remotePlayers) {
-      const target = remotePlayerTargetPos.get(rp.id);
-      if (!target) continue;
-      rp.x += (target.x - rp.x) * t;
-      rp.y += (target.y - rp.y) * t;
-      rp.angle = easeAngle(rp.angle, target.angle, t);
-      remotePlayerRenderPos.set(rp.id, { x: rp.x, y: rp.y, angle: rp.angle });
-    }
-  }
-  function toClientZombie(snap) {
-    const h = hashId(snap.id);
-    const variant = SKIN_VARIANTS[h % SKIN_VARIANTS.length];
-    zombieTargetPos.set(h, { x: snap.x, y: snap.y });
-    const render2 = zombieRenderPos.get(h) ?? { x: snap.x, y: snap.y };
-    zombieRenderPos.set(h, render2);
-    return {
-      id: h,
-      type: "normal",
-      x: render2.x,
-      y: render2.y,
-      radius: 20,
-      hp: snap.hp,
-      maxHp: snap.maxHp,
-      speed: 0,
-      damage: 0,
-      armor: 0,
-      hitCooldown: 0,
-      wobble: h % 628 / 100,
-      flash: 0,
-      lastShot: 0,
-      fuseStart: null,
-      hairKind: HAIR_KINDS[h % HAIR_KINDS.length],
-      mouthKind: MOUTH_KINDS[(h >> 3) % MOUTH_KINDS.length],
-      squishX: 1,
-      squishY: 1,
-      skinColor: variant[0],
-      skinColor2: variant[1],
-      skinDark: variant[2],
-      clothColor: null
-    };
-  }
-  var lastBulletPos = /* @__PURE__ */ new Map();
-  function toClientBullet(snap) {
-    const prev = lastBulletPos.get(snap.id);
-    const vx = prev ? snap.x - prev.x : 0;
-    const vy = prev ? snap.y - prev.y : 0;
-    lastBulletPos.set(snap.id, { x: snap.x, y: snap.y });
-    bulletTargetPos.set(snap.id, { x: snap.x, y: snap.y });
-    const render2 = bulletRenderPos.get(snap.id) ?? { x: snap.x, y: snap.y };
-    bulletRenderPos.set(snap.id, render2);
-    return {
-      id: snap.id,
-      x: render2.x,
-      y: render2.y,
-      vx,
-      vy,
-      radius: 5,
-      damage: 0,
-      life: 1,
-      owner: "player"
-    };
-  }
-  function toClientStructure(snap) {
-    return {
-      id: snap.id,
-      type: snap.type,
-      x: snap.x,
-      y: snap.y,
-      angle: snap.angle,
-      aimAngle: snap.aimAngle,
-      radius: BUILD_DEFS[snap.type].radius,
-      hp: snap.hp,
-      maxHp: snap.maxHp,
-      tier: snap.tier,
-      level: snap.level
-    };
-  }
-  var wired = false;
-  function initMatchSync() {
-    if (wired) return;
-    wired = true;
-    net.onPlayers = (msg) => {
-      const myId2 = getMyId();
-      const otherSnaps = msg.players.filter((p) => p.id !== myId2);
-      const activeIds = new Set(otherSnaps.map((p) => p.id));
-      for (const id of remotePlayerRenderPos.keys()) {
-        if (!activeIds.has(id)) {
-          remotePlayerRenderPos.delete(id);
-          remotePlayerTargetPos.delete(id);
-        }
-      }
-      const others = otherSnaps.map((p) => {
-        remotePlayerTargetPos.set(p.id, { x: p.x, y: p.y, angle: p.angle });
-        const render2 = remotePlayerRenderPos.get(p.id) ?? { x: p.x, y: p.y, angle: p.angle };
-        remotePlayerRenderPos.set(p.id, render2);
-        return { id: p.id, name: p.name, x: render2.x, y: render2.y, angle: render2.angle, hp: p.hp, maxHp: p.maxHp, alive: p.alive };
-      });
-      setRemotePlayers(others);
-      const mine = msg.players.find((p) => p.id === myId2);
-      if (mine) {
-        player.hp = mine.hp;
-        player.maxHp = mine.maxHp;
-        player.alive = mine.alive;
-        const driftDist = dist(player.x, player.y, mine.x, mine.y);
-        if (driftDist > RECONCILE_THRESHOLD) {
-          console.warn(`[net] reconciling local player position, drifted ${driftDist.toFixed(0)} units from server`);
-          player.x = mine.x;
-          player.y = mine.y;
-        }
-      }
-    };
-    net.onZombies = (msg) => {
-      const activeIds = new Set(msg.zombies.map((z) => hashId(z.id)));
-      for (const id of zombieRenderPos.keys()) {
-        if (!activeIds.has(id)) {
-          zombieRenderPos.delete(id);
-          zombieTargetPos.delete(id);
-        }
-      }
-      setZombies(msg.zombies.map(toClientZombie));
-    };
-    net.onBullets = (msg) => {
-      const activeIds = new Set(msg.bullets.map((b) => b.id));
-      for (const id of lastBulletPos.keys()) {
-        if (!activeIds.has(id)) lastBulletPos.delete(id);
-      }
-      for (const id of bulletRenderPos.keys()) {
-        if (!activeIds.has(id)) {
-          bulletRenderPos.delete(id);
-          bulletTargetPos.delete(id);
-        }
-      }
-      setBullets(msg.bullets.map(toClientBullet));
-    };
-    net.onStructures = (msg) => {
-      const next = msg.structures.map(toClientStructure);
-      setStructures(next);
-      if (inspectedStructure) {
-        setInspectedStructure(next.find((s) => s.id === inspectedStructure.id) ?? null);
-      }
-    };
-    net.onDisconnected = () => {
-      setInNetMatch(false);
-    };
-  }
-  function startNetMatch() {
-    setInNetMatch(true);
-    lastBulletPos.clear();
-    zombieRenderPos.clear();
-    zombieTargetPos.clear();
-    bulletRenderPos.clear();
-    bulletTargetPos.clear();
-    remotePlayerRenderPos.clear();
-    remotePlayerTargetPos.clear();
-  }
-  function stopNetMatch() {
-    setInNetMatch(false);
-    setRemotePlayers([]);
-    lastBulletPos.clear();
-    zombieRenderPos.clear();
-    zombieTargetPos.clear();
-    bulletRenderPos.clear();
-    bulletTargetPos.clear();
-    remotePlayerRenderPos.clear();
-    remotePlayerTargetPos.clear();
-  }
-  var lastSentMoveAt = 0;
-  var MOVE_SEND_INTERVAL_MS = 33;
-  function maybeSendMove(now) {
-    if (now - lastSentMoveAt < MOVE_SEND_INTERVAL_MS) return;
-    lastSentMoveAt = now;
-    sendMove(player.x, player.y, player.angle);
+  function sendMutationChoice(mutation) {
+    send({ type: "mutationChoice", mutation });
   }
 
   // src/systems/codex.ts
@@ -1357,6 +1149,10 @@
   function setXpCallbacks(callbacks) {
     xpCallbacks = callbacks;
   }
+  function checkLevelGates() {
+    if (player.level >= 15 && !player.weaponChosen && !weaponChoiceOpen) xpCallbacks.onWeaponChoice();
+    if (player.level >= 25 && !player.mutationChosen && !mutationChoiceOpen) xpCallbacks.onMutationChoice();
+  }
   function tryShoot(now) {
     if (!player.alive) return;
     if (selectedBuild) return;
@@ -1472,6 +1268,225 @@
     } else {
       gainXp(10 + wave * 2);
     }
+  }
+
+  // src/net/matchSync.ts
+  function hashId(id) {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = h * 31 + id.charCodeAt(i) >>> 0;
+    return h;
+  }
+  var HAIR_KINDS = ["bald", "hood", "tuft"];
+  var MOUTH_KINDS = ["open", "frown", "grimace"];
+  var zombieRenderPos = /* @__PURE__ */ new Map();
+  var zombieTargetPos = /* @__PURE__ */ new Map();
+  var bulletRenderPos = /* @__PURE__ */ new Map();
+  var bulletTargetPos = /* @__PURE__ */ new Map();
+  var remotePlayerRenderPos = /* @__PURE__ */ new Map();
+  var remotePlayerTargetPos = /* @__PURE__ */ new Map();
+  var NET_SMOOTH_TAU_MS = 30;
+  function smoothFactor(dtMs) {
+    return 1 - Math.exp(-dtMs / NET_SMOOTH_TAU_MS);
+  }
+  var RECONCILE_THRESHOLD = 80;
+  function easeAngle(current, target, t) {
+    const diff = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+    return current + diff * t;
+  }
+  function updateNetInterpolation(dt) {
+    const t = smoothFactor(dt);
+    for (const z of zombies) {
+      const target = zombieTargetPos.get(z.id);
+      if (!target) continue;
+      z.x += (target.x - z.x) * t;
+      z.y += (target.y - z.y) * t;
+      zombieRenderPos.set(z.id, { x: z.x, y: z.y });
+    }
+    for (const b of bullets) {
+      if (!b.id) continue;
+      const target = bulletTargetPos.get(b.id);
+      if (!target) continue;
+      b.x += (target.x - b.x) * t;
+      b.y += (target.y - b.y) * t;
+      bulletRenderPos.set(b.id, { x: b.x, y: b.y });
+    }
+    for (const rp of remotePlayers) {
+      const target = remotePlayerTargetPos.get(rp.id);
+      if (!target) continue;
+      rp.x += (target.x - rp.x) * t;
+      rp.y += (target.y - rp.y) * t;
+      rp.angle = easeAngle(rp.angle, target.angle, t);
+      remotePlayerRenderPos.set(rp.id, { x: rp.x, y: rp.y, angle: rp.angle });
+    }
+  }
+  function toClientZombie(snap) {
+    const h = hashId(snap.id);
+    const variant = SKIN_VARIANTS[h % SKIN_VARIANTS.length];
+    zombieTargetPos.set(h, { x: snap.x, y: snap.y });
+    const render2 = zombieRenderPos.get(h) ?? { x: snap.x, y: snap.y };
+    zombieRenderPos.set(h, render2);
+    return {
+      id: h,
+      type: "normal",
+      x: render2.x,
+      y: render2.y,
+      radius: 20,
+      hp: snap.hp,
+      maxHp: snap.maxHp,
+      speed: 0,
+      damage: 0,
+      armor: 0,
+      hitCooldown: 0,
+      wobble: h % 628 / 100,
+      flash: 0,
+      lastShot: 0,
+      fuseStart: null,
+      hairKind: HAIR_KINDS[h % HAIR_KINDS.length],
+      mouthKind: MOUTH_KINDS[(h >> 3) % MOUTH_KINDS.length],
+      squishX: 1,
+      squishY: 1,
+      skinColor: variant[0],
+      skinColor2: variant[1],
+      skinDark: variant[2],
+      clothColor: null
+    };
+  }
+  var lastBulletPos = /* @__PURE__ */ new Map();
+  function toClientBullet(snap) {
+    const prev = lastBulletPos.get(snap.id);
+    const vx = prev ? snap.x - prev.x : 0;
+    const vy = prev ? snap.y - prev.y : 0;
+    lastBulletPos.set(snap.id, { x: snap.x, y: snap.y });
+    bulletTargetPos.set(snap.id, { x: snap.x, y: snap.y });
+    const render2 = bulletRenderPos.get(snap.id) ?? { x: snap.x, y: snap.y };
+    bulletRenderPos.set(snap.id, render2);
+    return {
+      id: snap.id,
+      x: render2.x,
+      y: render2.y,
+      vx,
+      vy,
+      radius: 5,
+      damage: 0,
+      life: 1,
+      owner: "player",
+      explosive: snap.explosive
+    };
+  }
+  function toClientStructure(snap) {
+    return {
+      id: snap.id,
+      type: snap.type,
+      x: snap.x,
+      y: snap.y,
+      angle: snap.angle,
+      aimAngle: snap.aimAngle,
+      radius: BUILD_DEFS[snap.type].radius,
+      hp: snap.hp,
+      maxHp: snap.maxHp,
+      tier: snap.tier,
+      level: snap.level
+    };
+  }
+  var wired = false;
+  function initMatchSync() {
+    if (wired) return;
+    wired = true;
+    net.onPlayers = (msg) => {
+      const myId2 = getMyId();
+      const otherSnaps = msg.players.filter((p) => p.id !== myId2);
+      const activeIds = new Set(otherSnaps.map((p) => p.id));
+      for (const id of remotePlayerRenderPos.keys()) {
+        if (!activeIds.has(id)) {
+          remotePlayerRenderPos.delete(id);
+          remotePlayerTargetPos.delete(id);
+        }
+      }
+      const others = otherSnaps.map((p) => {
+        remotePlayerTargetPos.set(p.id, { x: p.x, y: p.y, angle: p.angle });
+        const render2 = remotePlayerRenderPos.get(p.id) ?? { x: p.x, y: p.y, angle: p.angle };
+        remotePlayerRenderPos.set(p.id, render2);
+        return { id: p.id, name: p.name, x: render2.x, y: render2.y, angle: render2.angle, hp: p.hp, maxHp: p.maxHp, alive: p.alive };
+      });
+      setRemotePlayers(others);
+      const mine = msg.players.find((p) => p.id === myId2);
+      if (mine) {
+        player.hp = mine.hp;
+        player.maxHp = mine.maxHp;
+        player.alive = mine.alive;
+        player.xp = mine.xp;
+        player.level = mine.level;
+        player.xpToNext = mine.xpToNext;
+        checkLevelGates();
+        const driftDist = dist(player.x, player.y, mine.x, mine.y);
+        if (driftDist > RECONCILE_THRESHOLD) {
+          console.warn(`[net] reconciling local player position, drifted ${driftDist.toFixed(0)} units from server`);
+          player.x = mine.x;
+          player.y = mine.y;
+        }
+      }
+    };
+    net.onZombies = (msg) => {
+      const activeIds = new Set(msg.zombies.map((z) => hashId(z.id)));
+      for (const id of zombieRenderPos.keys()) {
+        if (!activeIds.has(id)) {
+          zombieRenderPos.delete(id);
+          zombieTargetPos.delete(id);
+        }
+      }
+      setZombies(msg.zombies.map(toClientZombie));
+    };
+    net.onBullets = (msg) => {
+      const activeIds = new Set(msg.bullets.map((b) => b.id));
+      for (const id of lastBulletPos.keys()) {
+        if (!activeIds.has(id)) lastBulletPos.delete(id);
+      }
+      for (const id of bulletRenderPos.keys()) {
+        if (!activeIds.has(id)) {
+          bulletRenderPos.delete(id);
+          bulletTargetPos.delete(id);
+        }
+      }
+      setBullets(msg.bullets.map(toClientBullet));
+    };
+    net.onStructures = (msg) => {
+      const next = msg.structures.map(toClientStructure);
+      setStructures(next);
+      if (inspectedStructure) {
+        setInspectedStructure(next.find((s) => s.id === inspectedStructure.id) ?? null);
+      }
+    };
+    net.onDisconnected = () => {
+      setInNetMatch(false);
+    };
+  }
+  function startNetMatch() {
+    setInNetMatch(true);
+    lastBulletPos.clear();
+    zombieRenderPos.clear();
+    zombieTargetPos.clear();
+    bulletRenderPos.clear();
+    bulletTargetPos.clear();
+    remotePlayerRenderPos.clear();
+    remotePlayerTargetPos.clear();
+  }
+  function stopNetMatch() {
+    setInNetMatch(false);
+    setRemotePlayers([]);
+    lastBulletPos.clear();
+    zombieRenderPos.clear();
+    zombieTargetPos.clear();
+    bulletRenderPos.clear();
+    bulletTargetPos.clear();
+    remotePlayerRenderPos.clear();
+    remotePlayerTargetPos.clear();
+  }
+  var lastSentMoveAt = 0;
+  var MOVE_SEND_INTERVAL_MS = 33;
+  function maybeSendMove(now) {
+    if (now - lastSentMoveAt < MOVE_SEND_INTERVAL_MS) return;
+    lastSentMoveAt = now;
+    sendMove(player.x, player.y, player.angle);
   }
 
   // src/systems/wave.ts
@@ -6118,6 +6133,7 @@
       card.onclick = () => {
         player.weapon = key;
         player.weaponChosen = true;
+        if (inNetMatch) sendWeaponChoice(key);
         setWeaponChoiceOpen(false);
         byId("weaponChoicePanel").classList.add("hidden");
         showBanner(def.label.toUpperCase() + " UNLOCKED", def.playstyle, "power");
@@ -6143,6 +6159,7 @@
         player.mutation = key;
         player.mutationChosen = true;
         def.apply(player);
+        if (inNetMatch) sendMutationChoice(key);
         setMutationChoiceOpen(false);
         byId("mutationChoicePanel").classList.add("hidden");
         showBanner(def.label.toUpperCase() + " UNLOCKED", def.playstyle, "power");

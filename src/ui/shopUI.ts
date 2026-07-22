@@ -21,7 +21,7 @@ import { byId, snapAngleToCardinal } from '../utils';
 import { applyPowerup, showBanner, spawnParticle, spawnBurst } from '../systems/combat';
 import { findNearestShop, findNearestFactory } from '../systems/update';
 import { getBuildTarget, getPlacementAngle, worldToScreen } from '../render/drawWorld';
-import { sendNetBuild, sendNetUpgrade, sendNetRemove } from '../net/matchSync';
+import { sendNetBuild, sendNetUpgrade, sendNetRemove, sendNetWeaponChoice, sendNetMutationChoice } from '../net/matchSync';
 
 const imgCannonBase = new Image();
 imgCannonBase.src = 'assets/structures/cannon_base.png';
@@ -525,6 +525,7 @@ export function renderWeaponChoice(): void {
     card.onclick = () => {
       player.weapon = key;
       player.weaponChosen = true;
+      if (inNetMatch) sendNetWeaponChoice(key);
       setWeaponChoiceOpen(false);
       byId('weaponChoicePanel').classList.add('hidden');
       showBanner(def.label.toUpperCase() + ' UNLOCKED', def.playstyle, 'power');
@@ -552,6 +553,7 @@ export function renderMutationChoice(): void {
       player.mutation = key;
       player.mutationChosen = true;
       def.apply(player);
+      if (inNetMatch) sendNetMutationChoice(key);
       setMutationChoiceOpen(false);
       byId('mutationChoicePanel').classList.add('hidden');
       showBanner(def.label.toUpperCase() + ' UNLOCKED', def.playstyle, 'power');

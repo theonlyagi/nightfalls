@@ -3,12 +3,15 @@ import {
   WORLD_W, WORLD_H, ROOM_MAX_PLAYERS, ROOM_MIN_PLAYERS, MATCH_START_COUNTDOWN_MS, TICK_MS,
   ZOMBIE_MAX, ZOMBIE_SPAWN_INTERVAL_MS, ZOMBIE_RADIUS, ZOMBIE_DAMAGE, ZOMBIE_HIT_COOLDOWN_MS, ZOMBIE_KILL_XP,
   ZOMBIE_CHASE_SPEED,
-  BULLET_SPEED_PER_SEC, BULLET_LIFE_TICKS, BULLET_RADIUS, BULLET_DAMAGE,
-  PLAYER_RADIUS, PLAYER_MAX_HP, MAX_PLAYER_SPEED_PER_MS, MIN_SHOT_INTERVAL_MS,
+  BULLET_SPEED_PER_SEC, BULLET_LIFE_MS, BULLET_RADIUS, BULLET_DAMAGE,
+  PLAYER_RADIUS, PLAYER_MAX_HP, MAX_PLAYER_SPEED_PER_MS,
   BUILD_REACH, STRUCTURE_MAX, STRUCTURE_DEFS, TOWER_LEVELS, towerMaxHp,
   WALL_HP_BY_TIER, SPIKE_HP_BY_TIER, SPIKE_DAMAGE_BY_TIER, SPIKE_HIT_COOLDOWN_MS,
   CAMPFIRE_HEAL_RADIUS, CAMPFIRE_HEAL_RATE,
-  RoomPhase, StructureKind, TowerKind,
+  WEAPON_DEFS, BASE_FIRE_RATE, OVERCLOCKED_FIRE_RATE_MUL, SHOT_INTERVAL_SLACK,
+  BURN_CHANCE, BURN_DURATION_MS, BURN_DAMAGE_FRACTION, VAMPIRE_LIFESTEAL_FRACTION,
+  TITAN_MAX_HP_BONUS, TITAN_RADIUS_MUL, OVERCLOCKED_RADIUS_MUL,
+  RoomPhase, StructureKind, TowerKind, WeaponKind, MutationKind,
   clamp, dist,
 } from './protocol.js';
 
@@ -40,6 +43,17 @@ export interface PlayerState {
   lastMoveY: number;
   lastShotAt: number;
   ready: boolean;
+  /** Equipped weapon/mutation - 'pistol'/null are the solo-mode defaults.
+   *  radius starts at PLAYER_RADIUS and only changes via a mutation choice
+   *  (titan/overclocked), mirroring MUTATION_DEFS' apply() functions
+   *  exactly (src/constants.ts) - used for the move clamp and zombie-vs-
+   *  player collision so a titan/overclocked player has a correctly-sized
+   *  hitbox server-side, not just a client-side visual change. */
+  weapon: WeaponKind;
+  mutation: MutationKind | null;
+  radius: number;
+  weaponChosen: boolean;
+  mutationChosen: boolean;
 }
 
 export interface ZombieState {
@@ -51,6 +65,11 @@ export interface ZombieState {
   lastHitPlayerAt: number;
   lastSpikeHitAt: number;
   lastHitStructureAt: number;
+  /** Pyromaniac burn DoT - set on a direct (non-explosive) hit from a
+   *  'burn'-flagged bullet, ticked down every server tick (see tickBurns()). */
+  burnUntil?: number;
+  burnDamagePerSec?: number;
+  burnOwnerId?: string;
 }
 
 export interface BulletState {
@@ -61,6 +80,17 @@ export interface BulletState {
   vx: number;
   vy: number;
   life: number;
+  /** Weapon-specific combat fields, set once at spawn time in handleShoot()
+   *  from the shooter's equipped weapon/mutation (see WEAPON_DEFS in
+   *  protocol.ts) - damage/explosive/explodeRadius/burn all default-absent
+   *  behavior was previously a single flat BULLET_DAMAGE regardless of
+   *  weapon; this is what makes per-weapon damage/pellets/splash/burn
+   *  possible without changing the ShootPacket wire format (the server
+   *  already knows the shooter's weapon/mutation from stored PlayerState). */
+  damage: number;
+  explosive?: boolean;
+  explodeRadius?: number;
+  burn?: boolean;
 }
 
 /** Phase 1: existence/position/combat sync only, no ownership tracking —
@@ -182,7 +212,7 @@ export class Room {
     this.broadcast(JSON.stringify({
       type: 'bullets',
       bullets: Array.from(this.bullets.values()).map(b => ({
-        id: b.id, ownerId: b.ownerId, x: b.x, y: b.y,
+        id: b.id, ownerId: b.ownerId, x: b.x, y: b.y, explosive: b.explosive,
       })),
     }));
   }
@@ -207,6 +237,8 @@ export class Room {
       xp: 0, level: 1, xpToNext: 50,
       lastMoveAt: now, lastMoveX: WORLD_W / 2, lastMoveY: WORLD_H / 2,
       lastShotAt: 0, ready: false,
+      weapon: 'pistol', mutation: null, radius: PLAYER_RADIUS,
+      weaponChosen: false, mutationChosen: false,
     });
 
     // Bring the new/rejoining client up to date immediately.
@@ -252,8 +284,8 @@ export class Room {
       }
     }
 
-    p.x = clamp(x, PLAYER_RADIUS, WORLD_W - PLAYER_RADIUS);
-    p.y = clamp(y, PLAYER_RADIUS, WORLD_H - PLAYER_RADIUS);
+    p.x = clamp(x, p.radius, WORLD_W - p.radius);
+    p.y = clamp(y, p.radius, WORLD_H - p.radius);
     p.angle = angle;
     p.lastMoveAt = now;
     p.lastMoveX = p.x;
@@ -265,27 +297,104 @@ export class Room {
     // broadcast storm on top of the tick that scaled with player count.
   }
 
-  /** Validated shoot: rate-limited, ignored for dead players. */
+  /** Validated shoot: per-weapon+mutation rate-limited, ignored for dead
+   *  players. Spawns the exact pellet pattern/damage/speed/life/explosive/
+   *  burn combination src/systems/combat.ts's tryShoot() would in solo mode
+   *  — the server already knows the shooter's equipped weapon/mutation from
+   *  stored PlayerState (see handleWeaponChoice/handleMutationChoice), so
+   *  ShootPacket itself doesn't need to carry that — it's still just
+   *  {type:'shoot', angle}. */
   handleShoot(id: string, angle: number): void {
     if (this.phase !== 'active') return;
     const p = this.players.get(id);
     if (!p || !p.alive) return;
 
+    const wdef = WEAPON_DEFS[p.weapon];
+    const fireRateMul = wdef.fireRateMul * (p.mutation === 'overclocked' ? OVERCLOCKED_FIRE_RATE_MUL : 1);
+    const minInterval = (1000 / (BASE_FIRE_RATE * fireRateMul)) * SHOT_INTERVAL_SLACK;
+
     const now = Date.now();
-    if (now - p.lastShotAt < MIN_SHOT_INTERVAL_MS) return;
+    if (now - p.lastShotAt < minInterval) return;
     p.lastShotAt = now;
 
-    const bid = generateBulletId();
+    const damage = BULLET_DAMAGE * wdef.damageMul;
     // vx/vy are the per-tick displacement tickBulletsMovement() adds each
     // tick, so the per-second speed must be scaled down by the tick
     // interval here — same reasoning as ZOMBIE_CHASE_SPEED's moveDist.
-    const perTickSpeed = BULLET_SPEED_PER_SEC * (TICK_MS / 1000);
-    this.bullets.set(bid, {
-      id: bid, ownerId: id,
-      x: p.x, y: p.y,
-      vx: Math.cos(angle) * perTickSpeed, vy: Math.sin(angle) * perTickSpeed,
-      life: BULLET_LIFE_TICKS,
-    });
+    const perTickSpeed = BULLET_SPEED_PER_SEC * (wdef.bulletSpeedMul || 1) * (TICK_MS / 1000);
+    const lifeTicks = Math.round((BULLET_LIFE_MS * (wdef.bulletLifeMul || 1)) / TICK_MS);
+    // Rolled once per shot, shared by every pellet spawned from it — matches
+    // tryShoot() exactly (all 3 shotgun pellets share one burn roll).
+    const willBurn = p.mutation === 'pyromaniac' && Math.random() < BURN_CHANCE;
+
+    const spawnBullet = (shotAngle: number, originOffset: number): void => {
+      const perpX = Math.cos(shotAngle + Math.PI / 2), perpY = Math.sin(shotAngle + Math.PI / 2);
+      const forward = p.radius + 32;
+      const bid = generateBulletId();
+      const b: BulletState = {
+        id: bid, ownerId: id,
+        x: p.x + Math.cos(shotAngle) * forward + perpX * originOffset,
+        y: p.y + Math.sin(shotAngle) * forward + perpY * originOffset,
+        vx: Math.cos(shotAngle) * perTickSpeed, vy: Math.sin(shotAngle) * perTickSpeed,
+        life: lifeTicks, damage,
+      };
+      if (wdef.explosive) { b.explosive = true; b.explodeRadius = wdef.explodeRadius; }
+      if (willBurn) b.burn = true;
+      this.bullets.set(bid, b);
+    };
+
+    // Pellet pattern hardcoded by weapon name, matching tryShoot() exactly
+    // (the client's `pellets` field is likewise declared but never read).
+    if (p.weapon === 'dualguns') {
+      spawnBullet(angle, -9);
+      spawnBullet(angle, 9);
+    } else if (p.weapon === 'shotgun') {
+      const spread = wdef.spreadRad || 0.2;
+      spawnBullet(angle - spread, 0);
+      spawnBullet(angle, 0);
+      spawnBullet(angle + spread, 0);
+    } else {
+      spawnBullet(angle, 0);
+    }
+  }
+
+  /** Validated weapon choice: server independently enforces the level gate
+   *  and one-shot-only semantics rather than trusting the client, since a
+   *  modified client could otherwise send this at level 1 or repeatedly
+   *  swap weapons mid-match. 'pistol' is already rejected at the packet-
+   *  validator level (isWeaponChoicePacket). */
+  handleWeaponChoice(id: string, weapon: WeaponKind): void {
+    if (this.phase !== 'active') return;
+    const p = this.players.get(id);
+    if (!p || !p.alive) return;
+    if (p.level < 15 || p.weaponChosen) return;
+
+    p.weapon = weapon;
+    p.weaponChosen = true;
+    this.broadcastPlayers();
+  }
+
+  /** Validated mutation choice: same server-side enforcement as weapon
+   *  choice above. Applies the exact same one-time stat deltas as the
+   *  client's MUTATION_DEFS[mutation].apply() (src/constants.ts) - titan/
+   *  overclocked change maxHp/hp/radius, vampire/pyromaniac are no-ops here
+   *  (their effects live entirely in handleShoot()/resolveCollisions()). */
+  handleMutationChoice(id: string, mutation: MutationKind): void {
+    if (this.phase !== 'active') return;
+    const p = this.players.get(id);
+    if (!p || !p.alive) return;
+    if (p.level < 25 || p.mutationChosen) return;
+
+    p.mutation = mutation;
+    p.mutationChosen = true;
+    if (mutation === 'titan') {
+      p.maxHp += TITAN_MAX_HP_BONUS;
+      p.hp += TITAN_MAX_HP_BONUS;
+      p.radius *= TITAN_RADIUS_MUL;
+    } else if (mutation === 'overclocked') {
+      p.radius *= OVERCLOCKED_RADIUS_MUL;
+    }
+    this.broadcastPlayers();
   }
 
   /** Sets one player's ready flag and re-evaluates whether a countdown should start/cancel. */
@@ -481,21 +590,63 @@ export class Room {
     }
   }
 
+  /** Applies a hit's damage/lifesteal/burn-tag to one zombie, shared by both
+   *  the direct-hit and explosive-splash paths below. Returns true if the
+   *  zombie died from this hit (caller removes it and stops iterating). */
+  private applyBulletHit(b: BulletState, z: ZombieState, dmg: number): boolean {
+    z.hp -= dmg;
+    if (b.ownerId) {
+      const owner = this.players.get(b.ownerId);
+      if (owner && owner.mutation === 'vampire') {
+        owner.hp = Math.min(owner.maxHp, owner.hp + dmg * VAMPIRE_LIFESTEAL_FRACTION);
+      }
+    }
+    // Burn never transfers to explosive splash victims — matches an
+    // existing solo-mode quirk (grenadelauncher+pyromaniac never actually
+    // burns anyone, since explodeBullet() never reads the bullet's burn
+    // flag) that's preserved here rather than "fixed", per the requirement
+    // to reproduce solo behavior exactly, bugs included.
+    if (!b.explosive && b.burn) {
+      z.burnUntil = Date.now() + BURN_DURATION_MS;
+      z.burnDamagePerSec = b.damage * BURN_DAMAGE_FRACTION;
+      z.burnOwnerId = b.ownerId;
+    }
+    if (z.hp <= 0) {
+      this.zombies.delete(z.id);
+      this.grantXp(b.ownerId, ZOMBIE_KILL_XP);
+      return true;
+    }
+    return false;
+  }
+
   /** Bullets vs zombies, and zombies vs players. Kills grant XP to the bullet owner. */
   private resolveCollisions(): void {
     const now = Date.now();
 
     for (const b of this.bullets.values()) {
       for (const z of this.zombies.values()) {
-        if (dist(b.x, b.y, z.x, z.y) < BULLET_RADIUS + ZOMBIE_RADIUS) {
-          z.hp -= BULLET_DAMAGE;
-          this.bullets.delete(b.id);
-          if (z.hp <= 0) {
-            this.zombies.delete(z.id);
-            this.grantXp(b.ownerId, ZOMBIE_KILL_XP);
+        if (dist(b.x, b.y, z.x, z.y) >= BULLET_RADIUS + ZOMBIE_RADIUS) continue;
+
+        if (b.explosive) {
+          // Explosive splash: damages every zombie within blast radius of
+          // the bullet's current position (not just the one that triggered
+          // it), with linear falloff — matches explodeBullet() exactly
+          // (src/systems/update.ts). Zombie armor/vulnerability fields
+          // don't exist server-side (single generic zombie type), so those
+          // reduction terms simplify away entirely, consistent with the
+          // existing simplified zombie model elsewhere in this server.
+          const blastRadius = (b.explodeRadius || 90) + ZOMBIE_RADIUS;
+          for (const bz of this.zombies.values()) {
+            const d = dist(b.x, b.y, bz.x, bz.y);
+            if (d >= blastRadius) continue;
+            const falloff = 1 - (d / blastRadius) * 0.4;
+            this.applyBulletHit(b, bz, b.damage * falloff);
           }
-          break; // this bullet is spent, stop checking it against other zombies
+        } else {
+          this.applyBulletHit(b, z, b.damage);
         }
+        this.bullets.delete(b.id);
+        break; // this bullet is spent, stop checking it against other zombies
       }
     }
 
@@ -503,7 +654,7 @@ export class Room {
       if (now - z.lastHitPlayerAt < ZOMBIE_HIT_COOLDOWN_MS) continue;
       for (const p of this.players.values()) {
         if (!p.alive) continue;
-        if (dist(z.x, z.y, p.x, p.y) < ZOMBIE_RADIUS + PLAYER_RADIUS) {
+        if (dist(z.x, z.y, p.x, p.y) < ZOMBIE_RADIUS + p.radius) {
           p.hp = Math.max(0, p.hp - ZOMBIE_DAMAGE);
           z.lastHitPlayerAt = now;
           if (p.hp === 0) p.alive = false;
@@ -530,6 +681,25 @@ export class Room {
     }
   }
 
+  /** Pyromaniac burn DoT — matches the client's per-frame burn tick
+   *  (src/systems/update.ts) but applied once per server tick instead of
+   *  once per rendered frame; bypasses armor entirely (straight hp
+   *  subtraction), same as solo. Kills grant XP to whoever's bullet applied
+   *  the burn tag (burnOwnerId), matching solo's implicit "the shooter gets
+   *  credit" behavior rather than dropping XP for burn kills. */
+  private tickBurns(): void {
+    const now = Date.now();
+    for (const z of this.zombies.values()) {
+      if (!z.burnUntil || now >= z.burnUntil) continue;
+      const burnDmg = (z.burnDamagePerSec || 0) * (TICK_MS / 1000);
+      z.hp -= burnDmg;
+      if (z.hp <= 0) {
+        this.zombies.delete(z.id);
+        if (z.burnOwnerId) this.grantXp(z.burnOwnerId, ZOMBIE_KILL_XP);
+      }
+    }
+  }
+
   private grantXp(playerId: string, amount: number): void {
     const p = this.players.get(playerId);
     if (!p || !p.alive) return;
@@ -537,7 +707,10 @@ export class Room {
     while (p.xp >= p.xpToNext) {
       p.xp -= p.xpToNext;
       p.level += 1;
-      p.xpToNext = Math.floor(p.xpToNext * 1.3);
+      // 1.32 matches the client's gainXp() exactly (src/systems/combat.ts) —
+      // was 1.3 here, a pre-existing typo that made synced players level up
+      // at slightly different total XP thresholds than solo.
+      p.xpToNext = Math.floor(p.xpToNext * 1.32);
       p.maxHp += 8;
       p.hp = Math.min(p.maxHp, p.hp + 8);
     }
@@ -609,6 +782,7 @@ export class Room {
     if (this.zombies.size > 0) this.tickZombiesMovement();
     if (this.bullets.size > 0) this.tickBulletsMovement();
     this.resolveCollisions();
+    if (this.zombies.size > 0) this.tickBurns();
     if (this.structures.size > 0) this.tickStructures();
 
     if (this.sockets.size === 0) return;

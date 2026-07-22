@@ -11,7 +11,8 @@
 // work, not forgotten.
 
 import {
-  net, sendMove, sendShoot, sendBuild, sendUpgrade, sendRemove, getMyId,
+  net, sendMove, sendShoot, sendBuild, sendUpgrade, sendRemove,
+  sendWeaponChoice, sendMutationChoice, getMyId,
   NetZombieSnapshot, NetBulletSnapshot, NetStructureSnapshot,
 } from './socket';
 import {
@@ -22,6 +23,7 @@ import {
 import { Zombie, Bullet, Structure, HairKind, MouthKind } from '../types';
 import { SKIN_VARIANTS, BUILD_DEFS } from '../constants';
 import { dist } from '../utils';
+import { checkLevelGates } from '../systems/combat';
 
 /** Small deterministic hash so a given entity id always gets the same
  *  cosmetic look across snapshots, instead of re-randomizing every update. */
@@ -155,7 +157,7 @@ function toClientBullet(snap: NetBulletSnapshot): Bullet {
   return {
     id: snap.id,
     x: render.x, y: render.y, vx, vy, radius: 5, damage: 0, life: 1,
-    owner: 'player',
+    owner: 'player', explosive: snap.explosive,
   };
 }
 
@@ -208,6 +210,16 @@ export function initMatchSync(): void {
       player.hp = mine.hp;
       player.maxHp = mine.maxHp;
       player.alive = mine.alive;
+
+      // xp/level/xpToNext are also server-authoritative in a net match —
+      // zombieDied()/gainXp() (the only code that normally advances these)
+      // is solo-only, never called here, so without this the local player's
+      // level would stay frozen at 1 all match and the weapon/mutation
+      // choice UI (gated on player.level>=15/25) could never open.
+      player.xp = mine.xp;
+      player.level = mine.level;
+      player.xpToNext = mine.xpToNext;
+      checkLevelGates();
 
       // Reconciliation: the local player's x/y is always client-predicted
       // (moved instantly off local input in updatePlayer(), never gated on
@@ -308,4 +320,7 @@ export function maybeSendMove(now: number): void {
   sendMove(player.x, player.y, player.angle);
 }
 
-export { sendShoot as sendNetShoot, sendBuild as sendNetBuild, sendUpgrade as sendNetUpgrade, sendRemove as sendNetRemove };
+export {
+  sendShoot as sendNetShoot, sendBuild as sendNetBuild, sendUpgrade as sendNetUpgrade, sendRemove as sendNetRemove,
+  sendWeaponChoice as sendNetWeaponChoice, sendMutationChoice as sendNetMutationChoice,
+};
