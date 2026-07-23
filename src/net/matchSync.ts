@@ -166,7 +166,7 @@ function toClientBullet(snap: NetBulletSnapshot): Bullet {
   return {
     id: snap.id,
     x: render.x, y: render.y, vx, vy, radius: 5, damage: 0, life: 1,
-    owner: 'player',
+    owner: 'remotePlayer' as any,
   };
 }
 
