@@ -41,6 +41,10 @@ export interface NetStructureSnapshot {
   tier: number; level: number; hp: number; maxHp: number;
 }
 export interface NetStructuresMessage { type: 'structures'; structures: NetStructureSnapshot[]; }
+export interface NetDayNightMessage {
+  type: 'daynight'; time: number; factor: number; isNight: boolean;
+  nightCount: number; bloodMoonActive: boolean;
+}
 
 let socket: WebSocket | null = null;
 let myId: string | null = null;
@@ -53,6 +57,7 @@ export const net = {
   onZombies: null as ((msg: NetZombiesMessage) => void) | null,
   onBullets: null as ((msg: NetBulletsMessage) => void) | null,
   onStructures: null as ((msg: NetStructuresMessage) => void) | null,
+  onDayNight: null as ((msg: NetDayNightMessage) => void) | null,
   onDisconnected: null as (() => void) | null,
 };
 
@@ -109,6 +114,9 @@ export function connect(name: string): void {
         break;
       case 'structures':
         net.onStructures?.(msg);
+        break;
+      case 'daynight':
+        net.onDayNight?.(msg);
         break;
     }
   };

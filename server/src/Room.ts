@@ -11,6 +11,7 @@ import {
   WEAPON_DEFS, BASE_FIRE_RATE, OVERCLOCKED_FIRE_RATE_MUL, SHOT_INTERVAL_SLACK,
   BURN_CHANCE, BURN_DURATION_MS, BURN_DAMAGE_FRACTION, VAMPIRE_LIFESTEAL_FRACTION,
   TITAN_MAX_HP_BONUS, TITAN_RADIUS_MUL, OVERCLOCKED_RADIUS_MUL,
+  DAY_NIGHT_TOTAL_MS, BLOOD_MOON_HP_DMG_MULTIPLIER, BLOOD_MOON_SPAWN_SPEEDUP,
   RoomPhase, StructureKind, TowerKind, WeaponKind, MutationKind,
   clamp, dist,
 } from './protocol.js';
@@ -151,6 +152,13 @@ export class Room {
   private tickTimer: ReturnType<typeof setInterval> | undefined;
   private onEmpty: (room: Room) => void;
 
+  /** Server-authoritative day/night cycle - mirrors src/state.ts's dayNight
+   *  object (minus the client-only nightSpawnTimer, which drives a purely
+   *  cosmetic client-side random-spawn branch that's out of scope here; the
+   *  server's own zombie spawn timer is gated/sped-up separately below). */
+  private dayNightState = { time: 0, factor: 0, isNight: false, nightCount: 0 };
+  private bloodMoonActive = false;
+
   constructor(id: string, onEmpty: (room: Room) => void) {
     this.id = id;
     this.onEmpty = onEmpty;
@@ -227,6 +235,15 @@ export class Room {
     }));
   }
 
+  private broadcastDayNight(): void {
+    this.broadcast(JSON.stringify({
+      type: 'daynight',
+      time: this.dayNightState.time, factor: this.dayNightState.factor,
+      isNight: this.dayNightState.isNight, nightCount: this.dayNightState.nightCount,
+      bloodMoonActive: this.bloodMoonActive,
+    }));
+  }
+
   /** Adds a live connection. `restored` carries prior state on a reconnect. */
   addConnection(ws: uWS.WebSocket<ConnectionData>, id: string, name: string, restored?: PlayerState): void {
     this.sockets.set(id, ws);
@@ -246,6 +263,12 @@ export class Room {
     ws.send(JSON.stringify({ type: 'zombies', zombies: Array.from(this.zombies.values()) }));
     ws.send(JSON.stringify({ type: 'bullets', bullets: Array.from(this.bullets.values()) }));
     ws.send(JSON.stringify({ type: 'structures', structures: Array.from(this.structures.values()) }));
+    ws.send(JSON.stringify({
+      type: 'daynight',
+      time: this.dayNightState.time, factor: this.dayNightState.factor,
+      isNight: this.dayNightState.isNight, nightCount: this.dayNightState.nightCount,
+      bloodMoonActive: this.bloodMoonActive,
+    }));
 
     this.broadcastPlayers();
     // A new (unready) joiner invalidates any countdown already in progress.
@@ -526,19 +549,64 @@ export class Room {
   private activateMatch(): void {
     this.phase = 'active';
     this.countdownEndsAt = null;
+    // Mirrors solo's resetGame() zeroing dayNight/bloodMoon at match start.
+    this.dayNightState = { time: 0, factor: 0, isNight: false, nightCount: 0 };
+    this.bloodMoonActive = false;
     this.zombieSpawnTimer = setInterval(() => this.maybeSpawnZombie(), ZOMBIE_SPAWN_INTERVAL_MS);
     this.tickTimer = setInterval(() => this.tick(), TICK_MS);
     this.broadcastLobby();
   }
 
+  /** Advances the cosine-eased day/night cycle by one tick, matching
+   *  src/systems/wave.ts's updateDayNight() formula exactly (dt=TICK_MS per
+   *  call here instead of a variable frame dt, same fixed-dt-per-tick
+   *  pattern already used for ZOMBIE_CHASE_SPEED/bullet speed elsewhere in
+   *  this file). No banner/HUD calls - server has no UI; those are the
+   *  client's job once it receives the broadcasted state (see
+   *  src/net/matchSync.ts's net.onDayNight). */
+  private updateDayNight(): void {
+    const d = this.dayNightState;
+    d.time = (d.time + TICK_MS) % DAY_NIGHT_TOTAL_MS;
+    const frac = d.time / DAY_NIGHT_TOTAL_MS;
+    d.factor = (1 - Math.cos(frac * Math.PI * 2)) / 2;
+    const wasNight = d.isNight;
+    d.isNight = d.factor > 0.5;
+
+    if (d.isNight !== wasNight) {
+      if (d.isNight) {
+        d.nightCount += 1;
+        this.bloodMoonActive = d.nightCount % 3 === 0;
+      } else {
+        this.bloodMoonActive = false;
+      }
+      this.resyncZombieSpawnInterval();
+    }
+  }
+
+  /** Rebuilds the zombie-spawn interval to reflect the current Blood Moon
+   *  state - maybeSpawnZombie() runs on its own independent setInterval
+   *  (set up in activateMatch()), separate from the main tick() timer, so
+   *  a transition edge needs to actually replace that interval rather than
+   *  just flipping a flag it already reads. Called only on isNight/
+   *  bloodMoonActive transitions (at most twice per ~110s cycle), not
+   *  every tick. */
+  private resyncZombieSpawnInterval(): void {
+    if (this.zombieSpawnTimer) clearInterval(this.zombieSpawnTimer);
+    const interval = ZOMBIE_SPAWN_INTERVAL_MS / (this.bloodMoonActive ? BLOOD_MOON_SPAWN_SPEEDUP : 1);
+    this.zombieSpawnTimer = setInterval(() => this.maybeSpawnZombie(), interval);
+  }
+
+  /** No spawning during day, matching solo's updateWaves() exact rule. */
   private maybeSpawnZombie(): void {
+    if (!this.dayNightState.isNight) return;
     if (this.zombies.size >= ZOMBIE_MAX) return;
     const id = generateZombieId();
+    const hp = Math.round(30 * (this.bloodMoonActive ? BLOOD_MOON_HP_DMG_MULTIPLIER : 1));
     this.zombies.set(id, {
       id,
       x: Math.random() * WORLD_W,
       y: Math.random() * WORLD_H,
-      hp: 30, maxHp: 30,
+      hp, maxHp: hp,
       lastHitPlayerAt: 0,
       lastSpikeHitAt: 0,
       lastHitStructureAt: 0,
@@ -650,12 +718,18 @@ export class Room {
       }
     }
 
+    // Blood Moon's 1.3x multiplier applies ONLY to zombie-vs-player damage
+    // in solo (baked into the zombie's own `damage` field at spawn time,
+    // per src/systems/wave.ts's spawnZombie()) - NOT to zombie-vs-structure
+    // damage below, which solo computes from a flat per-zombie-type rate
+    // completely independent of that multiplier (src/systems/update.ts).
+    const playerDmg = this.bloodMoonActive ? Math.round(ZOMBIE_DAMAGE * BLOOD_MOON_HP_DMG_MULTIPLIER) : ZOMBIE_DAMAGE;
     for (const z of this.zombies.values()) {
       if (now - z.lastHitPlayerAt < ZOMBIE_HIT_COOLDOWN_MS) continue;
       for (const p of this.players.values()) {
         if (!p.alive) continue;
         if (dist(z.x, z.y, p.x, p.y) < ZOMBIE_RADIUS + p.radius) {
-          p.hp = Math.max(0, p.hp - ZOMBIE_DAMAGE);
+          p.hp = Math.max(0, p.hp - playerDmg);
           z.lastHitPlayerAt = now;
           if (p.hp === 0) p.alive = false;
           break; // one hit per zombie per cooldown window
@@ -668,6 +742,7 @@ export class Room {
     // new constants (roughly matches the client's solo-mode ~14/sec melee
     // rate over a 600ms window). Actual removal happens in tickStructures()'s
     // existing hp<=0 cleanup, which runs right after this in the same tick.
+    // Deliberately NOT Blood-Moon-multiplied - see comment above.
     for (const z of this.zombies.values()) {
       if (now - z.lastHitStructureAt < ZOMBIE_HIT_COOLDOWN_MS) continue;
       for (const s of this.structures.values()) {
@@ -779,6 +854,7 @@ export class Room {
   }
 
   private tick(): void {
+    this.updateDayNight();
     if (this.zombies.size > 0) this.tickZombiesMovement();
     if (this.bullets.size > 0) this.tickBulletsMovement();
     this.resolveCollisions();
@@ -787,8 +863,18 @@ export class Room {
 
     if (this.sockets.size === 0) return;
     this.broadcastPlayers();
-    if (this.zombies.size > 0) this.broadcastZombies();
+    // Unconditional, like players/bullets/structures below - was previously
+    // guarded by `if (this.zombies.size > 0)`, which meant the corrected
+    // empty list never got sent when the last zombie died mid-tick, leaving
+    // clients showing a stale dead zombie frozen in place until the next
+    // spawn's broadcast happened to overwrite it. Harmless when zombies
+    // spawned constantly (rare to sit at 0 for long); now that spawning is
+    // day/night-gated, zombie count legitimately stays at 0 for the whole
+    // day phase, which would otherwise show a corpse frozen on-screen for
+    // up to ~55s.
+    this.broadcastZombies();
     this.broadcastBullets();
     this.broadcastStructures();
+    this.broadcastDayNight();
   }
 }

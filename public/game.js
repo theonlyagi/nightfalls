@@ -838,6 +838,7 @@
     onZombies: null,
     onBullets: null,
     onStructures: null,
+    onDayNight: null,
     onDisconnected: null
   };
   function isConnected() {
@@ -895,6 +896,9 @@
           break;
         case "structures":
           net.onStructures?.(msg);
+          break;
+        case "daynight":
+          net.onDayNight?.(msg);
           break;
       }
     };
@@ -1270,6 +1274,288 @@
     }
   }
 
+  // src/systems/wave.ts
+  function generateWorld() {
+    const newResources = [];
+    const newDecor = [];
+    const newTerrainPatches = [];
+    const newFireflies = [];
+    const safeZone = 260;
+    for (let i = 0; i < 140; i++) {
+      let x, y;
+      do {
+        x = rand(80, WORLD_W - 80);
+        y = rand(80, WORLD_H - 80);
+      } while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
+      newResources.push({ type: "tree", x, y, radius: 19, hp: 30, maxHp: 30 });
+    }
+    for (let i = 0; i < 70; i++) {
+      let x, y;
+      do {
+        x = rand(80, WORLD_W - 80);
+        y = rand(80, WORLD_H - 80);
+      } while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
+      newResources.push({ type: "rock", x, y, radius: 21, hp: 50, maxHp: 50 });
+    }
+    for (let i = 0; i < 45; i++) {
+      let x, y;
+      do {
+        x = rand(80, WORLD_W - 80);
+        y = rand(80, WORLD_H - 80);
+      } while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
+      newResources.push({ type: "iron", x, y, radius: 23, hp: 110, maxHp: 110 });
+    }
+    for (let i = 0; i < 260; i++) {
+      newDecor.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), a: rand(0, Math.PI * 2), s: rand(0.7, 1.3) });
+    }
+    for (let i = 0; i < 55; i++) {
+      newTerrainPatches.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), r: rand(60, 160), dark: Math.random() < 0.6 });
+    }
+    for (let i = 0; i < 50; i++) {
+      newFireflies.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), phase: rand(0, Math.PI * 2), speed: rand(8e-4, 16e-4) });
+    }
+    setResources(newResources);
+    setDecor(newDecor);
+    setTerrainPatches(newTerrainPatches);
+    setFireflies(newFireflies);
+  }
+  function maybeSpawnCrate() {
+    if (Math.random() > 0.55) return;
+    const angle = rand(0, Math.PI * 2), d = rand(300, 1e3);
+    const x = clamp(player.x + Math.cos(angle) * d, 60, WORLD_W - 60);
+    const y = clamp(player.y + Math.sin(angle) * d, 60, WORLD_H - 60);
+    crates.push({ x, y, radius: 16 });
+  }
+  function startWave(n) {
+    setWave(n);
+    setIsBossWave(n % 10 === 0);
+    setSpawnTimer(0);
+    setActiveBoss(null);
+    if (n % 10 === 0) {
+      setZombiesToSpawn(6);
+      setWaveState("spawning-boss");
+      showBanner(`BOSS WAVE ${n}`, "Something big is coming...", "boss");
+    } else {
+      setZombiesToSpawn(4 + n * 3);
+      setWaveState("spawning");
+      showBanner(`WAVE ${n}`, "Zombies incoming");
+    }
+    maybeSpawnCrate();
+  }
+  function pickZombieType() {
+    if (wave < 3) return "normal";
+    if (wave < 5) return Math.random() < 0.3 ? "scout" : "normal";
+    if (wave < 7) {
+      const r = Math.random();
+      if (r < 0.38) return "normal";
+      if (r < 0.62) return "scout";
+      if (r < 0.8) return "brute";
+      if (r < 0.92) return "spitter";
+      return "wolf";
+    }
+    const pool = [
+      { type: "normal", weight: 100 }
+    ];
+    if (wave >= 2) pool.push({ type: "scout", weight: 65 });
+    if (wave >= 3) pool.push({ type: "brute", weight: 40 });
+    if (wave >= 4) pool.push({ type: "wolf", weight: 45 });
+    if (wave >= 5) pool.push({ type: "spitter", weight: 35 });
+    if (wave >= 6) pool.push({ type: "exploder", weight: 30 });
+    if (wave >= 8) pool.push({ type: "spider", weight: 25 });
+    if (wave >= 10) pool.push({ type: "witch", weight: 15 });
+    const totalWeight = pool.reduce((sum, item) => sum + item.weight, 0);
+    let roll = Math.random() * totalWeight;
+    for (const item of pool) {
+      if (roll < item.weight) return item.type;
+      roll -= item.weight;
+    }
+    return "normal";
+  }
+  var nextZombieId = 1;
+  function resetZombieId() {
+    nextZombieId = 1;
+  }
+  function spawnZombie(forceType, atX, atY) {
+    const type = forceType || pickZombieType();
+    let x, y;
+    if (atX !== void 0 && atY !== void 0) {
+      x = atX;
+      y = atY;
+    } else {
+      const angle = rand(0, Math.PI * 2);
+      const d = rand(900, 1300);
+      x = clamp(player.x + Math.cos(angle) * d, 40, WORLD_W - 40);
+      y = clamp(player.y + Math.sin(angle) * d, 40, WORLD_H - 40);
+    }
+    const def = ZTYPE[type];
+    const hpScale = 1 + (wave - 1) * 0.32;
+    const speedScale = Math.min(1 + (wave - 1) * 0.045, 1.9);
+    const bloodMul = bloodMoon.active ? 1.3 : 1;
+    const hp0 = Math.round(24 * hpScale * def.hpMul * bloodMul);
+    const usesVariant = type === "normal" || type === "scout";
+    const variant = usesVariant ? SKIN_VARIANTS[Math.floor(rand(0, SKIN_VARIANTS.length))] : [def.color, def.color2, def.dark];
+    const cloth = type === "boss" || type === "wolf" ? null : CLOTH_COLORS[Math.floor(rand(0, CLOTH_COLORS.length))];
+    let armorVal = 0;
+    if (type === "spider") armorVal = 2;
+    else if (type === "spitter") armorVal = 3;
+    else if (type === "exploder") armorVal = 4;
+    else if (type === "witch") armorVal = 6;
+    else if (type === "brute") armorVal = 12;
+    else if (type === "boss") armorVal = 24;
+    const z = {
+      id: nextZombieId++,
+      type,
+      x,
+      y,
+      radius: rand(def.radiusR[0], def.radiusR[1]),
+      hp: hp0,
+      maxHp: hp0,
+      speed: 1.15 * speedScale * def.speedMul,
+      damage: (7 + wave * 0.6) * def.dmgMul * bloodMul,
+      hitCooldown: 0,
+      wobble: rand(0, Math.PI * 2),
+      flash: 0,
+      lastShot: 0,
+      fuseStart: null,
+      hairKind: type === "boss" || type === "exploder" || type === "wolf" ? null : ["bald", "hood", "tuft"][Math.floor(rand(0, 3))],
+      mouthKind: ["open", "frown", "grimace"][Math.floor(rand(0, 3))],
+      squishX: rand(0.92, 1.08),
+      squishY: rand(0.92, 1.08),
+      skinColor: variant[0],
+      skinColor2: variant[1],
+      skinDark: variant[2],
+      clothColor: cloth,
+      armor: armorVal
+    };
+    z.maxHp = z.hp;
+    if (type === "spitter") {
+      z.projDamage = (6 + wave * 0.7) * bloodMul;
+    }
+    if (type === "exploder") {
+      z.explodeDamage = (16 + wave * 1.4) * bloodMul;
+    }
+    if (type === "boss") {
+      z.radius = 92;
+      z.hp = Math.round((420 + wave / 10 * 260) * bloodMul);
+      z.maxHp = z.hp;
+      z.speed = 0.95;
+      z.damage = (22 + wave * 1.1) * bloodMul;
+      setActiveBoss(z);
+      byId("bossBar").classList.add("show");
+      byId("bossName").textContent = "BOSS \xB7 WAVE " + wave;
+    }
+    zombies.push(z);
+    registerEncounter(type);
+    if (type === "wolf" && atX === void 0) {
+      const packSize = Math.floor(rand(1, 3));
+      for (let i = 0; i < packSize; i++) {
+        const offAngle = rand(0, Math.PI * 2), offD = rand(35, 80);
+        spawnZombie("wolf", clamp(x + Math.cos(offAngle) * offD, 40, WORLD_W - 40), clamp(y + Math.sin(offAngle) * offD, 40, WORLD_H - 40));
+      }
+    }
+  }
+  function updateBloodMoon() {
+  }
+  function fireDayNightTransitionBanner(wasNight) {
+    if (dayNight.isNight === wasNight) return;
+    if (dayNight.isNight) {
+      if (bloodMoon.active) {
+        showBanner("BLOOD MOON RISING", "A cursed red night begins! Fast & vicious zombies inbound!", "blood");
+      } else {
+        showBanner("NIGHTFALL", "Zombies emerge from the dark! Defend your base!", "night");
+      }
+    } else {
+      showBanner("DAYBREAK", "Safe daylight! Prepare & build your base.", "night");
+    }
+  }
+  function applyPhaseLabel() {
+    let timeLeftSec = 0;
+    if (dayNight.isNight) {
+      timeLeftSec = Math.max(0, Math.ceil((82500 - dayNight.time) / 1e3));
+    } else {
+      if (dayNight.time < 27500) {
+        timeLeftSec = Math.max(0, Math.ceil((27500 - dayNight.time) / 1e3));
+      } else {
+        timeLeftSec = Math.max(0, Math.ceil((dayNight.total - dayNight.time + 27500) / 1e3));
+      }
+    }
+    const label = byId("phaseLabel");
+    if (bloodMoon.active) {
+      label.textContent = `BLOOD MOON | ${timeLeftSec}s (DANGER!)`;
+      label.className = "pill hud-font blood";
+    } else if (dayNight.isNight) {
+      label.textContent = `NIGHT | ${timeLeftSec}s (ATTACK)`;
+      label.className = "pill hud-font night";
+    } else {
+      label.textContent = `DAY | ${timeLeftSec}s (SAFE - BUILD TIME)`;
+      label.className = "pill hud-font day";
+    }
+  }
+  function updateDayNight(dt) {
+    dayNight.time = (dayNight.time + dt) % dayNight.total;
+    const frac = dayNight.time / dayNight.total;
+    dayNight.factor = (1 - Math.cos(frac * Math.PI * 2)) / 2;
+    const wasNight = dayNight.isNight;
+    dayNight.isNight = dayNight.factor > 0.5;
+    if (dayNight.isNight !== wasNight) {
+      if (dayNight.isNight) {
+        dayNight.nightCount = (dayNight.nightCount || 0) + 1;
+        bloodMoon.active = dayNight.nightCount % 3 === 0;
+      } else {
+        bloodMoon.active = false;
+      }
+    }
+    fireDayNightTransitionBanner(wasNight);
+    applyPhaseLabel();
+    if (dayNight.isNight && dayNight.factor > 0.55) {
+      dayNight.nightSpawnTimer -= dt;
+      if (dayNight.nightSpawnTimer <= 0 && zombies.length < 45) {
+        spawnZombie(Math.random() < 0.7 ? "normal" : "scout");
+        dayNight.nightSpawnTimer = rand(4500, 8e3);
+      }
+    } else {
+      dayNight.nightSpawnTimer = rand(4500, 8e3);
+    }
+  }
+  function updateWaves(dt) {
+    if (waveState === "idle") {
+      startWave(1);
+      return;
+    }
+    if (!dayNight.isNight && !bloodMoon.active) {
+      return;
+    }
+    if (waveState === "spawning" || waveState === "spawning-boss") {
+      setSpawnTimer(spawnTimer - dt);
+      if (spawnTimer <= 0 && zombiesToSpawn > 0) {
+        if (waveState === "spawning-boss" && zombiesToSpawn === 1) {
+          spawnZombie("boss");
+        } else {
+          spawnZombie();
+        }
+        setZombiesToSpawn(zombiesToSpawn - 1);
+        setSpawnTimer((isBossWave ? 500 : 650) / (bloodMoon.active ? 5 : 1));
+      }
+      if (zombiesToSpawn <= 0) setWaveState("active");
+    } else if (waveState === "active") {
+      if (activeBoss) {
+        byId("bossFill").style.width = Math.max(0, activeBoss.hp / activeBoss.maxHp * 100) + "%";
+      }
+      if (zombies.length === 0) {
+        setWaveState("cleared");
+        setWaveClearedAt(performance.now());
+        const bonus = isBossWave ? 150 : 40;
+        gainXp(bonus);
+        byId("bossBar").classList.remove("show");
+        showBanner(`WAVE ${wave} CLEARED`, "+" + bonus + " bonus xp \xB7 next wave incoming...");
+      }
+    } else if (waveState === "cleared") {
+      if (performance.now() - waveClearedAt > nextWaveDelay) {
+        startWave(wave + 1);
+      }
+    }
+  }
+
   // src/net/matchSync.ts
   function hashId(id) {
     let h = 0;
@@ -1456,6 +1742,16 @@
         setInspectedStructure(next.find((s) => s.id === inspectedStructure.id) ?? null);
       }
     };
+    net.onDayNight = (msg) => {
+      const wasNight = dayNight.isNight;
+      dayNight.time = msg.time;
+      dayNight.factor = msg.factor;
+      dayNight.isNight = msg.isNight;
+      dayNight.nightCount = msg.nightCount;
+      bloodMoon.active = msg.bloodMoonActive;
+      fireDayNightTransitionBanner(wasNight);
+      applyPhaseLabel();
+    };
     net.onDisconnected = () => {
       setInNetMatch(false);
     };
@@ -1487,281 +1783,6 @@
     if (now - lastSentMoveAt < MOVE_SEND_INTERVAL_MS) return;
     lastSentMoveAt = now;
     sendMove(player.x, player.y, player.angle);
-  }
-
-  // src/systems/wave.ts
-  function generateWorld() {
-    const newResources = [];
-    const newDecor = [];
-    const newTerrainPatches = [];
-    const newFireflies = [];
-    const safeZone = 260;
-    for (let i = 0; i < 140; i++) {
-      let x, y;
-      do {
-        x = rand(80, WORLD_W - 80);
-        y = rand(80, WORLD_H - 80);
-      } while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
-      newResources.push({ type: "tree", x, y, radius: 19, hp: 30, maxHp: 30 });
-    }
-    for (let i = 0; i < 70; i++) {
-      let x, y;
-      do {
-        x = rand(80, WORLD_W - 80);
-        y = rand(80, WORLD_H - 80);
-      } while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
-      newResources.push({ type: "rock", x, y, radius: 21, hp: 50, maxHp: 50 });
-    }
-    for (let i = 0; i < 45; i++) {
-      let x, y;
-      do {
-        x = rand(80, WORLD_W - 80);
-        y = rand(80, WORLD_H - 80);
-      } while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
-      newResources.push({ type: "iron", x, y, radius: 23, hp: 110, maxHp: 110 });
-    }
-    for (let i = 0; i < 260; i++) {
-      newDecor.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), a: rand(0, Math.PI * 2), s: rand(0.7, 1.3) });
-    }
-    for (let i = 0; i < 55; i++) {
-      newTerrainPatches.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), r: rand(60, 160), dark: Math.random() < 0.6 });
-    }
-    for (let i = 0; i < 50; i++) {
-      newFireflies.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), phase: rand(0, Math.PI * 2), speed: rand(8e-4, 16e-4) });
-    }
-    setResources(newResources);
-    setDecor(newDecor);
-    setTerrainPatches(newTerrainPatches);
-    setFireflies(newFireflies);
-  }
-  function maybeSpawnCrate() {
-    if (Math.random() > 0.55) return;
-    const angle = rand(0, Math.PI * 2), d = rand(300, 1e3);
-    const x = clamp(player.x + Math.cos(angle) * d, 60, WORLD_W - 60);
-    const y = clamp(player.y + Math.sin(angle) * d, 60, WORLD_H - 60);
-    crates.push({ x, y, radius: 16 });
-  }
-  function startWave(n) {
-    setWave(n);
-    setIsBossWave(n % 10 === 0);
-    setSpawnTimer(0);
-    setActiveBoss(null);
-    if (n % 10 === 0) {
-      setZombiesToSpawn(6);
-      setWaveState("spawning-boss");
-      showBanner(`BOSS WAVE ${n}`, "Something big is coming...", "boss");
-    } else {
-      setZombiesToSpawn(4 + n * 3);
-      setWaveState("spawning");
-      showBanner(`WAVE ${n}`, "Zombies incoming");
-    }
-    maybeSpawnCrate();
-  }
-  function pickZombieType() {
-    if (wave < 3) return "normal";
-    if (wave < 5) return Math.random() < 0.3 ? "scout" : "normal";
-    if (wave < 7) {
-      const r = Math.random();
-      if (r < 0.38) return "normal";
-      if (r < 0.62) return "scout";
-      if (r < 0.8) return "brute";
-      if (r < 0.92) return "spitter";
-      return "wolf";
-    }
-    const pool = [
-      { type: "normal", weight: 100 }
-    ];
-    if (wave >= 2) pool.push({ type: "scout", weight: 65 });
-    if (wave >= 3) pool.push({ type: "brute", weight: 40 });
-    if (wave >= 4) pool.push({ type: "wolf", weight: 45 });
-    if (wave >= 5) pool.push({ type: "spitter", weight: 35 });
-    if (wave >= 6) pool.push({ type: "exploder", weight: 30 });
-    if (wave >= 8) pool.push({ type: "spider", weight: 25 });
-    if (wave >= 10) pool.push({ type: "witch", weight: 15 });
-    const totalWeight = pool.reduce((sum, item) => sum + item.weight, 0);
-    let roll = Math.random() * totalWeight;
-    for (const item of pool) {
-      if (roll < item.weight) return item.type;
-      roll -= item.weight;
-    }
-    return "normal";
-  }
-  var nextZombieId = 1;
-  function resetZombieId() {
-    nextZombieId = 1;
-  }
-  function spawnZombie(forceType, atX, atY) {
-    const type = forceType || pickZombieType();
-    let x, y;
-    if (atX !== void 0 && atY !== void 0) {
-      x = atX;
-      y = atY;
-    } else {
-      const angle = rand(0, Math.PI * 2);
-      const d = rand(900, 1300);
-      x = clamp(player.x + Math.cos(angle) * d, 40, WORLD_W - 40);
-      y = clamp(player.y + Math.sin(angle) * d, 40, WORLD_H - 40);
-    }
-    const def = ZTYPE[type];
-    const hpScale = 1 + (wave - 1) * 0.32;
-    const speedScale = Math.min(1 + (wave - 1) * 0.045, 1.9);
-    const bloodMul = bloodMoon.active ? 1.3 : 1;
-    const hp0 = Math.round(24 * hpScale * def.hpMul * bloodMul);
-    const usesVariant = type === "normal" || type === "scout";
-    const variant = usesVariant ? SKIN_VARIANTS[Math.floor(rand(0, SKIN_VARIANTS.length))] : [def.color, def.color2, def.dark];
-    const cloth = type === "boss" || type === "wolf" ? null : CLOTH_COLORS[Math.floor(rand(0, CLOTH_COLORS.length))];
-    let armorVal = 0;
-    if (type === "spider") armorVal = 2;
-    else if (type === "spitter") armorVal = 3;
-    else if (type === "exploder") armorVal = 4;
-    else if (type === "witch") armorVal = 6;
-    else if (type === "brute") armorVal = 12;
-    else if (type === "boss") armorVal = 24;
-    const z = {
-      id: nextZombieId++,
-      type,
-      x,
-      y,
-      radius: rand(def.radiusR[0], def.radiusR[1]),
-      hp: hp0,
-      maxHp: hp0,
-      speed: 1.15 * speedScale * def.speedMul,
-      damage: (7 + wave * 0.6) * def.dmgMul * bloodMul,
-      hitCooldown: 0,
-      wobble: rand(0, Math.PI * 2),
-      flash: 0,
-      lastShot: 0,
-      fuseStart: null,
-      hairKind: type === "boss" || type === "exploder" || type === "wolf" ? null : ["bald", "hood", "tuft"][Math.floor(rand(0, 3))],
-      mouthKind: ["open", "frown", "grimace"][Math.floor(rand(0, 3))],
-      squishX: rand(0.92, 1.08),
-      squishY: rand(0.92, 1.08),
-      skinColor: variant[0],
-      skinColor2: variant[1],
-      skinDark: variant[2],
-      clothColor: cloth,
-      armor: armorVal
-    };
-    z.maxHp = z.hp;
-    if (type === "spitter") {
-      z.projDamage = (6 + wave * 0.7) * bloodMul;
-    }
-    if (type === "exploder") {
-      z.explodeDamage = (16 + wave * 1.4) * bloodMul;
-    }
-    if (type === "boss") {
-      z.radius = 92;
-      z.hp = Math.round((420 + wave / 10 * 260) * bloodMul);
-      z.maxHp = z.hp;
-      z.speed = 0.95;
-      z.damage = (22 + wave * 1.1) * bloodMul;
-      setActiveBoss(z);
-      byId("bossBar").classList.add("show");
-      byId("bossName").textContent = "BOSS \xB7 WAVE " + wave;
-    }
-    zombies.push(z);
-    registerEncounter(type);
-    if (type === "wolf" && atX === void 0) {
-      const packSize = Math.floor(rand(1, 3));
-      for (let i = 0; i < packSize; i++) {
-        const offAngle = rand(0, Math.PI * 2), offD = rand(35, 80);
-        spawnZombie("wolf", clamp(x + Math.cos(offAngle) * offD, 40, WORLD_W - 40), clamp(y + Math.sin(offAngle) * offD, 40, WORLD_H - 40));
-      }
-    }
-  }
-  function updateBloodMoon() {
-  }
-  function updateDayNight(dt) {
-    dayNight.time = (dayNight.time + dt) % dayNight.total;
-    const frac = dayNight.time / dayNight.total;
-    dayNight.factor = (1 - Math.cos(frac * Math.PI * 2)) / 2;
-    const wasNight = dayNight.isNight;
-    dayNight.isNight = dayNight.factor > 0.5;
-    if (dayNight.isNight !== wasNight) {
-      if (dayNight.isNight) {
-        dayNight.nightCount = (dayNight.nightCount || 0) + 1;
-        if (dayNight.nightCount % 3 === 0) {
-          bloodMoon.active = true;
-          showBanner("BLOOD MOON RISING", "A cursed red night begins! Fast & vicious zombies inbound!", "blood");
-        } else {
-          bloodMoon.active = false;
-          showBanner("NIGHTFALL", "Zombies emerge from the dark! Defend your base!", "night");
-        }
-      } else {
-        if (bloodMoon.active) {
-          bloodMoon.active = false;
-        }
-        showBanner("DAYBREAK", "Safe daylight! Prepare & build your base.", "night");
-      }
-    }
-    let timeLeftSec = 0;
-    if (dayNight.isNight) {
-      timeLeftSec = Math.max(0, Math.ceil((82500 - dayNight.time) / 1e3));
-    } else {
-      if (dayNight.time < 27500) {
-        timeLeftSec = Math.max(0, Math.ceil((27500 - dayNight.time) / 1e3));
-      } else {
-        timeLeftSec = Math.max(0, Math.ceil((dayNight.total - dayNight.time + 27500) / 1e3));
-      }
-    }
-    const label = byId("phaseLabel");
-    if (bloodMoon.active) {
-      label.textContent = `BLOOD MOON | ${timeLeftSec}s (DANGER!)`;
-      label.className = "pill hud-font blood";
-    } else if (dayNight.isNight) {
-      label.textContent = `NIGHT | ${timeLeftSec}s (ATTACK)`;
-      label.className = "pill hud-font night";
-    } else {
-      label.textContent = `DAY | ${timeLeftSec}s (SAFE - BUILD TIME)`;
-      label.className = "pill hud-font day";
-    }
-    if (dayNight.isNight && dayNight.factor > 0.55) {
-      dayNight.nightSpawnTimer -= dt;
-      if (dayNight.nightSpawnTimer <= 0 && zombies.length < 45) {
-        spawnZombie(Math.random() < 0.7 ? "normal" : "scout");
-        dayNight.nightSpawnTimer = rand(4500, 8e3);
-      }
-    } else {
-      dayNight.nightSpawnTimer = rand(4500, 8e3);
-    }
-  }
-  function updateWaves(dt) {
-    if (waveState === "idle") {
-      startWave(1);
-      return;
-    }
-    if (!dayNight.isNight && !bloodMoon.active) {
-      return;
-    }
-    if (waveState === "spawning" || waveState === "spawning-boss") {
-      setSpawnTimer(spawnTimer - dt);
-      if (spawnTimer <= 0 && zombiesToSpawn > 0) {
-        if (waveState === "spawning-boss" && zombiesToSpawn === 1) {
-          spawnZombie("boss");
-        } else {
-          spawnZombie();
-        }
-        setZombiesToSpawn(zombiesToSpawn - 1);
-        setSpawnTimer((isBossWave ? 500 : 650) / (bloodMoon.active ? 5 : 1));
-      }
-      if (zombiesToSpawn <= 0) setWaveState("active");
-    } else if (waveState === "active") {
-      if (activeBoss) {
-        byId("bossFill").style.width = Math.max(0, activeBoss.hp / activeBoss.maxHp * 100) + "%";
-      }
-      if (zombies.length === 0) {
-        setWaveState("cleared");
-        setWaveClearedAt(performance.now());
-        const bonus = isBossWave ? 150 : 40;
-        gainXp(bonus);
-        byId("bossBar").classList.remove("show");
-        showBanner(`WAVE ${wave} CLEARED`, "+" + bonus + " bonus xp \xB7 next wave incoming...");
-      }
-    } else if (waveState === "cleared") {
-      if (performance.now() - waveClearedAt > nextWaveDelay) {
-        startWave(wave + 1);
-      }
-    }
   }
 
   // src/systems/update.ts
@@ -7327,12 +7348,12 @@
         updateBullets(dt);
         updateStructures(dt);
         updateZombies(dt, dayNight.factor);
+        updateBloodMoon();
+        updateDayNight(dt);
       } else {
         updateNetInterpolation(dt);
       }
       updateParticles(dt);
-      updateBloodMoon();
-      updateDayNight(dt);
       if (!inNetMatch) updateWaves(dt);
       updateHud();
       render(ctx, canvas);

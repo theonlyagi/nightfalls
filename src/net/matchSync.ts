@@ -18,12 +18,13 @@ import {
 import {
   setInNetMatch, setRemotePlayers, RemotePlayer,
   setZombies, setBullets, setStructures, player, zombies, bullets, remotePlayers,
-  inspectedStructure, setInspectedStructure,
+  inspectedStructure, setInspectedStructure, dayNight, bloodMoon,
 } from '../state';
 import { Zombie, Bullet, Structure, HairKind, MouthKind } from '../types';
 import { SKIN_VARIANTS, BUILD_DEFS } from '../constants';
 import { dist } from '../utils';
 import { checkLevelGates } from '../systems/combat';
+import { applyPhaseLabel, fireDayNightTransitionBanner } from '../systems/wave';
 
 /** Small deterministic hash so a given entity id always gets the same
  *  cosmetic look across snapshots, instead of re-randomizing every update. */
@@ -274,6 +275,20 @@ export function initMatchSync(): void {
     if (inspectedStructure) {
       setInspectedStructure(next.find(s => s.id === inspectedStructure!.id) ?? null);
     }
+  };
+
+  net.onDayNight = (msg) => {
+    const wasNight = dayNight.isNight;
+    dayNight.time = msg.time;
+    dayNight.factor = msg.factor;
+    dayNight.isNight = msg.isNight;
+    dayNight.nightCount = msg.nightCount;
+    bloodMoon.active = msg.bloodMoonActive;
+    // fireDayNightTransitionBanner/applyPhaseLabel are the same helpers
+    // solo's updateDayNight() calls (src/systems/wave.ts) — reused here so
+    // the banners/HUD label match exactly instead of duplicating the logic.
+    fireDayNightTransitionBanner(wasNight);
+    applyPhaseLabel();
   };
 
   net.onDisconnected = () => {

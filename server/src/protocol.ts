@@ -314,6 +314,40 @@ export const TITAN_MAX_HP_BONUS = 400;
 export const TITAN_RADIUS_MUL = 2;
 export const OVERCLOCKED_RADIUS_MUL = 1.35;
 
+// ---------------- Day/night + Blood Moon ----------------
+// Copied from src/state.ts's dayNight.total / src/systems/wave.ts's
+// bloodMul(1.3)/spawn-speedup(5x) constants - same standalone-project "own
+// copy" pattern as the weapon/structure stats above. If the cycle length or
+// the 0.5 night threshold in Room.ts's updateDayNight() is ever retuned
+// client-side, it must be mirrored here by hand - there's no shared module
+// between client and server to keep these in sync automatically.
+
+/** Full day+night cycle length, matching the client's dayNight.total
+ *  exactly. Night is the middle half of the cycle (cosine factor > 0.5). */
+export const DAY_NIGHT_TOTAL_MS = 110000;
+
+/** Matches wave.ts's `bloodMul = bloodMoon.active ? 1.3 : 1` - applied only
+ *  to zombie-vs-player damage and spawned-zombie hp/maxHp server-side (NOT
+ *  zombie-vs-structure damage, which solo computes from a flat per-zombie-
+ *  type rate independent of this multiplier - see Room.ts's
+ *  resolveCollisions() for the exact split). */
+export const BLOOD_MOON_HP_DMG_MULTIPLIER = 1.3;
+
+/** Matches updateWaves()'s Blood-Moon spawn-timer divisor
+ *  (`spawnTimer * (bloodMoon.active ? 1/5 : 1)`) - server has no wave-based
+ *  spawn timer, so this scales the flat zombie-spawn interval instead, the
+ *  closest faithful equivalent given the server's simpler spawn model. */
+export const BLOOD_MOON_SPAWN_SPEEDUP = 5;
+
+export interface DayNightSnapshot {
+  type: 'daynight';
+  time: number;
+  factor: number;
+  isNight: boolean;
+  nightCount: number;
+  bloodMoonActive: boolean;
+}
+
 export interface StructureSnapshot {
   id: string;
   type: StructureKind;
