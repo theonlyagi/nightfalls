@@ -173,3 +173,5 @@ export function sendUpgrade(structureId: string): void { send({ type: 'upgrade',
 export function sendRemove(structureId: string): void { send({ type: 'remove', structureId }); }
 export function sendHitResource(id: string, damage: number): void { send({ type: 'hitResource', id, damage }); }
 export function sendRevive(targetId: string): void { send({ type: 'revive', targetId }); }
+export function sendWeaponChoice(weapon: string): void { send({ type: 'weaponChoice', weapon } as any); }
+export function sendMutationChoice(mutation: string): void { send({ type: 'mutationChoice', mutation } as any); }

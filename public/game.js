@@ -967,6 +967,12 @@
   function sendRevive(targetId) {
     send({ type: "revive", targetId });
   }
+  function sendWeaponChoice(weapon) {
+    send({ type: "weaponChoice", weapon });
+  }
+  function sendMutationChoice(mutation) {
+    send({ type: "mutationChoice", mutation });
+  }
 
   // src/systems/codex.ts
   var CODEX_KEY = "nightfalls_codex_data_v1";
@@ -6381,6 +6387,7 @@
       card.onclick = () => {
         player.weapon = key;
         player.weaponChosen = true;
+        if (inNetMatch) sendWeaponChoice(key);
         setWeaponChoiceOpen(false);
         byId("weaponChoicePanel").classList.add("hidden");
         showBanner(def.label.toUpperCase() + " UNLOCKED", def.playstyle, "power");
@@ -6406,6 +6413,7 @@
         player.mutation = key;
         player.mutationChosen = true;
         def.apply(player);
+        if (inNetMatch) sendMutationChoice(key);
         setMutationChoiceOpen(false);
         byId("mutationChoicePanel").classList.add("hidden");
         showBanner(def.label.toUpperCase() + " UNLOCKED", def.playstyle, "power");
