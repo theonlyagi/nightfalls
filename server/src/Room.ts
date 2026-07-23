@@ -794,6 +794,7 @@ export class Room {
     this.broadcast(JSON.stringify({
       type: 'dayNight',
       time: this.dayNightTime,
+      isNight: this.isNight,
       nightCount: this.nightCount,
       bloodMoon,
     }));

@@ -92,8 +92,14 @@ function loop(t: number): void {
       updateNetInterpolation(dt);
     }
     updateParticles(dt);
-    updateBloodMoon();
-    updateDayNight(dt);
+    // Day/night is server-authoritative in a net match (see net/matchSync.ts's
+    // net.onDayNight) - running the local sim on top would duplicate it and
+    // let the two independently-computed clocks disagree (see dev-notes/
+    // issues/C3-daynight-double-sim.md). Solo mode is unaffected.
+    if (!inNetMatch) {
+      updateBloodMoon();
+      updateDayNight(dt);
+    }
     if (!inNetMatch) updateWaves(dt);
     updateHud();
     render(ctx, canvas);

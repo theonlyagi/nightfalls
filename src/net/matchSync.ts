@@ -22,6 +22,7 @@ import {
 import { Zombie, Bullet, Structure, HairKind, MouthKind, WeaponKind } from '../types';
 import { SKIN_VARIANTS, BUILD_DEFS, WEAPON_DEFS } from '../constants';
 import { showBanner } from '../systems/combat';
+import { applyPhaseLabel, fireDayNightTransitionBanner } from '../systems/wave';
 
 /** Small deterministic hash so a given entity id always gets the same
  *  cosmetic look across snapshots, instead of re-randomizing every update. */
@@ -336,6 +337,22 @@ export function initMatchSync(): void {
     }
     dayNight.nightCount = msg.nightCount || 0;
     bloodMoon.active = !!msg.bloodMoon;
+
+    // factor is a pure function of time (same cosine ease src/systems/wave.ts's
+    // solo updateDayNight() uses) - derived here rather than sent over the
+    // wire separately, so the server only needs to broadcast one extra field
+    // (isNight) to make the client server-authoritative for day/night.
+    const frac = (dayNight.time % dayNight.total) / dayNight.total;
+    dayNight.factor = (1 - Math.cos(frac * Math.PI * 2)) / 2;
+
+    // wasNight is read before overwriting dayNight.isNight, same pattern
+    // solo's updateDayNight() already uses - fireDayNightTransitionBanner
+    // only acts when isNight actually flips, so this is safe to call on
+    // every incoming message without re-firing the banner each tick.
+    const wasNight = dayNight.isNight;
+    dayNight.isNight = !!msg.isNight;
+    fireDayNightTransitionBanner(wasNight);
+    applyPhaseLabel();
   };
 
   net.onGameOver = () => {

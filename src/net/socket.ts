@@ -51,7 +51,7 @@ let myId: string | null = null;
 let myRoomId: string | null = null;
 
 export interface NetShootMessage { type: 'shoot'; shooterId: string; x: number; y: number; angle: number; weapon?: WeaponKind; }
-export interface NetDayNightMessage { type: 'dayNight'; time: number; nightCount: number; bloodMoon: boolean; }
+export interface NetDayNightMessage { type: 'dayNight'; time: number; isNight: boolean; nightCount: number; bloodMoon: boolean; }
 export interface NetGameOverMessage { type: 'gameOver'; }
 
 export const net = {
