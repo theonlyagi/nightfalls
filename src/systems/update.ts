@@ -4,11 +4,12 @@ import {
   structures, setStructures, crates, setCrates, powerups, setPowerups,
   particles, setParticles, bursts, setBursts, bloodDecals, shake, keys, mouse,
   godMode, running, setRunning, meta, wave, playerName, shopOpen, touchMove, touchAim,
-  inNetMatch,
+  inNetMatch, remotePlayers, reviveHoldingTargetId, reviveHoldTimer, setReviveHoldingTargetId, setReviveHoldTimer,
   fireZones, setFireZones, toxicClouds, setToxicClouds,
   teslaChains, setTeslaChains, sniperLasers, setSniperLasers
 } from '../state';
 import { maybeSendMove } from '../net/matchSync';
+import { sendHitResource, sendRevive } from '../net/socket';
 import {
   POWERUP_LIFETIME_MS, BURN_DURATION_MS, BURN_DAMAGE_FRACTION,
   OVERHEAT_DECAY_PER_SEC, ZTYPE, STRUCTURE_TIERS, BUILD_DEFS,
@@ -124,12 +125,15 @@ export function updatePlayer(dt: number, camera: { x: number; y: number }): void
   if (inNetMatch) maybeSendMove(performance.now());
 
   if (mouse.down) tryShoot(performance.now());
+  updateReviveHold(dt * 1000);
 
   if (player.mutation === 'overclocked' && player.heat > 0) {
     player.heat = Math.max(0, player.heat - OVERHEAT_DECAY_PER_SEC * dt / 1000);
   }
 
-  player.hp = Math.min(player.maxHp, player.hp + player.regen * regenBoostMul() * dt);
+  if (!inNetMatch) {
+    player.hp = Math.min(player.maxHp, player.hp + player.regen * regenBoostMul() * dt);
+  }
 
   for (const r of resources) {
     const d = dist(player.x, player.y, r.x, r.y);
@@ -196,6 +200,58 @@ export function updatePlayer(dt: number, camera: { x: number; y: number }): void
     }
   }
   setPowerups(powerups.filter(p => !p.dead));
+}
+
+export function updateReviveHold(dt: number): void {
+  if (!inNetMatch || !player.alive) {
+    setReviveHoldingTargetId(null);
+    setReviveHoldTimer(0);
+    return;
+  }
+
+  if (!mouse.down) {
+    setReviveHoldingTargetId(null);
+    setReviveHoldTimer(0);
+    return;
+  }
+
+  // Find nearest fallen remote player within 180px of local player
+  let bestTargetId: string | null = null;
+  let bestDist = 180;
+
+  for (const rp of remotePlayers) {
+    if (!rp.alive) {
+      const rx = rp.renderX ?? rp.x, ry = rp.renderY ?? rp.y;
+      const dToMe = dist(player.x, player.y, rx, ry);
+      if (dToMe < bestDist) {
+        bestDist = dToMe;
+        bestTargetId = rp.id;
+      }
+    }
+  }
+
+  if (bestTargetId) {
+    if (reviveHoldingTargetId !== bestTargetId) {
+      setReviveHoldingTargetId(bestTargetId);
+      setReviveHoldTimer(0);
+    } else {
+      const nextTimer = reviveHoldTimer + dt;
+      setReviveHoldTimer(nextTimer);
+      if (Math.random() < 0.3) {
+        spawnBurst(player.x, player.y, '#8bd17c', 1);
+      }
+      if (nextTimer >= 5000) {
+        sendRevive(bestTargetId);
+        spawnBurst(player.x, player.y, '#8bd17c', 24);
+        spawnParticle(player.x, player.y - 40, 'TEAMMATE REVIVED!', '#8bd17c');
+        setReviveHoldingTargetId(null);
+        setReviveHoldTimer(0);
+      }
+    }
+  } else {
+    setReviveHoldingTargetId(null);
+    setReviveHoldTimer(0);
+  }
 }
 
 export function explodeBullet(b: Bullet): void {
@@ -274,7 +330,8 @@ export function updateBullets(dt: number): void {
     }
     for (const z of zombies) {
       if (b.dead) break;
-      if (dist(b.x, b.y, z.x, z.y) < b.radius + z.radius) {
+      const hitReach = b.radius + z.radius + 12;
+      if (dist(b.x, b.y, z.x, z.y) < hitReach) {
         if (b.explosive) {
           explodeBullet(b);
         } else {
@@ -306,7 +363,7 @@ export function updateBullets(dt: number): void {
             z.burnUntil = performance.now() + BURN_DURATION_MS;
             z.burnDamagePerSec = b.damage * BURN_DAMAGE_FRACTION;
           }
-          if (z.hp <= 0) zombieDied(z);
+          if (z.hp <= 0) zombieDied(z, b.owner === 'player');
         }
         b.dead = true;
         break;
@@ -316,6 +373,9 @@ export function updateBullets(dt: number): void {
     if (b.owner === 'player') {
       for (const r of resources) {
         if (dist(b.x, b.y, r.x, r.y) < b.radius + r.radius) {
+          if (inNetMatch && r.id) {
+            sendHitResource(r.id, b.damage);
+          }
           r.hp -= b.damage;
           b.dead = true;
           if (r.hp <= 0) {
@@ -366,6 +426,32 @@ export function updateBullets(dt: number): void {
             }
           }
           break;
+        }
+      }
+      if (!b.dead) {
+        for (const s of structures) {
+          if (dist(b.x, b.y, s.x, s.y) < b.radius + s.radius) {
+            b.dead = true;
+            spawnBurst(b.x, b.y, '#c7cfd2', 6);
+            break;
+          }
+        }
+      }
+    } else if ((b.owner as any) === 'remotePlayer') {
+      for (const r of resources) {
+        if (dist(b.x, b.y, r.x, r.y) < b.radius + r.radius) {
+          b.dead = true;
+          spawnBurst(b.x, b.y, '#8b9599', 6);
+          break;
+        }
+      }
+      if (!b.dead) {
+        for (const s of structures) {
+          if (dist(b.x, b.y, s.x, s.y) < b.radius + s.radius) {
+            b.dead = true;
+            spawnBurst(b.x, b.y, '#c7cfd2', 6);
+            break;
+          }
         }
       }
     }

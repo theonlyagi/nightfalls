@@ -8,7 +8,7 @@
 // `lobby.onMatchStart` hooks in state.ts.
 
 import { WS_URL } from '../constants';
-import { StructureKind, WeaponKind, MutationKind } from '../types';
+import { StructureKind, WeaponKind, ZombieKind } from '../types';
 
 const SESSION_TOKEN_KEY = 'nightfall_session_token';
 
@@ -32,23 +32,27 @@ export interface NetPlayerSnapshot {
   xp: number; level: number; xpToNext: number;
 }
 export interface NetPlayersMessage { type: 'players'; players: NetPlayerSnapshot[]; }
-export interface NetZombieSnapshot { id: string; x: number; y: number; hp: number; maxHp: number; }
+export interface NetZombieSnapshot { id: string; x: number; y: number; hp: number; maxHp: number; zombieType?: ZombieKind; }
 export interface NetZombiesMessage { type: 'zombies'; zombies: NetZombieSnapshot[]; }
-export interface NetBulletSnapshot { id: string; ownerId: string; x: number; y: number; explosive?: boolean; }
+export interface NetBulletSnapshot { id: string; ownerId: string; x: number; y: number; }
 export interface NetBulletsMessage { type: 'bullets'; bullets: NetBulletSnapshot[]; }
+export interface NetResourceSnapshot {
+  id: string; type: 'tree' | 'rock' | 'iron'; x: number; y: number; radius: number; hp: number; maxHp: number;
+}
+export interface NetResourcesMessage { type: 'resources'; resources: NetResourceSnapshot[]; }
 export interface NetStructureSnapshot {
   id: string; type: StructureKind; x: number; y: number; angle: number; aimAngle: number;
   tier: number; level: number; hp: number; maxHp: number;
 }
 export interface NetStructuresMessage { type: 'structures'; structures: NetStructureSnapshot[]; }
-export interface NetDayNightMessage {
-  type: 'daynight'; time: number; factor: number; isNight: boolean;
-  nightCount: number; bloodMoonActive: boolean;
-}
 
 let socket: WebSocket | null = null;
 let myId: string | null = null;
 let myRoomId: string | null = null;
+
+export interface NetShootMessage { type: 'shoot'; shooterId: string; x: number; y: number; angle: number; weapon?: WeaponKind; }
+export interface NetDayNightMessage { type: 'dayNight'; time: number; nightCount: number; bloodMoon: boolean; }
+export interface NetGameOverMessage { type: 'gameOver'; }
 
 export const net = {
   onWelcome: null as ((msg: NetWelcomeMessage) => void) | null,
@@ -57,7 +61,10 @@ export const net = {
   onZombies: null as ((msg: NetZombiesMessage) => void) | null,
   onBullets: null as ((msg: NetBulletsMessage) => void) | null,
   onStructures: null as ((msg: NetStructuresMessage) => void) | null,
+  onResources: null as ((msg: NetResourcesMessage) => void) | null,
+  onShoot: null as ((msg: NetShootMessage) => void) | null,
   onDayNight: null as ((msg: NetDayNightMessage) => void) | null,
+  onGameOver: null as ((msg: NetGameOverMessage) => void) | null,
   onDisconnected: null as (() => void) | null,
 };
 
@@ -115,8 +122,17 @@ export function connect(name: string): void {
       case 'structures':
         net.onStructures?.(msg);
         break;
-      case 'daynight':
+      case 'resources':
+        net.onResources?.(msg);
+        break;
+      case 'shoot':
+        net.onShoot?.(msg);
+        break;
+      case 'dayNight':
         net.onDayNight?.(msg);
+        break;
+      case 'gameOver':
+        net.onGameOver?.(msg);
         break;
     }
   };
@@ -155,5 +171,7 @@ export function sendBuild(kind: StructureKind, x: number, y: number, angle: numb
 }
 export function sendUpgrade(structureId: string): void { send({ type: 'upgrade', structureId }); }
 export function sendRemove(structureId: string): void { send({ type: 'remove', structureId }); }
-export function sendWeaponChoice(weapon: WeaponKind): void { send({ type: 'weaponChoice', weapon }); }
-export function sendMutationChoice(mutation: MutationKind): void { send({ type: 'mutationChoice', mutation }); }
+export function sendHitResource(id: string, damage: number): void { send({ type: 'hitResource', id, damage }); }
+export function sendRevive(targetId: string): void { send({ type: 'revive', targetId }); }
+export function sendWeaponChoice(weapon: string): void { send({ type: 'weaponChoice', weapon } as any); }
+export function sendMutationChoice(mutation: string): void { send({ type: 'mutationChoice', mutation } as any); }

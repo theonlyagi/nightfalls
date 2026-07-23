@@ -14,15 +14,10 @@ export const ROOM_MIN_PLAYERS = 2;
 /** How long everyone must stay ready, uninterrupted, before a match actually starts. */
 export const MATCH_START_COUNTDOWN_MS = 3000;
 
-/** ~30 ticks/sec. Was 100 (10 TPS) - low enough to look choppy even with
- *  client-side interpolation smoothing over the gaps, since hit detection,
- *  zombie movement, and structure combat are all only as fresh as the last
- *  tick. Room counts are small (max 4 players) so the extra broadcast/CPU
- *  cost of ~3x the tick rate is modest. */
-export const TICK_MS = 33;
+export const TICK_MS = 100;
 
-export const ZOMBIE_MAX = 10;
-export const ZOMBIE_SPAWN_INTERVAL_MS = 3000;
+export const ZOMBIE_MAX = 50;
+export const ZOMBIE_SPAWN_INTERVAL_MS = 800;
 export const ZOMBIE_RADIUS = 22;
 export const ZOMBIE_DAMAGE = 8;
 export const ZOMBIE_HIT_COOLDOWN_MS = 600;
@@ -44,16 +39,7 @@ export const ZOMBIE_CHASE_SPEED = 90;
  *  raw per-frame value (9.5) and was applied directly as a per-tick
  *  displacement, making multiplayer bullets ~6x slower than intended. */
 export const BULLET_SPEED_PER_SEC = 9.5 * 60;
-/** Real-time base duration a bullet lives for (before any per-weapon
- *  bulletLifeMul), independent of tick rate. Matches the client's solo-mode
- *  base bullet life exactly (src/systems/combat.ts's tryShoot():
- *  `life = 1400 * (wdef.bulletLifeMul||1)`) — was 6000 here, a pre-existing
- *  bug unrelated to tick rate that gave the plain pistol bullet ~4.3x solo's
- *  actual range; fixed while this exact code path is being made weapon-
- *  aware anyway. Room.ts's handleShoot() derives the actual per-shot tick
- *  count from this (scaled by wdef.bulletLifeMul and TICK_MS) so tuning
- *  TICK_MS again in the future can't accidentally change bullet range. */
-export const BULLET_LIFE_MS = 1400;
+export const BULLET_LIFE_TICKS = 60;
 export const BULLET_RADIUS = 5;
 export const BULLET_DAMAGE = 12;
 
@@ -64,12 +50,7 @@ export const PLAYER_MAX_HP = 100;
  *  not exceed this many world units per millisecond, or the move is dropped
  *  as implausible (basic anti-teleport, not full server-side physics). */
 export const MAX_PLAYER_SPEED_PER_MS = 0.6;
-// MIN_SHOT_INTERVAL_MS (flat 150ms) removed - superseded by the per-weapon+
-// mutation minimum interval computed in Room.ts's handleShoot() (see
-// WEAPON_DEFS/BASE_FIRE_RATE/OVERCLOCKED_FIRE_RATE_MUL below). The flat
-// value would have mis-throttled two real combos that fire faster than
-// 150ms apart even in solo mode: machinegun+overclocked (~90ms) and
-// dualguns+overclocked (~139ms).
+export const MIN_SHOT_INTERVAL_MS = 150;
 
 /** How long a disconnected player's state is kept around for a reconnect
  *  before it's discarded for good. */
@@ -96,26 +77,6 @@ export interface MovePacket {
 export interface ShootPacket {
   type: 'shoot';
   angle: number;
-}
-
-/** Mirrors src/types.ts's WeaponKind. 'pistol' is the default starting
- *  weapon, not a choosable unlock (matches the client's shopUI.ts filtering
- *  it out of the choice list) - isWeaponChoicePacket rejects it below. */
-export type WeaponKind = 'pistol' | 'dualguns' | 'machinegun' | 'shotgun' | 'grenadelauncher';
-export const WEAPON_KINDS: WeaponKind[] = ['pistol', 'dualguns', 'machinegun', 'shotgun', 'grenadelauncher'];
-
-/** Mirrors src/types.ts's MutationKind. */
-export type MutationKind = 'vampire' | 'overclocked' | 'titan' | 'pyromaniac';
-export const MUTATION_KINDS: MutationKind[] = ['vampire', 'overclocked', 'titan', 'pyromaniac'];
-
-export interface WeaponChoicePacket {
-  type: 'weaponChoice';
-  weapon: WeaponKind;
-}
-
-export interface MutationChoicePacket {
-  type: 'mutationChoice';
-  mutation: MutationKind;
 }
 
 export interface ReadyPacket {
@@ -150,9 +111,18 @@ export interface RemovePacket {
   structureId: string;
 }
 
-export type ClientPacket =
-  | MovePacket | ShootPacket | ReadyPacket | BuildPacket | UpgradePacket | RemovePacket
-  | WeaponChoicePacket | MutationChoicePacket;
+export interface HitResourcePacket {
+  type: 'hitResource';
+  id: string;
+  damage: number;
+}
+
+export interface RevivePacket {
+  type: 'revive';
+  targetId: string;
+}
+
+export type ClientPacket = MovePacket | ShootPacket | ReadyPacket | BuildPacket | UpgradePacket | RemovePacket | HitResourcePacket | RevivePacket;
 
 // ---------------- Structure stats (Phase 1: flat per-level numbers only) ----------------
 // Deliberately simplified server-side model — see server/src/Room.ts's
@@ -251,101 +221,17 @@ export function towerMaxHp(kind: TowerKind, level: number): number {
   return STRUCTURE_DEFS[kind].hp * (1 + (level - 1) * 0.5);
 }
 
-// ---------------- Weapon + mutation stats ----------------
-// Copied from src/constants.ts's WEAPON_DEFS/MUTATION_DEFS - same
-// standalone-project "own copy" pattern as STRUCTURE_DEFS/TOWER_LEVELS
-// above. Multi-pellet weapons (dualguns/shotgun) are spawned by hardcoded
-// weapon-name branching in Room.ts's handleShoot(), matching the client's
-// tryShoot() exactly (it does the same - the `pellets` field below exists
-// only for parity with the client's WeaponDef shape and is unused, just
-// like it's unused client-side).
+export type ResourceKind = 'tree' | 'rock' | 'iron';
 
-export interface WeaponDef {
-  fireRateMul: number;
-  damageMul: number;
-  pellets?: number;
-  spreadRad?: number;
-  explosive?: boolean;
-  explodeRadius?: number;
-  bulletSpeedMul?: number;
-  bulletLifeMul?: number;
-}
-
-export const WEAPON_DEFS: Record<WeaponKind, WeaponDef> = {
-  pistol:          { fireRateMul: 1,    damageMul: 1 },
-  dualguns:        { fireRateMul: 1.5,  damageMul: 0.65, pellets: 2 },
-  machinegun:      { fireRateMul: 2.3,  damageMul: 0.9 },
-  shotgun:         { fireRateMul: 1,    damageMul: 0.65, pellets: 3, spreadRad: 0.22, bulletLifeMul: 0.55 },
-  grenadelauncher: { fireRateMul: 0.35, damageMul: 2.6,  explosive: true, explodeRadius: 100, bulletSpeedMul: 0.55, bulletLifeMul: 0.5 },
-};
-
-/** Matches BASE_STATS.fireRate (src/constants.ts) - deliberately doesn't
- *  include the client's meta-progression permanent fire-rate bonus or class
- *  bonuses (e.g. Gunner's +40%), since those aren't synced to the server at
- *  all (out of scope - meta/class progression isn't part of this task). */
-export const BASE_FIRE_RATE = 3.2;
-
-/** Matches mutationFireRateMul() (src/systems/combat.ts): +50% fire rate
- *  while the 'overclocked' mutation is equipped. */
-export const OVERCLOCKED_FIRE_RATE_MUL = 1.5;
-
-/** Generous slack on the per-shot minimum-interval check so legitimate fast
- *  weapon+mutation combos (e.g. machinegun+overclocked, ~90ms nominal) don't
- *  get false-rejected by ordinary network jitter — spirit of the existing
- *  SPEED_CHECK_SLACK, but multiplicatively loosening the floor downward
- *  instead of the speed cap upward. */
-export const SHOT_INTERVAL_SLACK = 0.82;
-
-/** Matches BURN_CHANCE/BURN_DURATION_MS/BURN_DAMAGE_FRACTION in
- *  src/constants.ts exactly - pyromaniac's on-hit burn chance/duration/rate. */
-export const BURN_CHANCE = 0.25;
-export const BURN_DURATION_MS = 5000;
-export const BURN_DAMAGE_FRACTION = 0.2;
-
-/** Vampire's on-hit lifesteal fraction (src/systems/update.ts): heals the
- *  shooter for 2% of the damage a hit actually dealt, capped at maxHp. */
-export const VAMPIRE_LIFESTEAL_FRACTION = 0.02;
-
-/** Titan/overclocked mutation stat deltas, applied once at mutationChoice
- *  time (mirrors MUTATION_DEFS' apply() functions in src/constants.ts
- *  exactly - vampire/pyromaniac are no-ops here too, their effects are all
- *  in the hit-resolution/fire-rate code instead). */
-export const TITAN_MAX_HP_BONUS = 400;
-export const TITAN_RADIUS_MUL = 2;
-export const OVERCLOCKED_RADIUS_MUL = 1.35;
-
-// ---------------- Day/night + Blood Moon ----------------
-// Copied from src/state.ts's dayNight.total / src/systems/wave.ts's
-// bloodMul(1.3)/spawn-speedup(5x) constants - same standalone-project "own
-// copy" pattern as the weapon/structure stats above. If the cycle length or
-// the 0.5 night threshold in Room.ts's updateDayNight() is ever retuned
-// client-side, it must be mirrored here by hand - there's no shared module
-// between client and server to keep these in sync automatically.
-
-/** Full day+night cycle length, matching the client's dayNight.total
- *  exactly. Night is the middle half of the cycle (cosine factor > 0.5). */
-export const DAY_NIGHT_TOTAL_MS = 110000;
-
-/** Matches wave.ts's `bloodMul = bloodMoon.active ? 1.3 : 1` - applied only
- *  to zombie-vs-player damage and spawned-zombie hp/maxHp server-side (NOT
- *  zombie-vs-structure damage, which solo computes from a flat per-zombie-
- *  type rate independent of this multiplier - see Room.ts's
- *  resolveCollisions() for the exact split). */
-export const BLOOD_MOON_HP_DMG_MULTIPLIER = 1.3;
-
-/** Matches updateWaves()'s Blood-Moon spawn-timer divisor
- *  (`spawnTimer * (bloodMoon.active ? 1/5 : 1)`) - server has no wave-based
- *  spawn timer, so this scales the flat zombie-spawn interval instead, the
- *  closest faithful equivalent given the server's simpler spawn model. */
-export const BLOOD_MOON_SPAWN_SPEEDUP = 5;
-
-export interface DayNightSnapshot {
-  type: 'daynight';
-  time: number;
-  factor: number;
-  isNight: boolean;
-  nightCount: number;
-  bloodMoonActive: boolean;
+export interface ResourceSnapshot {
+  id: string;
+  type: ResourceKind;
+  x: number;
+  y: number;
+  radius: number;
+  hp: number;
+  maxHp: number;
+  zombieType?: string;
 }
 
 export interface StructureSnapshot {
@@ -359,6 +245,26 @@ export interface StructureSnapshot {
   level: number;
   hp: number;
   maxHp: number;
+}
+
+export interface NetShootEvent {
+  type: 'shoot';
+  shooterId: string;
+  x: number;
+  y: number;
+  angle: number;
+  weapon?: string;
+}
+
+export interface NetDayNightEvent {
+  type: 'dayNight';
+  time: number;
+  nightCount: number;
+  bloodMoon: boolean;
+}
+
+export interface NetGameOverEvent {
+  type: 'gameOver';
 }
 
 export type RoomPhase = 'waiting' | 'countdown' | 'active';
@@ -403,10 +309,6 @@ export interface BulletSnapshot {
   ownerId: string;
   x: number;
   y: number;
-  /** Lets the client render the distinct grenade-launcher sprite
-   *  (drawPlayer.ts's drawBullets()) instead of a plain colored streak -
-   *  purely visual, doesn't affect splash-damage resolution (server-side). */
-  explosive?: boolean;
 }
 
 export function isMovePacket(value: any): value is MovePacket {
@@ -447,26 +349,12 @@ export function isRemovePacket(value: any): value is RemovePacket {
   return value && value.type === 'remove' && typeof value.structureId === 'string';
 }
 
-/** Rejects 'pistol' - it's the default starting weapon, not something a
- *  player chooses via this packet (matches the client's choice UI, which
- *  filters 'pistol' out of the offered cards). */
-export function isWeaponChoicePacket(value: any): value is WeaponChoicePacket {
-  return (
-    value &&
-    value.type === 'weaponChoice' &&
-    typeof value.weapon === 'string' &&
-    value.weapon !== 'pistol' &&
-    WEAPON_KINDS.includes(value.weapon)
-  );
+export function isHitResourcePacket(value: any): value is HitResourcePacket {
+  return value && value.type === 'hitResource' && typeof value.id === 'string' && Number.isFinite(value.damage);
 }
 
-export function isMutationChoicePacket(value: any): value is MutationChoicePacket {
-  return (
-    value &&
-    value.type === 'mutationChoice' &&
-    typeof value.mutation === 'string' &&
-    MUTATION_KINDS.includes(value.mutation)
-  );
+export function isRevivePacket(value: any): value is RevivePacket {
+  return value && value.type === 'revive' && typeof value.targetId === 'string';
 }
 
 export function clamp(v: number, lo: number, hi: number): number {

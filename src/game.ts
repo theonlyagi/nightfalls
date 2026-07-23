@@ -84,24 +84,16 @@ function loop(t: number): void {
     setLastTime(t);
 
     updatePlayer(dt, camera);
-    // In a net match, zombies/bullets/day-night are server-authoritative
-    // (see net/matchSync.ts) — running the local sim on top would fight
-    // the server's snapshots. updateBloodMoon/updateDayNight used to run
-    // unconditionally here (the one asymmetry among these systems) - besides
-    // not being authoritative, this let updateDayNight()'s night-random-spawn
-    // branch push a phantom zombie into the local zombies array that the
-    // very next server snapshot would immediately wipe out (setZombies()
-    // replaces the whole array), a harmless but wasteful one-frame flicker.
+    updateBullets(dt);
     if (!inNetMatch) {
-      updateBullets(dt);
       updateStructures(dt);
       updateZombies(dt, dayNight.factor);
-      updateBloodMoon();
-      updateDayNight(dt);
     } else {
       updateNetInterpolation(dt);
     }
     updateParticles(dt);
+    updateBloodMoon();
+    updateDayNight(dt);
     if (!inNetMatch) updateWaves(dt);
     updateHud();
     render(ctx, canvas);
@@ -157,7 +149,7 @@ function resetGame(): void {
   setSelectedBuild(null);
   setManualBuildAngle(null);
 
-  generateWorld();
+  if (!inNetMatch) generateWorld();
   renderUpgradePanel();
   renderBuildBar();
   byId('overlay').classList.add('hidden');

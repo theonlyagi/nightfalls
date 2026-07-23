@@ -11,20 +11,17 @@
 // work, not forgotten.
 
 import {
-  net, sendMove, sendShoot, sendBuild, sendUpgrade, sendRemove,
-  sendWeaponChoice, sendMutationChoice, getMyId,
+  net, sendMove, sendShoot, sendBuild, sendUpgrade, sendRemove, sendWeaponChoice, sendMutationChoice, getMyId,
   NetZombieSnapshot, NetBulletSnapshot, NetStructureSnapshot,
 } from './socket';
 import {
-  setInNetMatch, setRemotePlayers, RemotePlayer,
-  setZombies, setBullets, setStructures, player, zombies, bullets, remotePlayers,
+  setInNetMatch, setRemotePlayers, RemotePlayer, remotePlayers,
+  setZombies, setBullets, setStructures, setResources, player, zombies, bullets,
   inspectedStructure, setInspectedStructure, dayNight, bloodMoon,
 } from '../state';
-import { Zombie, Bullet, Structure, HairKind, MouthKind } from '../types';
-import { SKIN_VARIANTS, BUILD_DEFS } from '../constants';
-import { dist } from '../utils';
-import { checkLevelGates } from '../systems/combat';
-import { applyPhaseLabel, fireDayNightTransitionBanner } from '../systems/wave';
+import { Zombie, Bullet, Structure, HairKind, MouthKind, WeaponKind } from '../types';
+import { SKIN_VARIANTS, BUILD_DEFS, WEAPON_DEFS } from '../constants';
+import { showBanner } from '../systems/combat';
 
 /** Small deterministic hash so a given entity id always gets the same
  *  cosmetic look across snapshots, instead of re-randomizing every update. */
@@ -46,46 +43,36 @@ const MOUTH_KINDS: MouthKind[] = ['open', 'frown', 'grimace'];
 // into the next snapshot-rebuilt object so the easing has continuity across
 // setZombies/setBullets swapping in fresh object references each time.
 interface Vec { x: number; y: number; }
-interface VecAngle { x: number; y: number; angle: number; }
+interface RemotePos { x: number; y: number; angle: number; weapon?: WeaponKind; }
+
 const zombieRenderPos = new Map<number, Vec>();
 const zombieTargetPos = new Map<number, Vec>();
 const bulletRenderPos = new Map<string, Vec>();
 const bulletTargetPos = new Map<string, Vec>();
-const remotePlayerRenderPos = new Map<string, VecAngle>();
-const remotePlayerTargetPos = new Map<string, VecAngle>();
+
+const remoteRenderPos = new Map<string, RemotePos>();
+const remoteTargetPos = new Map<string, RemotePos>();
+
+/** Shortest path angle lerp to prevent spinning artifacts across -PI/PI boundaries. */
+function lerpAngle(a: number, b: number, t: number): number {
+  let diff = (b - a) % (Math.PI * 2);
+  if (diff < -Math.PI) diff += Math.PI * 2;
+  if (diff > Math.PI) diff -= Math.PI * 2;
+  return a + diff * t;
+}
 
 /** Time constant for the easing — small enough to stay visually tight to the
- *  true server position, large enough to fully smooth out a tick's worth of
- *  gap between snapshots. Server ticks at ~33ms (server/src/protocol.ts's
- *  TICK_MS) — tuned proportionally down from 90 (which matched the old
- *  100ms tick) so smoothing doesn't lag noticeably behind the now-more-
- *  frequent real updates. */
-const NET_SMOOTH_TAU_MS = 30;
+ *  true server position, large enough to fully smooth out a 100ms-tick jump. */
+const NET_SMOOTH_TAU_MS = 90;
 
 function smoothFactor(dtMs: number): number {
   return 1 - Math.exp(-dtMs / NET_SMOOTH_TAU_MS);
 }
 
-/** See the reconciliation comment in net.onPlayers below for the full
- *  reasoning — this must stay well above the normal per-send-interval
- *  prediction lag (~10 units) so it only corrects genuine desync. */
-const RECONCILE_THRESHOLD = 80;
-
-/** Eases an angle toward a target the short way around the circle (e.g.
- *  350deg -> 10deg turns forward through 360/0, not backward through 180),
- *  instead of a plain numeric lerp which would spin the wrong direction
- *  whenever a snapshot crosses the +-PI wraparound. */
-function easeAngle(current: number, target: number, t: number): number {
-  const diff = Math.atan2(Math.sin(target - current), Math.cos(target - current));
-  return current + diff * t;
-}
-
 /** Called every frame from the local update loop while inNetMatch — eases
- *  zombies'/bullets'/remote players' rendered x/y (and heading, for players)
- *  toward their latest server position rather than leaving them frozen
- *  between snapshots (which is what produced the "teleport every tick"
- *  choppiness — including other players visibly snapping to a new position
- *  and facing angle every 100ms instead of turning/moving smoothly). */
+ *  zombies'/bullets'/remote players' rendered x/y/angle toward their latest server position
+ *  rather than leaving them frozen between snapshots (which is what produced the
+ *  "teleport every tick" choppiness). */
 export function updateNetInterpolation(dt: number): void {
   const t = smoothFactor(dt);
 
@@ -107,12 +94,17 @@ export function updateNetInterpolation(dt: number): void {
   }
 
   for (const rp of remotePlayers) {
-    const target = remotePlayerTargetPos.get(rp.id);
+    const target = remoteTargetPos.get(rp.id);
     if (!target) continue;
-    rp.x += (target.x - rp.x) * t;
-    rp.y += (target.y - rp.y) * t;
-    rp.angle = easeAngle(rp.angle, target.angle, t);
-    remotePlayerRenderPos.set(rp.id, { x: rp.x, y: rp.y, angle: rp.angle });
+    const rx = (rp.renderX ?? rp.x) + (target.x - (rp.renderX ?? rp.x)) * t;
+    const ry = (rp.renderY ?? rp.y) + (target.y - (rp.renderY ?? rp.y)) * t;
+    const rAngle = lerpAngle(rp.renderAngle ?? rp.angle, target.angle, t);
+
+    rp.renderX = rx;
+    rp.renderY = ry;
+    rp.renderAngle = rAngle;
+    rp.angle = rAngle;
+    remoteRenderPos.set(rp.id, { x: rx, y: ry, angle: rAngle, weapon: target.weapon });
   }
 }
 
@@ -121,20 +113,36 @@ function toClientZombie(snap: NetZombieSnapshot): Zombie {
   const variant = SKIN_VARIANTS[h % SKIN_VARIANTS.length];
 
   zombieTargetPos.set(h, { x: snap.x, y: snap.y });
-  // A brand-new zombie spawns exactly at its true position (no false
-  // animate-in from elsewhere); an existing one starts from wherever its
-  // per-frame easing last left it, not the raw new snapshot value.
   const render = zombieRenderPos.get(h) ?? { x: snap.x, y: snap.y };
   zombieRenderPos.set(h, render);
 
+  const existing = zombies.find(z => z.id === h);
+  let curHp = snap.hp;
+  let curMaxHp = snap.maxHp;
+
+  if (existing) {
+    // Only update HP if damaged (snap.hp < existing.hp) or during flash hit state
+    if (snap.hp < existing.hp || existing.flash > 0) {
+      curHp = snap.hp;
+    } else {
+      curHp = existing.hp;
+    }
+    curMaxHp = existing.maxHp || snap.maxHp;
+  }
+
   return {
     id: h,
-    type: 'normal',
-    x: render.x, y: render.y, radius: 20,
-    hp: snap.hp, maxHp: snap.maxHp, speed: 0, damage: 0, armor: 0,
-    hitCooldown: 0, wobble: (h % 628) / 100, flash: 0, lastShot: 0, fuseStart: null,
-    hairKind: HAIR_KINDS[h % HAIR_KINDS.length], mouthKind: MOUTH_KINDS[(h >> 3) % MOUTH_KINDS.length],
-    squishX: 1, squishY: 1,
+    type: snap.zombieType || existing?.type || 'normal',
+    x: render.x, y: render.y, radius: existing?.radius || 20,
+    hp: curHp, maxHp: curMaxHp, speed: 0, damage: 0, armor: 0,
+    hitCooldown: existing?.hitCooldown || 0,
+    wobble: existing?.wobble ?? ((h % 628) / 100),
+    flash: existing?.flash || 0,
+    lastShot: existing?.lastShot || 0,
+    fuseStart: existing?.fuseStart || null,
+    hairKind: existing?.hairKind || HAIR_KINDS[h % HAIR_KINDS.length],
+    mouthKind: existing?.mouthKind || MOUTH_KINDS[(h >> 3) % MOUTH_KINDS.length],
+    squishX: existing?.squishX || 1, squishY: existing?.squishY || 1,
     skinColor: variant[0], skinColor2: variant[1], skinDark: variant[2], clothColor: null,
   };
 }
@@ -158,7 +166,7 @@ function toClientBullet(snap: NetBulletSnapshot): Bullet {
   return {
     id: snap.id,
     x: render.x, y: render.y, vx, vy, radius: 5, damage: 0, life: 1,
-    owner: 'player', explosive: snap.explosive,
+    owner: 'player',
   };
 }
 
@@ -186,62 +194,49 @@ export function initMatchSync(): void {
 
   net.onPlayers = (msg) => {
     const myId = getMyId();
-    const otherSnaps = msg.players.filter(p => p.id !== myId);
-
-    const activeIds = new Set(otherSnaps.map(p => p.id));
-    for (const id of remotePlayerRenderPos.keys()) {
-      if (!activeIds.has(id)) { remotePlayerRenderPos.delete(id); remotePlayerTargetPos.delete(id); }
+    const activeIds = new Set(msg.players.map(p => p.id));
+    for (const id of remoteRenderPos.keys()) {
+      if (!activeIds.has(id)) {
+        remoteRenderPos.delete(id);
+        remoteTargetPos.delete(id);
+      }
     }
 
-    const others: RemotePlayer[] = otherSnaps.map(p => {
-      remotePlayerTargetPos.set(p.id, { x: p.x, y: p.y, angle: p.angle });
-      // A brand-new player renders exactly at their true position (no false
-      // animate-in from elsewhere); an existing one starts from wherever its
-      // per-frame easing last left it, not the raw new snapshot value.
-      const render = remotePlayerRenderPos.get(p.id) ?? { x: p.x, y: p.y, angle: p.angle };
-      remotePlayerRenderPos.set(p.id, render);
-      return { id: p.id, name: p.name, x: render.x, y: render.y, angle: render.angle, hp: p.hp, maxHp: p.maxHp, alive: p.alive };
-    });
+    const others: RemotePlayer[] = msg.players
+      .filter(p => p.id !== myId)
+      .map(p => {
+        const weapon = ((p as any).weapon as WeaponKind) || 'pistol';
+        remoteTargetPos.set(p.id, { x: p.x, y: p.y, angle: p.angle, weapon });
+        const render = remoteRenderPos.get(p.id) ?? { x: p.x, y: p.y, angle: p.angle, weapon };
+        remoteRenderPos.set(p.id, render);
+
+        return {
+          id: p.id,
+          name: p.name,
+          x: p.x,
+          y: p.y,
+          angle: p.angle,
+          hp: p.hp,
+          maxHp: p.maxHp,
+          alive: p.alive,
+          weapon,
+          renderX: render.x,
+          renderY: render.y,
+          renderAngle: render.angle,
+          targetX: p.x,
+          targetY: p.y,
+          targetAngle: p.angle,
+        };
+      });
     setRemotePlayers(others);
 
     // The server is authoritative for the local player's HP/alive too, once
     // a match is active — zombie damage/kills happen server-side.
     const mine = msg.players.find(p => p.id === myId);
     if (mine) {
-      player.hp = mine.hp;
       player.maxHp = mine.maxHp;
       player.alive = mine.alive;
-
-      // xp/level/xpToNext are also server-authoritative in a net match —
-      // zombieDied()/gainXp() (the only code that normally advances these)
-      // is solo-only, never called here, so without this the local player's
-      // level would stay frozen at 1 all match and the weapon/mutation
-      // choice UI (gated on player.level>=15/25) could never open.
-      player.xp = mine.xp;
-      player.level = mine.level;
-      player.xpToNext = mine.xpToNext;
-      checkLevelGates();
-
-      // Reconciliation: the local player's x/y is always client-predicted
-      // (moved instantly off local input in updatePlayer(), never gated on
-      // the network — see systems/update.ts), so under normal conditions the
-      // server's copy of "mine" merely lags behind by about one send
-      // interval (moves are sent every ~33ms — see MOVE_SEND_INTERVAL_MS)
-      // and this never needs to do anything. It exists only as a safety net:
-      // without it, a single move the server ever rejects (e.g. the
-      // anti-speed-hack check in Room.ts's handleMove tripping from network
-      // jitter) would leave the client silently diverged forever from the
-      // position everyone else (other players, zombie targeting/collision)
-      // actually sees, with no way to recover. RECONCILE_THRESHOLD is set
-      // well above the largest gap normal one-tick send latency can produce
-      // (~120 u/s * 33ms =~ 4 units) so it only fires on a real desync, not
-      // routine prediction lag.
-      const driftDist = dist(player.x, player.y, mine.x, mine.y);
-      if (driftDist > RECONCILE_THRESHOLD) {
-        console.warn(`[net] reconciling local player position, drifted ${driftDist.toFixed(0)} units from server`);
-        player.x = mine.x;
-        player.y = mine.y;
-      }
+      player.hp = mine.hp;
     }
   };
 
@@ -254,6 +249,7 @@ export function initMatchSync(): void {
   };
 
   net.onBullets = (msg) => {
+    const myId = getMyId();
     const activeIds = new Set(msg.bullets.map(b => b.id));
     for (const id of lastBulletPos.keys()) {
       if (!activeIds.has(id)) lastBulletPos.delete(id);
@@ -261,34 +257,94 @@ export function initMatchSync(): void {
     for (const id of bulletRenderPos.keys()) {
       if (!activeIds.has(id)) { bulletRenderPos.delete(id); bulletTargetPos.delete(id); }
     }
-    setBullets(msg.bullets.map(toClientBullet));
+
+    const localBullets = bullets.filter(b => (b.owner === 'player' || (b.owner as any) === 'remotePlayer') && b.life > 0 && !b.dead);
+    const remoteServerBullets = msg.bullets.filter(b => b.ownerId !== myId).map(toClientBullet);
+    setBullets([...localBullets, ...remoteServerBullets]);
   };
 
   net.onStructures = (msg) => {
     const next = msg.structures.map(toClientStructure);
     setStructures(next);
-    // setStructures swaps in fresh object references every sync, so a
-    // previously-inspected structure (held by reference, not id, in
-    // state.ts) would otherwise go stale after this tick — frozen HP/level
-    // in the inspector panel, and its selection ring (drawWorld.ts's
-    // `st === inspectedStructure` check) would stop matching anything.
     if (inspectedStructure) {
       setInspectedStructure(next.find(s => s.id === inspectedStructure!.id) ?? null);
     }
   };
 
+  net.onResources = (msg) => {
+    setResources(msg.resources.map(r => ({
+      id: r.id,
+      type: r.type,
+      x: r.x,
+      y: r.y,
+      radius: r.radius,
+      hp: r.hp,
+      maxHp: r.maxHp,
+    })));
+  };
+
+  net.onShoot = (msg) => {
+    const myId = getMyId();
+    if (msg.shooterId === myId) return;
+
+    const shooter = remotePlayers.find(p => p.id === msg.shooterId);
+    const shooterX = msg.x ?? (shooter?.renderX ?? shooter?.x ?? 0);
+    const shooterY = msg.y ?? (shooter?.renderY ?? shooter?.y ?? 0);
+    const weapon = msg.weapon || shooter?.weapon || 'pistol';
+    const angle = msg.angle;
+    const wdef = WEAPON_DEFS[weapon] || WEAPON_DEFS.pistol;
+
+    const dmg = 12 * wdef.damageMul;
+    const speed = 9.5 * (wdef.bulletSpeedMul || 1);
+    const life = 4000 * (wdef.bulletLifeMul || 1);
+
+    function spawnBullet(a: number, originOffset: number): void {
+      const perpX = Math.cos(a + Math.PI / 2), perpY = Math.sin(a + Math.PI / 2);
+      const b: Bullet = {
+        x: shooterX + Math.cos(a) * 54 + perpX * originOffset,
+        y: shooterY + Math.sin(a) * 54 + perpY * originOffset,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        radius: 5,
+        damage: dmg,
+        life,
+        owner: 'remotePlayer' as any,
+      };
+      if (wdef.explosive) { b.explosive = true; b.explodeRadius = wdef.explodeRadius; }
+      bullets.push(b);
+    }
+
+    if (weapon === 'dualguns') {
+      spawnBullet(angle, -9);
+      spawnBullet(angle, 9);
+    } else if (weapon === 'shotgun') {
+      const spread = wdef.spreadRad || 0.22;
+      spawnBullet(angle - spread, 0);
+      spawnBullet(angle, 0);
+      spawnBullet(angle + spread, 0);
+    } else {
+      spawnBullet(angle, 0);
+    }
+  };
+
   net.onDayNight = (msg) => {
-    const wasNight = dayNight.isNight;
-    dayNight.time = msg.time;
-    dayNight.factor = msg.factor;
-    dayNight.isNight = msg.isNight;
-    dayNight.nightCount = msg.nightCount;
-    bloodMoon.active = msg.bloodMoonActive;
-    // fireDayNightTransitionBanner/applyPhaseLabel are the same helpers
-    // solo's updateDayNight() calls (src/systems/wave.ts) — reused here so
-    // the banners/HUD label match exactly instead of duplicating the logic.
-    fireDayNightTransitionBanner(wasNight);
-    applyPhaseLabel();
+    if (Number.isFinite(msg.time)) {
+      const diff = Math.abs(dayNight.time - msg.time);
+      if (diff > 400 && diff < 100000) {
+        dayNight.time = msg.time;
+      }
+    }
+    dayNight.nightCount = msg.nightCount || 0;
+    bloodMoon.active = !!msg.bloodMoon;
+  };
+
+  net.onGameOver = () => {
+    showBanner('TEAM ELIMINATED', 'All survivors have fallen! Returning to lobby...', 'boss');
+    setTimeout(() => {
+      stopNetMatch();
+      const menu = document.getElementById('mainMenu');
+      if (menu) menu.classList.add('show');
+    }, 3500);
   };
 
   net.onDisconnected = () => {
@@ -304,8 +360,8 @@ export function startNetMatch(): void {
   zombieTargetPos.clear();
   bulletRenderPos.clear();
   bulletTargetPos.clear();
-  remotePlayerRenderPos.clear();
-  remotePlayerTargetPos.clear();
+  remoteRenderPos.clear();
+  remoteTargetPos.clear();
 }
 
 export function stopNetMatch(): void {
@@ -316,19 +372,15 @@ export function stopNetMatch(): void {
   zombieTargetPos.clear();
   bulletRenderPos.clear();
   bulletTargetPos.clear();
-  remotePlayerRenderPos.clear();
-  remotePlayerTargetPos.clear();
+  remoteRenderPos.clear();
+  remoteTargetPos.clear();
 }
 
 let lastSentMoveAt = 0;
-/** Matches server/src/protocol.ts's TICK_MS (~33ms/~30Hz) — was 80ms (~12.5Hz,
- *  tuned for the old 100ms server tick), which meant other players only ever
- *  saw your position update at less than half the rate the server could
- *  actually relay it at. */
-const MOVE_SEND_INTERVAL_MS = 33;
+const MOVE_SEND_INTERVAL_MS = 80;
 
 /** Called from the local update loop every frame while inNetMatch — throttled
- *  so we're not sending 60 packets/sec for a game with a ~33ms server tick. */
+ *  so we're not sending 60 packets/sec for a game with a 100ms server tick. */
 export function maybeSendMove(now: number): void {
   if (now - lastSentMoveAt < MOVE_SEND_INTERVAL_MS) return;
   lastSentMoveAt = now;
@@ -337,5 +389,5 @@ export function maybeSendMove(now: number): void {
 
 export {
   sendShoot as sendNetShoot, sendBuild as sendNetBuild, sendUpgrade as sendNetUpgrade, sendRemove as sendNetRemove,
-  sendWeaponChoice as sendNetWeaponChoice, sendMutationChoice as sendNetMutationChoice,
+  sendWeaponChoice as sendNetWeaponChoice, sendMutationChoice as sendNetMutationChoice
 };

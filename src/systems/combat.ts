@@ -5,7 +5,7 @@ import {
   player, bullets, setBullets, zombies, setZombies, powerups, setPowerups,
   particles, setParticles, bursts, setBursts, bloodDecals, setBloodDecals,
   shake, settings, godMode, activeBoss, setActiveBoss, wave, selectedBuild,
-  inNetMatch, weaponChoiceOpen, mutationChoiceOpen
+  inNetMatch, reviveHoldingTargetId
 } from '../state';
 import {
   POWERUP_DEFS, POINTS_BY_TYPE, WEAPON_DEFS, OVERHEAT_PER_SHOT,
@@ -142,20 +142,9 @@ export function setXpCallbacks(callbacks: {
   xpCallbacks = callbacks;
 }
 
-/** Mirrors gainXp()'s level-threshold checks (used by solo's zombieDied()
- *  path), for the net-match path where level comes from a server snapshot
- *  instead of a local XP increment — see net/matchSync.ts's net.onPlayers.
- *  Guards on weaponChoiceOpen/mutationChoiceOpen (not just weaponChosen/
- *  mutationChosen) so this doesn't re-open the panel on every ~33ms snapshot
- *  while it's already open waiting for a click. */
-export function checkLevelGates(): void {
-  if (player.level >= 15 && !player.weaponChosen && !weaponChoiceOpen) xpCallbacks.onWeaponChoice();
-  if (player.level >= 25 && !player.mutationChosen && !mutationChoiceOpen) xpCallbacks.onMutationChoice();
-}
-
 export function tryShoot(now: number): void {
   if (!player.alive) return;
-  if (selectedBuild) return;
+  if (selectedBuild || reviveHoldingTargetId) return;
   if (player.mutation === 'overclocked' && now < player.overheatedUntil) return;
   const wdef = WEAPON_DEFS[player.weapon];
   const fireRateMul = wdef.fireRateMul * fireRateBoostMul() * mutationFireRateMul();
@@ -172,20 +161,13 @@ export function tryShoot(now: number): void {
   }
 
   if (inNetMatch) {
-    // Bullets are server-authoritative in a match — the server spawns and
-    // simulates the actual bullet, we just report the shot. No local bullet
-    // here, or we'd render two (one fake-local, one from the next snapshot).
-    // Known simplification: the server doesn't have weapon-type awareness
-    // yet (pellet counts, spread, explosive/burn), so multiplayer shots are
-    // currently a single generic bullet regardless of equipped weapon.
     sendNetShoot(player.angle);
-    return;
   }
 
   const insta = now < player.instaKillUntil;
   const dmg = insta ? Math.max(player.damage, 500) : player.damage * damageBoostMul() * wdef.damageMul;
   const speed = player.bulletSpeed * (wdef.bulletSpeedMul || 1);
-  const life = 1400 * (wdef.bulletLifeMul || 1);
+  const life = 4000 * (wdef.bulletLifeMul || 1);
   const willBurn = player.mutation === 'pyromaniac' && Math.random() < BURN_CHANCE;
 
   function spawnPlayerBullet(angle: number, originOffset: number): void {
@@ -243,13 +225,15 @@ export function gainXp(amount: number): void {
   xpCallbacks.onUpgradePanel();
 }
 
-export function zombieDied(z: Zombie): void {
+export function zombieDied(z: Zombie, isMyKill = true): void {
   if (z.dead) return;
   z.dead = true;
-  player.kills++;
-  registerKill(z.type);
   spawnBurst(z.x, z.y, ZTYPE[z.type].color, z.type === 'boss' ? 40 : 10);
   spawnBlood(z.x, z.y, z.radius);
+  if (!isMyKill && inNetMatch) return;
+
+  player.kills++;
+  registerKill(z.type);
   awardPoints(POINTS_BY_TYPE[z.type] || 10);
   maybeDropPowerup(z.x, z.y, z.type === 'boss');
 

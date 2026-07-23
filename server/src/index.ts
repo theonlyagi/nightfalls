@@ -1,6 +1,6 @@
 import uWS from 'uWebSockets.js';
 import crypto from 'node:crypto';
-import { PROTOCOL_VERSION, SESSION_GRACE_MS, isMovePacket, isShootPacket, isReadyPacket, isBuildPacket, isUpgradePacket, isRemovePacket, isWeaponChoicePacket, isMutationChoicePacket } from './protocol.js';
+import { PROTOCOL_VERSION, SESSION_GRACE_MS, isMovePacket, isShootPacket, isReadyPacket, isBuildPacket, isUpgradePacket, isRemovePacket, isHitResourcePacket, isRevivePacket } from './protocol.js';
 import { ConnectionData, PlayerState } from './Room.js';
 import { RoomManager, SessionStore } from './RoomManager.js';
 
@@ -142,12 +142,12 @@ app.ws<ConnectionData>('/ws', {
       room.handleRemove(data.id, parsed.structureId);
       return;
     }
-    if (isWeaponChoicePacket(parsed)) {
-      room.handleWeaponChoice(data.id, parsed.weapon);
+    if (isHitResourcePacket(parsed)) {
+      room.handleHitResource(parsed.id, parsed.damage);
       return;
     }
-    if (isMutationChoicePacket(parsed)) {
-      room.handleMutationChoice(data.id, parsed.mutation);
+    if (isRevivePacket(parsed)) {
+      room.handleRevive(data.id, parsed.targetId);
       return;
     }
   },
