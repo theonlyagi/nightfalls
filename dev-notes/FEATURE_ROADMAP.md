@@ -7,6 +7,74 @@ this is a decision record so a future session doesn't have to re-litigate
 choices, not just raw ideas. Art direction is explicitly out of scope here
 (separate artist) — everything below is systems/gameplay.
 
+---
+
+# Round 1 — next updates (user's own priority order)
+
+**This is the current priority — build in this order when scheduling
+allows.** Unlike Round 2/3 below, this batch came from the user as an
+already-ordered priority list, not a brainstorm to sort through. Not
+implemented yet; this is a decision record only.
+
+1. **Rebind E: build/place -> autofire toggle.** `E` currently triggers
+   `onTryBuildOrUpgrade()` (`src/systems/input.ts:15`) — placing/upgrading
+   the currently-selected structure. User wants `E` to become an autofire
+   toggle instead. **Needs a decision before building**: build/upgrade needs
+   a new key binding once `E` is freed up (not specified yet — confirm
+   before implementing), and autofire itself needs a definition (hold-to-
+   fire already exists via mouse-down in `tryShoot()`/`src/systems/
+   combat.ts` — confirm whether "autofire" means a toggle that fires
+   continuously without holding the mouse, or something else).
+
+2. **Fix + nerf permanent progression, and make sure it actually saves on
+   page refresh.** Two separate asks bundled together: (a) a balance nerf
+   to the existing meta-progression system (`PERM_DEFS`/`metaPoints` in
+   `src/constants.ts`) — no specifics given yet on what feels too strong,
+   needs a follow-up before implementing; (b) a reliability fix for save-
+   on-refresh, which ties directly into the persistence caveat already
+   documented in `README.md` — progression currently persists via
+   `window.storage`, an API that **only exists in the Claude Artifacts
+   runtime** (`hasStorage` guard, `src/state.ts:9`), so "doesn't reliably
+   survive a refresh" may not be a bug in the save logic itself so much as
+   an inherent limitation of not having a real backend yet. Worth
+   confirming which failure mode the user is actually hitting before
+   assuming this is a same-runtime storage-call bug vs. the bigger
+   "there's no real backend" gap that item 4 below (and the "real backend
+   for accounts/leaderboard" item in Round 2) would actually resolve.
+
+3. **Start-at-wave slider after death.** If a player dies at wave 100, their
+   *next* run gets a slider to pick a starting wave somewhere in a lower
+   range (user's example: 0-80ish, not the full 0-100 they reached) rather
+   than always restarting at wave 1. Needs a scoping pass before building:
+   how is the slider's max computed from the run that just ended (a flat
+   discount off best wave? a percentage?), does this apply per-run or
+   only unlock once per some milestone, and how does starting mid-wave
+   interact with the existing wave-scaling formulas in `pickZombieType()`/
+   `spawnZombie()` (`src/systems/wave.ts`) that assume a monotonically
+   increasing wave count from 1.
+
+4. **Discord account linking.** Persists progress across browser resets/
+   different machines — the real fix for the persistence caveat above,
+   and explicitly called out by the user as the foundation for future
+   badges/levels (item 5) to attach to. This is real backend work (OAuth
+   flow, account storage, session handling) — same category of scope as
+   the "real backend for accounts/leaderboard" and "account level system"
+   items in Round 2; worth scoping all three together as one backend/
+   accounts project rather than three separate builds, since they likely
+   share the same underlying account-storage layer.
+
+5. **Achievements and badges.** Overlaps with "Achievements/challenges"
+   already listed as approved in Round 2 (discrete goals granting meta
+   points) — this reinforces it as a current priority and adds "badges"
+   specifically, which per item 4 implies a visible per-account badge
+   display, not just a meta-points grant. Worth building after (or
+   alongside) Discord linking rather than before, since badges tied to an
+   account need the account layer to actually persist/display them.
+
+---
+
+# Round 2 — original 10 ideas
+
 ## Approved — build these when scheduling allows
 
 - **Relic/artifact system.** Card-choice modal offered every few waves
@@ -83,7 +151,7 @@ choices, not just raw ideas. Art direction is explicitly out of scope here
   which is a meaningfully different kind of work (compliance, security,
   refunds/chargebacks) from anything built so far. Scope this as its own
   project when it comes up, don't fold it silently into a gameplay sprint.
-  The active companion (Round 2, below) is also confirmed paid — worth
+  The active companion (Round 3, below) is also confirmed paid — worth
   scoping both together as one payments/monetization project rather than
   building payment processing twice.
 
@@ -127,7 +195,7 @@ choices, not just raw ideas. Art direction is explicitly out of scope here
 
 ---
 
-# Round 2 — 10 more ideas
+# Round 3 — 10 more ideas
 
 Same brainstorm goal as above (run variety + retention), a second pass after
 the user worked through the first list.
