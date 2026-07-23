@@ -1,7 +1,32 @@
 # C2 — Remote-player bullets double-spawned and mis-attributed
 
+**Status:** ✅ RESOLVED (`96c710e`)
 **Severity:** Critical
 **Area:** multiplayer sync
+
+## Resolution
+
+`toClientBullet()` (`src/net/matchSync.ts`) now labels every bullet arriving
+in the periodic server snapshot as `owner: 'remotePlayer'` instead of the
+previously-hardcoded `owner: 'player'`. Since `msg.bullets` is already
+filtered to `ownerId !== myId` before this function runs, every bullet it
+processes belongs to someone else — the old label made the client's own
+combat logic (vampire lifesteal, resource harvest, `physVuln`, burn, and
+`zombieDied`'s `isMyKill` flag) treat another player's bullet as if it were
+the local player's own. Fixed with a one-line change, reusing the same
+`'remotePlayer' as any` pattern already established in `net.onShoot`.
+
+**Known residual, tracked separately, not part of this fix**: `explodeBullet()`
+(`src/systems/update.ts`) still calls `zombieDied(z)` without threading
+`b.owner` through, so a remote player's *explosive* (grenade launcher) kill
+can still grant the local player kill credit — the direct-hit path was fixed,
+the splash-damage path wasn't. Surfaced during the C1 audit; folded into C1's
+remaining work rather than reopening C2.
+
+Verified: typecheck/build clean, diff confirmed to be exactly the one line,
+zero changes to `src/net/socket.ts` or any server file.
+
+## Original report
 
 ## What's happening
 
