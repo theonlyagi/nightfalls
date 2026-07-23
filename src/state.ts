@@ -25,9 +25,14 @@ export function setRunning(val: boolean): void { running = val; }
 export let inNetMatch = false;
 export function setInNetMatch(val: boolean): void { inNetMatch = val; }
 
+import { WeaponKind } from './types';
+
 export interface RemotePlayer {
   id: string; name: string; x: number; y: number; angle: number;
   hp: number; maxHp: number; alive: boolean;
+  weapon?: WeaponKind;
+  renderX?: number; renderY?: number; renderAngle?: number;
+  targetX?: number; targetY?: number; targetAngle?: number;
 }
 export let remotePlayers: RemotePlayer[] = [];
 export function setRemotePlayers(val: RemotePlayer[]): void { remotePlayers = val; }
@@ -204,3 +209,8 @@ export function setTeslaChains(val: any[]): void { teslaChains = val; }
 
 export let sniperLasers: any[] = [];
 export function setSniperLasers(val: any[]): void { sniperLasers = val; }
+
+export let reviveHoldingTargetId: string | null = null;
+export let reviveHoldTimer = 0;
+export function setReviveHoldingTargetId(val: string | null): void { reviveHoldingTargetId = val; }
+export function setReviveHoldTimer(val: number): void { reviveHoldTimer = val; }

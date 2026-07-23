@@ -1,6 +1,6 @@
 import { WeaponKind, Bullet, TextParticle, Burst, PowerUpEntity } from '../types';
 import { SKIN_TINTS, POWERUP_DEFS, POWERUP_LIFETIME_MS } from '../constants';
-import { player, bullets, particles, bursts, RemotePlayer } from '../state';
+import { player, bullets, particles, bursts, RemotePlayer, reviveHoldingTargetId, reviveHoldTimer } from '../state';
 import { worldToScreen, radialFill, drawShadow } from './drawWorld';
 
 export function drawArms(
@@ -29,8 +29,25 @@ export function drawArms(
   });
 }
 
-export function drawWeapon(ctx: CanvasRenderingContext2D, weapon: WeaponKind, OUTLINE: string, insta: boolean, sinceShot: number): void {
-  const r = player.radius;
+export interface PlayerRenderable {
+  x: number;
+  y: number;
+  angle: number;
+  radius: number;
+  hp: number;
+  maxHp: number;
+  name?: string;
+  alive: boolean;
+  weapon?: WeaponKind;
+  skinTint?: string | null;
+  mutation?: string | null;
+  instaKillUntil?: number;
+  lastShot?: number;
+  isLocal?: boolean;
+}
+
+export function drawWeapon(ctx: CanvasRenderingContext2D, weapon: WeaponKind, OUTLINE: string, insta: boolean, sinceShot: number, radius?: number): void {
+  const r = radius || player.radius || 22;
   const flashColor = insta ? 'rgba(255,140,60,0.95)' : 'rgba(255,224,102,0.9)';
 
   if (weapon === 'dualguns') {
@@ -149,17 +166,18 @@ export function drawWeapon(ctx: CanvasRenderingContext2D, weapon: WeaponKind, OU
   }
 }
 
-export function drawPlayer(ctx: CanvasRenderingContext2D): void {
-  const s = worldToScreen(player.x, player.y);
-  const angle = player.angle;
-  const tint = player.skinTint ? SKIN_TINTS[player.skinTint] : ['#ffd9ad', '#e0ac7a'];
-  const skin = player.alive ? radialFill(ctx, s.x, s.y, player.radius, tint[0], tint[1]) : '#555';
-  const armColor = player.alive ? tint[1] : '#444';
+export function drawPlayerEntity(ctx: CanvasRenderingContext2D, p: PlayerRenderable): void {
+  const s = worldToScreen(p.x, p.y);
+  const angle = p.angle;
+  const radius = p.radius || 22;
+  const tint = p.skinTint && SKIN_TINTS[p.skinTint] ? SKIN_TINTS[p.skinTint] : ['#ffd9ad', '#e0ac7a'];
+  const skin = p.alive ? radialFill(ctx, s.x, s.y, radius, tint[0], tint[1]) : '#555';
+  const armColor = p.alive ? tint[1] : '#444';
   const OUTLINE = '#4a3220';
-  const insta = performance.now() < player.instaKillUntil;
+  const insta = p.instaKillUntil ? performance.now() < p.instaKillUntil : false;
 
-  if (player.alive) {
-    const glowR = player.radius * (insta ? 3.2 : 2.2);
+  if (p.alive) {
+    const glowR = radius * (insta ? 3.2 : 2.2);
     const glow = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, glowR);
     glow.addColorStop(0, insta ? 'rgba(255,215,106,0.35)' : 'rgba(255,220,150,0.22)');
     glow.addColorStop(1, 'rgba(255,220,150,0)');
@@ -167,9 +185,9 @@ export function drawPlayer(ctx: CanvasRenderingContext2D): void {
     ctx.beginPath(); ctx.arc(s.x, s.y, glowR, 0, Math.PI * 2); ctx.fill();
   }
 
-  if (player.alive && (player.mutation === 'vampire' || player.mutation === 'pyromaniac')) {
-    const auraColor = player.mutation === 'vampire' ? 'rgba(138,43,180,0.4)' : 'rgba(255,60,40,0.4)';
-    const auraR = player.radius * 2.6;
+  if (p.alive && (p.mutation === 'vampire' || p.mutation === 'pyromaniac')) {
+    const auraColor = p.mutation === 'vampire' ? 'rgba(138,43,180,0.4)' : 'rgba(255,60,40,0.4)';
+    const auraR = radius * 2.6;
     const aura = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, auraR);
     aura.addColorStop(0, auraColor);
     aura.addColorStop(1, 'rgba(0,0,0,0)');
@@ -177,55 +195,57 @@ export function drawPlayer(ctx: CanvasRenderingContext2D): void {
     ctx.beginPath(); ctx.arc(s.x, s.y, auraR, 0, Math.PI * 2); ctx.fill();
   }
 
-  drawShadow(ctx, s.x, s.y, player.radius);
+  drawShadow(ctx, s.x, s.y, radius);
 
-  const bx = s.x - Math.cos(angle) * player.radius * 0.7, by = s.y - Math.sin(angle) * player.radius * 0.7;
+  const bx = s.x - Math.cos(angle) * radius * 0.7, by = s.y - Math.sin(angle) * radius * 0.7;
   ctx.fillStyle = '#5a4632';
   ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.arc(bx, by, player.radius * 0.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(bx, by, radius * 0.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 
   ctx.save();
   ctx.translate(s.x, s.y);
   ctx.rotate(angle);
-  drawWeapon(ctx, player.weapon, OUTLINE, insta, performance.now() - player.lastShot);
+  const weapon = p.weapon || 'pistol';
+  const sinceShot = p.lastShot ? performance.now() - p.lastShot : 999;
+  drawWeapon(ctx, weapon, OUTLINE, insta, sinceShot, radius);
   ctx.restore();
 
-  drawArms(ctx, s.x, s.y, player.radius, angle, 0.4, 0.75, armColor, OUTLINE, 0.34, true);
+  drawArms(ctx, s.x, s.y, radius, angle, 0.4, 0.75, armColor, OUTLINE, 0.34, true);
 
   ctx.fillStyle = tint[1];
   ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2.2;
   [angle - Math.PI / 2, angle + Math.PI / 2].forEach(a => {
-    const ex = s.x + Math.cos(a) * player.radius * 0.9, ey = s.y + Math.sin(a) * player.radius * 0.9;
-    ctx.beginPath(); ctx.arc(ex, ey, player.radius * 0.22, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    const ex = s.x + Math.cos(a) * radius * 0.9, ey = s.y + Math.sin(a) * radius * 0.9;
+    ctx.beginPath(); ctx.arc(ex, ey, radius * 0.22, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   });
 
   ctx.fillStyle = skin;
-  ctx.beginPath(); ctx.arc(s.x, s.y, player.radius, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s.x, s.y, radius, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3.5; ctx.stroke();
 
   ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  ctx.beginPath(); ctx.ellipse(s.x - player.radius * 0.32, s.y - player.radius * 0.38, player.radius * 0.32, player.radius * 0.2, -0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s.x - radius * 0.32, s.y - radius * 0.38, radius * 0.32, radius * 0.2, -0.4, 0, Math.PI * 2); ctx.fill();
 
   ctx.fillStyle = '#4a3220';
   ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(s.x, s.y, player.radius * 1.0, angle + Math.PI * 0.62, angle + Math.PI * 1.38);
+  ctx.arc(s.x, s.y, radius * 1.0, angle + Math.PI * 0.62, angle + Math.PI * 1.38);
   ctx.closePath(); ctx.fill(); ctx.stroke();
 
   {
     const upx = Math.cos(angle), upy = Math.sin(angle);
     const perpx = Math.cos(angle + Math.PI / 2), perpy = Math.sin(angle + Math.PI / 2);
-    const eyeSep = player.radius * 0.3;
-    const eyeFwd = player.radius * 0.24;
+    const eyeSep = radius * 0.3;
+    const eyeFwd = radius * 0.24;
     [-1, 1].forEach(side => {
       const ex = s.x + upx * eyeFwd + perpx * eyeSep * side;
       const ey = s.y + upy * eyeFwd + perpy * eyeSep * side;
       ctx.fillStyle = '#2a2118';
-      ctx.beginPath(); ctx.arc(ex, ey, player.radius * 0.075, 0, Math.PI * 2); ctx.fill();
-      const browFwd = player.radius * 0.34;
-      const halfLen = player.radius * 0.11;
-      const innerX = ex - upx * (browFwd + player.radius * 0.025) - perpx * halfLen * side;
-      const innerY = ey - upy * (browFwd + player.radius * 0.025) - perpy * halfLen * side;
+      ctx.beginPath(); ctx.arc(ex, ey, radius * 0.075, 0, Math.PI * 2); ctx.fill();
+      const browFwd = radius * 0.34;
+      const halfLen = radius * 0.11;
+      const innerX = ex - upx * (browFwd + radius * 0.025) - perpx * halfLen * side;
+      const innerY = ey - upy * (browFwd + radius * 0.025) - perpy * halfLen * side;
       const outerX = ex - upx * browFwd + perpx * halfLen * side;
       const outerY = ey - upy * browFwd + perpy * halfLen * side;
       ctx.strokeStyle = '#3a2818'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
@@ -237,60 +257,123 @@ export function drawPlayer(ctx: CanvasRenderingContext2D): void {
     });
   }
 
-  const mx = s.x + Math.cos(angle) * player.radius * 0.5, my = s.y + Math.sin(angle) * player.radius * 0.5;
+  const mx = s.x + Math.cos(angle) * radius * 0.5, my = s.y + Math.sin(angle) * radius * 0.5;
   ctx.strokeStyle = '#8a5a3a'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(mx, my, player.radius * 0.2, angle - Math.PI * 0.3, angle + Math.PI * 0.3); ctx.stroke();
+  ctx.beginPath(); ctx.arc(mx, my, radius * 0.2, angle - Math.PI * 0.3, angle + Math.PI * 0.3); ctx.stroke();
 
-  if (player.mutation === 'vampire') {
+  if (p.mutation === 'vampire') {
     const upx = Math.cos(angle), upy = Math.sin(angle);
     const perpx = Math.cos(angle + Math.PI / 2), perpy = Math.sin(angle + Math.PI / 2);
     ctx.fillStyle = '#8a3ab0';
     ctx.strokeStyle = '#2a1038'; ctx.lineWidth = 1;
     [-1, 1].forEach(side => {
-      const bx = mx + perpx * player.radius * 0.1 * side, by = my + perpy * player.radius * 0.1 * side;
-      const tipx = bx + upx * player.radius * 0.22, tipy = by + upy * player.radius * 0.22;
+      const bx = mx + perpx * radius * 0.1 * side, by = my + perpy * radius * 0.1 * side;
+      const tipx = bx + upx * radius * 0.22, tipy = by + upy * radius * 0.22;
       ctx.beginPath();
-      ctx.moveTo(bx - perpx * player.radius * 0.05 * side, by - perpy * player.radius * 0.05 * side);
+      ctx.moveTo(bx - perpx * radius * 0.05 * side, by - perpy * radius * 0.05 * side);
       ctx.lineTo(tipx, tipy);
-      ctx.lineTo(bx + perpx * player.radius * 0.05 * side, by + perpy * player.radius * 0.05 * side);
+      ctx.lineTo(bx + perpx * radius * 0.05 * side, by + perpy * radius * 0.05 * side);
       ctx.closePath(); ctx.fill(); ctx.stroke();
     });
   }
+
+  // Draw name and synced HP bar for remote players
+  if (p.name && !p.isLocal) {
+    ctx.font = "11px 'Share Tech Mono', monospace";
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#eaf3ec';
+    ctx.fillText(p.name, s.x, s.y - radius - 18);
+
+    const barW = radius * 2.4;
+    const barH = 6;
+    const hpRatio = p.maxHp > 0 ? Math.max(0, Math.min(1, p.hp / p.maxHp)) : 1;
+    
+    // Background bar
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(s.x - barW / 2, s.y - radius - 12, barW, barH);
+    
+    // Health fill with dynamic color based on HP ratio
+    const hpColor = hpRatio > 0.5 ? '#8bd17c' : (hpRatio > 0.25 ? '#ffd76a' : '#ff5c5c');
+    ctx.fillStyle = hpColor;
+    ctx.fillRect(s.x - barW / 2, s.y - radius - 12, barW * hpRatio, barH);
+    
+    // Outline frame
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(s.x - barW / 2, s.y - radius - 12, barW, barH);
+  }
 }
 
-/** Simplified rendering for other players in a multiplayer match. Not the
- *  full detailed arms/weapon art drawPlayer() has (that's hardwired to the
- *  local `player` singleton throughout, not parameterized) — this is a
- *  correct, positionally-synced stand-in: body, facing wedge, name, HP bar. */
+export function drawPlayer(ctx: CanvasRenderingContext2D): void {
+  drawPlayerEntity(ctx, {
+    x: player.x,
+    y: player.y,
+    angle: player.angle,
+    radius: player.radius,
+    hp: player.hp,
+    maxHp: player.maxHp,
+    alive: player.alive,
+    weapon: player.weapon,
+    skinTint: player.skinTint,
+    mutation: player.mutation,
+    instaKillUntil: player.instaKillUntil,
+    lastShot: player.lastShot,
+    isLocal: true,
+  });
+}
+
 export function drawRemotePlayer(ctx: CanvasRenderingContext2D, rp: RemotePlayer): void {
-  const s = worldToScreen(rp.x, rp.y);
-  const radius = 22;
-  const OUTLINE = '#4a3220';
+  const rx = rp.renderX ?? rp.x;
+  const ry = rp.renderY ?? rp.y;
+  const rAngle = rp.renderAngle ?? rp.angle;
 
-  drawShadow(ctx, s.x, s.y, radius);
+  drawPlayerEntity(ctx, {
+    x: rx,
+    y: ry,
+    angle: rAngle,
+    radius: 22,
+    hp: rp.hp,
+    maxHp: rp.maxHp,
+    name: rp.name,
+    alive: rp.alive,
+    weapon: rp.weapon || 'pistol',
+    isLocal: false,
+  });
 
-  ctx.fillStyle = rp.alive ? radialFill(ctx, s.x, s.y, radius, '#ffd9ad', '#e0ac7a') : '#555';
-  ctx.beginPath(); ctx.arc(s.x, s.y, radius, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.stroke();
+  if (!rp.alive && player.alive) {
+    const s = worldToScreen(rx, ry);
+    
+    ctx.save();
+    ctx.fillStyle = '#ff5c5c';
+    ctx.font = '900 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('➕ REVIVE (HOLD CLICK)', s.x, s.y - 45);
+    ctx.restore();
 
-  if (rp.alive) {
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    const tipX = s.x + Math.cos(rp.angle) * radius * 1.3, tipY = s.y + Math.sin(rp.angle) * radius * 1.3;
-    ctx.beginPath();
-    ctx.moveTo(s.x + Math.cos(rp.angle + 1.3) * radius * 0.6, s.y + Math.sin(rp.angle + 1.3) * radius * 0.6);
-    ctx.lineTo(tipX, tipY);
-    ctx.lineTo(s.x + Math.cos(rp.angle - 1.3) * radius * 0.6, s.y + Math.sin(rp.angle - 1.3) * radius * 0.6);
-    ctx.closePath(); ctx.fill();
+    if (reviveHoldingTargetId === rp.id) {
+      const progress = Math.min(1, reviveHoldTimer / 5000);
+      const ringRadius = 28;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, ringRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.lineWidth = 6;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, ringRadius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+      ctx.strokeStyle = '#8bd17c';
+      ctx.lineWidth = 6;
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${Math.floor(progress * 100)}%`, s.x, s.y + 5);
+      ctx.restore();
+    }
   }
-
-  ctx.font = "11px 'Share Tech Mono', monospace";
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#eaf3ec';
-  ctx.fillText(rp.name, s.x, s.y - radius - 18);
-
-  const barW = radius * 2;
-  ctx.fillStyle = '#00000088'; ctx.fillRect(s.x - barW / 2, s.y - radius - 12, barW, 5);
-  ctx.fillStyle = '#ff5c5c'; ctx.fillRect(s.x - barW / 2, s.y - radius - 12, barW * Math.max(0, rp.hp / rp.maxHp), 5);
 }
 
 export function drawBullets(ctx: CanvasRenderingContext2D): void {

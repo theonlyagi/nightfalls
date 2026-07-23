@@ -84,12 +84,8 @@ function loop(t: number): void {
     setLastTime(t);
 
     updatePlayer(dt, camera);
-    // In a net match, zombies/bullets are server-authoritative (see
-    // net/matchSync.ts) — running the local sim on top would fight the
-    // server's snapshots. Structures/waves aren't synced yet either
-    // (follow-up work), so they're disabled rather than half-working.
+    updateBullets(dt);
     if (!inNetMatch) {
-      updateBullets(dt);
       updateStructures(dt);
       updateZombies(dt, dayNight.factor);
     } else {
@@ -153,7 +149,7 @@ function resetGame(): void {
   setSelectedBuild(null);
   setManualBuildAngle(null);
 
-  generateWorld();
+  if (!inNetMatch) generateWorld();
   renderUpgradePanel();
   renderBuildBar();
   byId('overlay').classList.add('hidden');

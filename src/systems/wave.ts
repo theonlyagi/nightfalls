@@ -8,7 +8,7 @@ import {
   waveClearedAt, setWaveClearedAt, nextWaveDelay, waveState, setWaveState,
   isBossWave, setIsBossWave, activeBoss, setActiveBoss, zombies, setZombies,
   crates, setCrates, resources, setResources, decor, setDecor, terrainPatches,
-  setTerrainPatches, fireflies, setFireflies, dayNight, bloodMoon
+  setTerrainPatches, fireflies, setFireflies, dayNight, bloodMoon, inNetMatch
 } from '../state';
 import { rand, clamp, dist, byId } from '../utils';
 import { showBanner, gainXp } from './combat';
@@ -189,9 +189,13 @@ export function updateBloodMoon(): void {
 }
 
 export function updateDayNight(dt: number): void {
+  if (!dayNight.total || dayNight.total <= 0) dayNight.total = 110000;
+  if (!Number.isFinite(dayNight.time)) dayNight.time = 0;
+
   dayNight.time = (dayNight.time + dt) % dayNight.total;
-  const frac = dayNight.time / dayNight.total;
-  dayNight.factor = (1 - Math.cos(frac * Math.PI * 2)) / 2;
+  const frac = (dayNight.time % dayNight.total) / dayNight.total;
+  const rawFactor = (1 - Math.cos(frac * Math.PI * 2)) / 2;
+  dayNight.factor = Number.isFinite(rawFactor) ? Math.max(0, Math.min(1, rawFactor)) : 0;
   const wasNight = dayNight.isNight;
   dayNight.isNight = dayNight.factor > 0.5;
 

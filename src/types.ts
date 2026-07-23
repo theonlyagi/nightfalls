@@ -73,7 +73,7 @@ export interface Bullet {
 }
 
 export interface Resource {
-  type: 'tree' | 'rock' | 'iron'; x: number; y: number; radius: number; hp: number; maxHp: number; dead?: boolean;
+  id?: string; type: 'tree' | 'rock' | 'iron'; x: number; y: number; radius: number; hp: number; maxHp: number; dead?: boolean;
 }
 
 export interface Structure {

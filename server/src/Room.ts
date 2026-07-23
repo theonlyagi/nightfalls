@@ -32,6 +32,7 @@ export interface PlayerState {
   hp: number;
   maxHp: number;
   alive: boolean;
+  weapon?: string;
   xp: number;
   level: number;
   xpToNext: number;
@@ -48,6 +49,7 @@ export interface ZombieState {
   y: number;
   hp: number;
   maxHp: number;
+  zombieType?: string;
   lastHitPlayerAt: number;
   lastSpikeHitAt: number;
   lastHitStructureAt: number;
@@ -104,6 +106,16 @@ function isTowerKind(type: StructureKind): type is TowerKind {
  * nothing here is visible to, or affected by, any other room. Created on
  * demand by RoomManager and torn down (timers cleared) once empty.
  */
+export interface ResourceState {
+  id: string;
+  type: 'tree' | 'rock' | 'iron';
+  x: number;
+  y: number;
+  radius: number;
+  hp: number;
+  maxHp: number;
+}
+
 export class Room {
   readonly id: string;
   readonly sockets = new Map<string, uWS.WebSocket<ConnectionData>>();
@@ -111,6 +123,7 @@ export class Room {
   readonly zombies = new Map<string, ZombieState>();
   readonly bullets = new Map<string, BulletState>();
   readonly structures = new Map<string, StructureState>();
+  readonly resources = new Map<string, ResourceState>();
 
   private phase: RoomPhase = 'waiting';
   private countdownEndsAt: number | null = null;
@@ -121,9 +134,15 @@ export class Room {
   private tickTimer: ReturnType<typeof setInterval> | undefined;
   private onEmpty: (room: Room) => void;
 
+  private dayNightTime = 0;
+  private isNight = false;
+  private nightCount = 0;
+  private zombiesLeftToSpawn = 0;
+
   constructor(id: string, onEmpty: (room: Room) => void) {
     this.id = id;
     this.onEmpty = onEmpty;
+    this.generateWorld();
   }
 
   get size(): number {
@@ -164,7 +183,7 @@ export class Room {
       type: 'players',
       players: Array.from(this.players.values()).map(p => ({
         id: p.id, name: p.name, x: p.x, y: p.y, angle: p.angle, hp: p.hp, maxHp: p.maxHp, alive: p.alive,
-        xp: p.xp, level: p.level, xpToNext: p.xpToNext,
+        weapon: p.weapon, xp: p.xp, level: p.level, xpToNext: p.xpToNext,
       })),
     }));
   }
@@ -173,7 +192,7 @@ export class Room {
     this.broadcast(JSON.stringify({
       type: 'zombies',
       zombies: Array.from(this.zombies.values()).map(z => ({
-        id: z.id, x: z.x, y: z.y, hp: z.hp, maxHp: z.maxHp,
+        id: z.id, x: z.x, y: z.y, hp: z.hp, maxHp: z.maxHp, zombieType: z.zombieType,
       })),
     }));
   }
@@ -197,6 +216,41 @@ export class Room {
     }));
   }
 
+  private generateWorld(): void {
+    const safeZone = 260;
+    let resId = 1;
+    for (let i = 0; i < 140; i++) {
+      let x: number, y: number;
+      do { x = Math.random() * (WORLD_W - 160) + 80; y = Math.random() * (WORLD_H - 160) + 80; }
+      while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
+      const id = 'res_' + (resId++);
+      this.resources.set(id, { id, type: 'tree', x, y, radius: 19, hp: 30, maxHp: 30 });
+    }
+    for (let i = 0; i < 70; i++) {
+      let x: number, y: number;
+      do { x = Math.random() * (WORLD_W - 160) + 80; y = Math.random() * (WORLD_H - 160) + 80; }
+      while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
+      const id = 'res_' + (resId++);
+      this.resources.set(id, { id, type: 'rock', x, y, radius: 21, hp: 50, maxHp: 50 });
+    }
+    for (let i = 0; i < 45; i++) {
+      let x: number, y: number;
+      do { x = Math.random() * (WORLD_W - 160) + 80; y = Math.random() * (WORLD_H - 160) + 80; }
+      while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
+      const id = 'res_' + (resId++);
+      this.resources.set(id, { id, type: 'iron', x, y, radius: 23, hp: 110, maxHp: 110 });
+    }
+  }
+
+  private broadcastResources(): void {
+    this.broadcast(JSON.stringify({
+      type: 'resources',
+      resources: Array.from(this.resources.values()).map(r => ({
+        id: r.id, type: r.type, x: r.x, y: r.y, radius: r.radius, hp: r.hp, maxHp: r.maxHp,
+      })),
+    }));
+  }
+
   /** Adds a live connection. `restored` carries prior state on a reconnect. */
   addConnection(ws: uWS.WebSocket<ConnectionData>, id: string, name: string, restored?: PlayerState): void {
     this.sockets.set(id, ws);
@@ -214,6 +268,7 @@ export class Room {
     ws.send(JSON.stringify({ type: 'zombies', zombies: Array.from(this.zombies.values()) }));
     ws.send(JSON.stringify({ type: 'bullets', bullets: Array.from(this.bullets.values()) }));
     ws.send(JSON.stringify({ type: 'structures', structures: Array.from(this.structures.values()) }));
+    ws.send(JSON.stringify({ type: 'resources', resources: Array.from(this.resources.values()) }));
 
     this.broadcastPlayers();
     // A new (unready) joiner invalidates any countdown already in progress.
@@ -286,6 +341,15 @@ export class Room {
       vx: Math.cos(angle) * perTickSpeed, vy: Math.sin(angle) * perTickSpeed,
       life: BULLET_LIFE_TICKS,
     });
+
+    this.broadcast(JSON.stringify({
+      type: 'shoot',
+      shooterId: id,
+      x: p.x,
+      y: p.y,
+      angle,
+      weapon: p.weapon,
+    }));
   }
 
   /** Sets one player's ready flag and re-evaluates whether a countdown should start/cancel. */
@@ -369,6 +433,30 @@ export class Room {
     this.broadcastStructures();
   }
 
+  handleHitResource(id: string, damage: number): void {
+    if (this.phase !== 'active') return;
+    const r = this.resources.get(id);
+    if (!r) return;
+    r.hp -= damage;
+    if (r.hp <= 0) {
+      this.resources.delete(id);
+    }
+    this.broadcastResources();
+  }
+
+  handleRevive(reviverId: string, targetId: string): void {
+    if (this.phase !== 'active') return;
+    const reviver = this.players.get(reviverId);
+    const target = this.players.get(targetId);
+    if (!reviver || !reviver.alive) return;
+    if (!target || target.alive) return;
+    if (dist(reviver.x, reviver.y, target.x, target.y) > 140) return;
+
+    target.alive = true;
+    target.hp = Math.round(target.maxHp * 0.5);
+    this.broadcastPlayers();
+  }
+
   /**
    * Any membership or ready-state change lands here. Any in-progress countdown
    * is always cancelled first, then a fresh one starts if the room currently
@@ -420,35 +508,97 @@ export class Room {
     this.zombieSpawnTimer = setInterval(() => this.maybeSpawnZombie(), ZOMBIE_SPAWN_INTERVAL_MS);
     this.tickTimer = setInterval(() => this.tick(), TICK_MS);
     this.broadcastLobby();
+    this.broadcastResources();
+    this.broadcastStructures();
   }
 
   private maybeSpawnZombie(): void {
+    if (!this.isNight) return;
+    if (this.zombiesLeftToSpawn <= 0) return;
     if (this.zombies.size >= ZOMBIE_MAX) return;
-    const id = generateZombieId();
-    this.zombies.set(id, {
-      id,
-      x: Math.random() * WORLD_W,
-      y: Math.random() * WORLD_H,
-      hp: 30, maxHp: 30,
-      lastHitPlayerAt: 0,
-      lastSpikeHitAt: 0,
-      lastHitStructureAt: 0,
-    });
+
+    const alivePlayers = Array.from(this.players.values()).filter(p => p.alive);
+    if (alivePlayers.length === 0) return;
+    const targetPlayer = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
+
+    const waveHpMul = 1 + Math.max(0, this.nightCount - 1) * 0.2;
+    const randType = Math.random();
+    let zType = 'normal';
+    let baseHp = 35;
+
+    if (this.nightCount <= 1) {
+      if (randType < 0.4) { zType = 'scout'; baseHp = 20; }
+      else { zType = 'normal'; baseHp = 35; }
+    } else if (this.nightCount === 2) {
+      if (randType < 0.3) { zType = 'scout'; baseHp = 20; }
+      else if (randType < 0.6) { zType = 'normal'; baseHp = 35; }
+      else if (randType < 0.8) { zType = 'wolf'; baseHp = 25; }
+      else { zType = 'brute'; baseHp = 80; }
+    } else {
+      if (randType < 0.25) { zType = 'scout'; baseHp = 20; }
+      else if (randType < 0.50) { zType = 'normal'; baseHp = 35; }
+      else if (randType < 0.70) { zType = 'wolf'; baseHp = 25; }
+      else if (randType < 0.85) { zType = 'brute'; baseHp = 80; }
+      else { zType = 'spitter'; baseHp = 30; }
+    }
+
+    const hp = Math.round(baseHp * waveHpMul);
+    const angle = Math.random() * Math.PI * 2;
+    const distToPlayer = 850 + Math.random() * 450;
+    const spawnX = clamp(targetPlayer.x + Math.cos(angle) * distToPlayer, 40, WORLD_W - 40);
+    const spawnY = clamp(targetPlayer.y + Math.sin(angle) * distToPlayer, 40, WORLD_H - 40);
+
+    const packSize = zType === 'wolf' ? Math.floor(1 + Math.random() * 2) : 1;
+
+    for (let i = 0; i < packSize; i++) {
+      if (this.zombies.size >= ZOMBIE_MAX || this.zombiesLeftToSpawn <= 0) break;
+      this.zombiesLeftToSpawn--;
+      const id = generateZombieId();
+      const offAngle = Math.random() * Math.PI * 2;
+      const offD = i === 0 ? 0 : 35 + Math.random() * 45;
+      const finalX = clamp(spawnX + Math.cos(offAngle) * offD, 40, WORLD_W - 40);
+      const finalY = clamp(spawnY + Math.sin(offAngle) * offD, 40, WORLD_H - 40);
+
+      this.zombies.set(id, {
+        id,
+        x: finalX,
+        y: finalY,
+        hp, maxHp: hp,
+        zombieType: zType,
+        lastHitPlayerAt: 0,
+        lastSpikeHitAt: 0,
+        lastHitStructureAt: 0,
+      });
+    }
+    this.broadcastZombies();
+  }
+
+  private tickPlayerRegen(): void {
+    const healAmt = 0.12; // Base HP regen per tick
+    for (const p of this.players.values()) {
+      if (!p.alive || p.hp >= p.maxHp) continue;
+      
+      // Campfire extra healing
+      let extraHeal = 0;
+      for (const s of this.structures.values()) {
+        if (s.type === 'campfire' && dist(p.x, p.y, s.x, s.y) < CAMPFIRE_HEAL_RADIUS) {
+          extraHeal += CAMPFIRE_HEAL_RATE * (TICK_MS / 1000);
+        }
+      }
+      
+      p.hp = Math.min(p.maxHp, p.hp + healAmt + extraHeal);
+    }
   }
 
   /** Each zombie beelines for the nearest alive player at a flat chase speed
-   *  (see ZOMBIE_CHASE_SPEED's doc comment — no per-type speeds server-side).
-   *  Falls back to the old random jitter only when no one is alive to chase,
-   *  so zombies don't freeze in place rather than a deliberate "safe" state.
-   *  No obstacle avoidance/collision with structures — matches the rest of
-   *  this server's model, where proximity drives damage but never blocks
-   *  movement (see the zombie-vs-structure damage loop in resolveCollisions
-   *  for the same simplification applied there). */
+   *  with Zombie-Zombie Repulsion physics to prevent stacking into a single point. */
   private tickZombiesMovement(): void {
     const alivePlayers = Array.from(this.players.values()).filter(p => p.alive);
     const moveDist = ZOMBIE_CHASE_SPEED * (TICK_MS / 1000);
+    const zombieList = Array.from(this.zombies.values());
 
-    for (const z of this.zombies.values()) {
+    for (let i = 0; i < zombieList.length; i++) {
+      const z = zombieList[i];
       if (alivePlayers.length === 0) {
         z.x = clamp(z.x + (Math.random() - 0.5) * 20, 0, WORLD_W);
         z.y = clamp(z.y + (Math.random() - 0.5) * 20, 0, WORLD_H);
@@ -462,10 +612,26 @@ export class Room {
         if (d < bestDist) { bestDist = d; target = p; }
       }
 
-      const dx = target.x - z.x, dy = target.y - z.y;
-      const len = bestDist || 1;
-      z.x = clamp(z.x + (dx / len) * moveDist, 0, WORLD_W);
-      z.y = clamp(z.y + (dy / len) * moveDist, 0, WORLD_H);
+      let dx = (target.x - z.x) / (bestDist || 1);
+      let dy = (target.y - z.y) / (bestDist || 1);
+
+      // Zombie-Zombie separation (repulsion) so zombies don't stack on top of each other
+      const minDist = ZOMBIE_RADIUS * 2.1;
+      for (let j = 0; j < zombieList.length; j++) {
+        if (i === j) continue;
+        const other = zombieList[j];
+        const d = dist(z.x, z.y, other.x, other.y);
+        if (d < minDist && d > 0.1) {
+          const pushFactor = (minDist - d) / minDist;
+          dx -= ((other.x - z.x) / d) * pushFactor * 1.5;
+          dy -= ((other.y - z.y) / d) * pushFactor * 1.5;
+        }
+      }
+
+      // Normalize movement direction
+      const len = Math.hypot(dx, dy) || 1;
+      z.x = clamp(z.x + (dx / len) * moveDist, ZOMBIE_RADIUS, WORLD_W - ZOMBIE_RADIUS);
+      z.y = clamp(z.y + (dy / len) * moveDist, ZOMBIE_RADIUS, WORLD_H - ZOMBIE_RADIUS);
     }
   }
 
@@ -487,7 +653,7 @@ export class Room {
 
     for (const b of this.bullets.values()) {
       for (const z of this.zombies.values()) {
-        if (dist(b.x, b.y, z.x, z.y) < BULLET_RADIUS + ZOMBIE_RADIUS) {
+        if (dist(b.x, b.y, z.x, z.y) < BULLET_RADIUS + ZOMBIE_RADIUS + 12) {
           z.hp -= BULLET_DAMAGE;
           this.bullets.delete(b.id);
           if (z.hp <= 0) {
@@ -605,11 +771,88 @@ export class Room {
     }
   }
 
+  private updateDayNight(): void {
+    const cycleTotal = 110000;
+    this.dayNightTime = (this.dayNightTime + TICK_MS) % cycleTotal;
+    
+    const frac = this.dayNightTime / cycleTotal;
+    const factor = (1 - Math.cos(frac * Math.PI * 2)) / 2;
+    const nextIsNight = factor > 0.5;
+
+    if (!this.isNight && nextIsNight) {
+      this.isNight = true;
+      this.nightCount++;
+      this.zombiesLeftToSpawn = 12 + this.nightCount * 6;
+      this.maybeSpawnZombie();
+    } else if (this.isNight && !nextIsNight) {
+      this.isNight = false;
+      this.zombiesLeftToSpawn = 0;
+      this.respawnDaybreakResources();
+    }
+
+    const bloodMoon = this.isNight && (this.nightCount > 0 && this.nightCount % 3 === 0);
+    this.broadcast(JSON.stringify({
+      type: 'dayNight',
+      time: this.dayNightTime,
+      nightCount: this.nightCount,
+      bloodMoon,
+    }));
+  }
+
+  private respawnDaybreakResources(): void {
+    const targetTrees = 140, targetRocks = 70, targetIron = 45;
+    let trees = 0, rocks = 0, iron = 0;
+    for (const r of this.resources.values()) {
+      if (r.type === 'tree') trees++;
+      else if (r.type === 'rock') rocks++;
+      else if (r.type === 'iron') iron++;
+    }
+
+    const safeZone = 260;
+    let createdCount = 0;
+
+    const spawnTypes: { kind: 'tree' | 'rock' | 'iron'; count: number; radius: number; hp: number }[] = [
+      { kind: 'tree', count: Math.max(0, targetTrees - trees), radius: 19, hp: 30 },
+      { kind: 'rock', count: Math.max(0, targetRocks - rocks), radius: 21, hp: 50 },
+      { kind: 'iron', count: Math.max(0, targetIron - iron), radius: 23, hp: 110 },
+    ];
+
+    let nextResId = Date.now();
+    for (const st of spawnTypes) {
+      for (let i = 0; i < st.count; i++) {
+        let x: number, y: number;
+        do {
+          x = Math.random() * (WORLD_W - 160) + 80;
+          y = Math.random() * (WORLD_H - 160) + 80;
+        } while (dist(x, y, WORLD_W / 2, WORLD_H / 2) < safeZone);
+
+        const id = 'res_' + (nextResId++);
+        this.resources.set(id, { id, type: st.kind, x, y, radius: st.radius, hp: st.hp, maxHp: st.hp });
+        createdCount++;
+      }
+    }
+
+    if (createdCount > 0) {
+      this.broadcastResources();
+    }
+  }
+
+  private checkTeamDefeat(): void {
+    if (this.phase !== 'active' || this.players.size === 0) return;
+    const allDead = [...this.players.values()].every(p => !p.alive);
+    if (allDead) {
+      this.broadcast(JSON.stringify({ type: 'gameOver' }));
+    }
+  }
+
   private tick(): void {
+    this.updateDayNight();
+    this.tickPlayerRegen();
     if (this.zombies.size > 0) this.tickZombiesMovement();
     if (this.bullets.size > 0) this.tickBulletsMovement();
     this.resolveCollisions();
     if (this.structures.size > 0) this.tickStructures();
+    this.checkTeamDefeat();
 
     if (this.sockets.size === 0) return;
     this.broadcastPlayers();

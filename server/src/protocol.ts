@@ -16,8 +16,8 @@ export const MATCH_START_COUNTDOWN_MS = 3000;
 
 export const TICK_MS = 100;
 
-export const ZOMBIE_MAX = 10;
-export const ZOMBIE_SPAWN_INTERVAL_MS = 3000;
+export const ZOMBIE_MAX = 50;
+export const ZOMBIE_SPAWN_INTERVAL_MS = 800;
 export const ZOMBIE_RADIUS = 22;
 export const ZOMBIE_DAMAGE = 8;
 export const ZOMBIE_HIT_COOLDOWN_MS = 600;
@@ -111,7 +111,18 @@ export interface RemovePacket {
   structureId: string;
 }
 
-export type ClientPacket = MovePacket | ShootPacket | ReadyPacket | BuildPacket | UpgradePacket | RemovePacket;
+export interface HitResourcePacket {
+  type: 'hitResource';
+  id: string;
+  damage: number;
+}
+
+export interface RevivePacket {
+  type: 'revive';
+  targetId: string;
+}
+
+export type ClientPacket = MovePacket | ShootPacket | ReadyPacket | BuildPacket | UpgradePacket | RemovePacket | HitResourcePacket | RevivePacket;
 
 // ---------------- Structure stats (Phase 1: flat per-level numbers only) ----------------
 // Deliberately simplified server-side model — see server/src/Room.ts's
@@ -210,6 +221,19 @@ export function towerMaxHp(kind: TowerKind, level: number): number {
   return STRUCTURE_DEFS[kind].hp * (1 + (level - 1) * 0.5);
 }
 
+export type ResourceKind = 'tree' | 'rock' | 'iron';
+
+export interface ResourceSnapshot {
+  id: string;
+  type: ResourceKind;
+  x: number;
+  y: number;
+  radius: number;
+  hp: number;
+  maxHp: number;
+  zombieType?: string;
+}
+
 export interface StructureSnapshot {
   id: string;
   type: StructureKind;
@@ -221,6 +245,26 @@ export interface StructureSnapshot {
   level: number;
   hp: number;
   maxHp: number;
+}
+
+export interface NetShootEvent {
+  type: 'shoot';
+  shooterId: string;
+  x: number;
+  y: number;
+  angle: number;
+  weapon?: string;
+}
+
+export interface NetDayNightEvent {
+  type: 'dayNight';
+  time: number;
+  nightCount: number;
+  bloodMoon: boolean;
+}
+
+export interface NetGameOverEvent {
+  type: 'gameOver';
 }
 
 export type RoomPhase = 'waiting' | 'countdown' | 'active';
@@ -303,6 +347,14 @@ export function isUpgradePacket(value: any): value is UpgradePacket {
 
 export function isRemovePacket(value: any): value is RemovePacket {
   return value && value.type === 'remove' && typeof value.structureId === 'string';
+}
+
+export function isHitResourcePacket(value: any): value is HitResourcePacket {
+  return value && value.type === 'hitResource' && typeof value.id === 'string' && Number.isFinite(value.damage);
+}
+
+export function isRevivePacket(value: any): value is RevivePacket {
+  return value && value.type === 'revive' && typeof value.targetId === 'string';
 }
 
 export function clamp(v: number, lo: number, hi: number): number {
