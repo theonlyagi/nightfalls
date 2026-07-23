@@ -8,7 +8,7 @@
 // `lobby.onMatchStart` hooks in state.ts.
 
 import { WS_URL } from '../constants';
-import { StructureKind } from '../types';
+import { StructureKind, WeaponKind, MutationKind } from '../types';
 
 const SESSION_TOKEN_KEY = 'nightfall_session_token';
 
@@ -34,13 +34,17 @@ export interface NetPlayerSnapshot {
 export interface NetPlayersMessage { type: 'players'; players: NetPlayerSnapshot[]; }
 export interface NetZombieSnapshot { id: string; x: number; y: number; hp: number; maxHp: number; }
 export interface NetZombiesMessage { type: 'zombies'; zombies: NetZombieSnapshot[]; }
-export interface NetBulletSnapshot { id: string; ownerId: string; x: number; y: number; }
+export interface NetBulletSnapshot { id: string; ownerId: string; x: number; y: number; explosive?: boolean; }
 export interface NetBulletsMessage { type: 'bullets'; bullets: NetBulletSnapshot[]; }
 export interface NetStructureSnapshot {
   id: string; type: StructureKind; x: number; y: number; angle: number; aimAngle: number;
   tier: number; level: number; hp: number; maxHp: number;
 }
 export interface NetStructuresMessage { type: 'structures'; structures: NetStructureSnapshot[]; }
+export interface NetDayNightMessage {
+  type: 'daynight'; time: number; factor: number; isNight: boolean;
+  nightCount: number; bloodMoonActive: boolean;
+}
 
 let socket: WebSocket | null = null;
 let myId: string | null = null;
@@ -53,6 +57,7 @@ export const net = {
   onZombies: null as ((msg: NetZombiesMessage) => void) | null,
   onBullets: null as ((msg: NetBulletsMessage) => void) | null,
   onStructures: null as ((msg: NetStructuresMessage) => void) | null,
+  onDayNight: null as ((msg: NetDayNightMessage) => void) | null,
   onDisconnected: null as (() => void) | null,
 };
 
@@ -110,6 +115,9 @@ export function connect(name: string): void {
       case 'structures':
         net.onStructures?.(msg);
         break;
+      case 'daynight':
+        net.onDayNight?.(msg);
+        break;
     }
   };
 
@@ -147,3 +155,5 @@ export function sendBuild(kind: StructureKind, x: number, y: number, angle: numb
 }
 export function sendUpgrade(structureId: string): void { send({ type: 'upgrade', structureId }); }
 export function sendRemove(structureId: string): void { send({ type: 'remove', structureId }); }
+export function sendWeaponChoice(weapon: WeaponKind): void { send({ type: 'weaponChoice', weapon }); }
+export function sendMutationChoice(mutation: MutationKind): void { send({ type: 'mutationChoice', mutation }); }

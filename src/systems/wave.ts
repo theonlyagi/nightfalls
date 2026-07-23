@@ -188,32 +188,32 @@ export function updateBloodMoon(): void {
   // Blood moon is now triggered periodically on specific nights inside updateDayNight()
 }
 
-export function updateDayNight(dt: number): void {
-  dayNight.time = (dayNight.time + dt) % dayNight.total;
-  const frac = dayNight.time / dayNight.total;
-  dayNight.factor = (1 - Math.cos(frac * Math.PI * 2)) / 2;
-  const wasNight = dayNight.isNight;
-  dayNight.isNight = dayNight.factor > 0.5;
-
-  if (dayNight.isNight !== wasNight) {
-    if (dayNight.isNight) {
-      dayNight.nightCount = (dayNight.nightCount || 0) + 1;
-      // Periodic Blood Moon: Triggers every 3rd night (Night 3, Night 6, Night 9...)
-      if (dayNight.nightCount % 3 === 0) {
-        bloodMoon.active = true;
-        showBanner('BLOOD MOON RISING', 'A cursed red night begins! Fast & vicious zombies inbound!', 'blood');
-      } else {
-        bloodMoon.active = false;
-        showBanner('NIGHTFALL', 'Zombies emerge from the dark! Defend your base!', 'night');
-      }
+/** Picks and fires the right banner for a day/night transition that just
+ *  happened, based on the module's own current dayNight.isNight/
+ *  bloodMoon.active (already updated by the caller) vs the previous
+ *  isNight value. Extracted so the net-synced path (net/matchSync.ts's
+ *  net.onDayNight) can fire identical banners off server-driven state
+ *  without duplicating this decision logic - solo's updateDayNight() below
+ *  still owns computing nightCount/bloodMoon.active itself (it's the
+ *  authority in solo mode); this helper only picks which banner to show. */
+export function fireDayNightTransitionBanner(wasNight: boolean): void {
+  if (dayNight.isNight === wasNight) return;
+  if (dayNight.isNight) {
+    if (bloodMoon.active) {
+      showBanner('BLOOD MOON RISING', 'A cursed red night begins! Fast & vicious zombies inbound!', 'blood');
     } else {
-      if (bloodMoon.active) {
-        bloodMoon.active = false;
-      }
-      showBanner('DAYBREAK', 'Safe daylight! Prepare & build your base.', 'night');
+      showBanner('NIGHTFALL', 'Zombies emerge from the dark! Defend your base!', 'night');
     }
+  } else {
+    showBanner('DAYBREAK', 'Safe daylight! Prepare & build your base.', 'night');
   }
-  
+}
+
+/** Updates the HUD phase-label text/class from the module's own current
+ *  dayNight/bloodMoon state. Extracted for the same reason as
+ *  fireDayNightTransitionBanner above - both solo and the net-synced path
+ *  need identical label formatting from whichever state authority set it. */
+export function applyPhaseLabel(): void {
   // Calculate remaining time for current phase
   let timeLeftSec = 0;
   if (dayNight.isNight) {
@@ -241,6 +241,26 @@ export function updateDayNight(dt: number): void {
     label.textContent = `DAY | ${timeLeftSec}s (SAFE - BUILD TIME)`;
     label.className = 'pill hud-font day';
   }
+}
+
+export function updateDayNight(dt: number): void {
+  dayNight.time = (dayNight.time + dt) % dayNight.total;
+  const frac = dayNight.time / dayNight.total;
+  dayNight.factor = (1 - Math.cos(frac * Math.PI * 2)) / 2;
+  const wasNight = dayNight.isNight;
+  dayNight.isNight = dayNight.factor > 0.5;
+
+  if (dayNight.isNight !== wasNight) {
+    if (dayNight.isNight) {
+      dayNight.nightCount = (dayNight.nightCount || 0) + 1;
+      // Periodic Blood Moon: Triggers every 3rd night (Night 3, Night 6, Night 9...)
+      bloodMoon.active = dayNight.nightCount % 3 === 0;
+    } else {
+      bloodMoon.active = false;
+    }
+  }
+  fireDayNightTransitionBanner(wasNight);
+  applyPhaseLabel();
 
   // Night random spawns — strictly active ONLY at night
   if (dayNight.isNight && dayNight.factor > 0.55) {

@@ -5,7 +5,7 @@ import {
   player, bullets, setBullets, zombies, setZombies, powerups, setPowerups,
   particles, setParticles, bursts, setBursts, bloodDecals, setBloodDecals,
   shake, settings, godMode, activeBoss, setActiveBoss, wave, selectedBuild,
-  inNetMatch
+  inNetMatch, weaponChoiceOpen, mutationChoiceOpen
 } from '../state';
 import {
   POWERUP_DEFS, POINTS_BY_TYPE, WEAPON_DEFS, OVERHEAT_PER_SHOT,
@@ -140,6 +140,17 @@ export function setXpCallbacks(callbacks: {
   onUpgradePanel: () => void;
 }): void {
   xpCallbacks = callbacks;
+}
+
+/** Mirrors gainXp()'s level-threshold checks (used by solo's zombieDied()
+ *  path), for the net-match path where level comes from a server snapshot
+ *  instead of a local XP increment — see net/matchSync.ts's net.onPlayers.
+ *  Guards on weaponChoiceOpen/mutationChoiceOpen (not just weaponChosen/
+ *  mutationChosen) so this doesn't re-open the panel on every ~33ms snapshot
+ *  while it's already open waiting for a click. */
+export function checkLevelGates(): void {
+  if (player.level >= 15 && !player.weaponChosen && !weaponChoiceOpen) xpCallbacks.onWeaponChoice();
+  if (player.level >= 25 && !player.mutationChosen && !mutationChoiceOpen) xpCallbacks.onMutationChoice();
 }
 
 export function tryShoot(now: number): void {
