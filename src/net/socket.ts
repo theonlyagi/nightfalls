@@ -53,6 +53,17 @@ let myRoomId: string | null = null;
 export interface NetShootMessage { type: 'shoot'; shooterId: string; x: number; y: number; angle: number; weapon?: WeaponKind; }
 export interface NetDayNightMessage { type: 'dayNight'; time: number; nightCount: number; bloodMoon: boolean; }
 export interface NetGameOverMessage { type: 'gameOver'; }
+export interface NetTowerShotMessage {
+  type: 'towerShot';
+  towerId: string;
+  towerType: StructureKind;
+  x: number;
+  y: number;
+  angle: number;
+  targetX: number;
+  targetY: number;
+  level: number;
+}
 
 export const net = {
   onWelcome: null as ((msg: NetWelcomeMessage) => void) | null,
@@ -63,6 +74,7 @@ export const net = {
   onStructures: null as ((msg: NetStructuresMessage) => void) | null,
   onResources: null as ((msg: NetResourcesMessage) => void) | null,
   onShoot: null as ((msg: NetShootMessage) => void) | null,
+  onTowerShot: null as ((msg: NetTowerShotMessage) => void) | null,
   onDayNight: null as ((msg: NetDayNightMessage) => void) | null,
   onGameOver: null as ((msg: NetGameOverMessage) => void) | null,
   onDisconnected: null as (() => void) | null,
@@ -127,6 +139,9 @@ export function connect(name: string): void {
         break;
       case 'shoot':
         net.onShoot?.(msg);
+        break;
+      case 'towerShot':
+        net.onTowerShot?.(msg);
         break;
       case 'dayNight':
         net.onDayNight?.(msg);

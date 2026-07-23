@@ -4,7 +4,7 @@
   var WORLD_H = 4200;
   var TILE = 32;
   var BUILD_REACH = TILE * 6;
-  var WS_URL = true ? "ws://localhost:8081/ws" : "ws://localhost:8081/ws";
+  var WS_URL = true ? "wss://night-falls.xyz/ws" : "ws://localhost:8081/ws";
   var BASE_STATS = {
     radius: 22,
     maxHp: 100,
@@ -848,6 +848,7 @@
     onStructures: null,
     onResources: null,
     onShoot: null,
+    onTowerShot: null,
     onDayNight: null,
     onGameOver: null,
     onDisconnected: null
@@ -913,6 +914,9 @@
           break;
         case "shoot":
           net.onShoot?.(msg);
+          break;
+        case "towerShot":
+          net.onTowerShot?.(msg);
           break;
         case "dayNight":
           net.onDayNight?.(msg);
@@ -1430,6 +1434,7 @@
     };
   }
   var wired = false;
+  var gameOverReturnTimer;
   function initMatchSync() {
     if (wired) return;
     wired = true;
@@ -1495,7 +1500,7 @@
           bulletTargetPos.delete(id);
         }
       }
-      const localBullets = bullets.filter((b) => (b.owner === "player" || b.owner === "remotePlayer") && b.life > 0 && !b.dead);
+      const localBullets = bullets.filter((b) => (b.visualOnly || b.owner === "player" || b.owner === "remotePlayer") && b.life > 0 && !b.dead);
       const remoteServerBullets = msg.bullets.filter((b) => b.ownerId !== myId2).map(toClientBullet);
       setBullets([...localBullets, ...remoteServerBullets]);
     };
@@ -1559,6 +1564,54 @@
         spawnBullet(angle, 0);
       }
     };
+    net.onTowerShot = (msg) => {
+      const def = BUILD_DEFS[msg.towerType];
+      if (!def) return;
+      let speed = 8.5;
+      let radius = 4;
+      let life = 900;
+      let explosive = false;
+      let explodeRadius;
+      if (msg.towerType === "mortar") {
+        speed = 4.5;
+        radius = 6;
+        life = 1300;
+        explosive = true;
+        explodeRadius = 80;
+      } else if (msg.towerType === "toxic") {
+        speed = 5;
+        radius = 5;
+        life = 1200;
+        explosive = true;
+        explodeRadius = 10;
+      } else if (msg.towerType === "sniper") {
+        speed = 18;
+        radius = 3;
+        life = 450;
+      } else if (msg.towerType === "tesla" || msg.towerType === "frost") {
+        speed = 7;
+        radius = 5;
+        life = 650;
+      }
+      const a = msg.angle;
+      const b = {
+        id: `tower_${msg.towerId}_${performance.now()}`,
+        x: msg.x + Math.cos(a) * (def.radius + 4),
+        y: msg.y + Math.sin(a) * (def.radius + 4),
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        radius,
+        damage: 0,
+        life,
+        owner: "turret",
+        visualOnly: true
+      };
+      if (explosive) {
+        b.explosive = true;
+        b.explodeRadius = explodeRadius;
+      }
+      bullets.push(b);
+    };
     net.onDayNight = (msg) => {
       if (Number.isFinite(msg.time)) {
         const diff = Math.abs(dayNight.time - msg.time);
@@ -1567,14 +1620,20 @@
         }
       }
       dayNight.nightCount = msg.nightCount || 0;
+      setWave(dayNight.nightCount);
       bloodMoon.active = !!msg.bloodMoon;
     };
     net.onGameOver = () => {
+      if (gameOverReturnTimer) return;
       showBanner("TEAM ELIMINATED", "All survivors have fallen! Returning to lobby...", "boss");
-      setTimeout(() => {
+      gameOverReturnTimer = setTimeout(() => {
+        gameOverReturnTimer = void 0;
         stopNetMatch();
-        const menu = document.getElementById("mainMenu");
-        if (menu) menu.classList.add("show");
+        setRunning(false);
+        document.getElementById("overlay")?.classList.add("hidden");
+        const startOverlay = document.getElementById("startOverlay");
+        if (startOverlay) startOverlay.style.display = "none";
+        document.getElementById("lobbyOverlay")?.classList.remove("hidden");
       }, 3500);
     };
     net.onDisconnected = () => {
@@ -1582,6 +1641,10 @@
     };
   }
   function startNetMatch() {
+    if (gameOverReturnTimer) {
+      clearTimeout(gameOverReturnTimer);
+      gameOverReturnTimer = void 0;
+    }
     setInNetMatch(true);
     lastBulletPos.clear();
     zombieRenderPos.clear();
@@ -1592,6 +1655,10 @@
     remoteTargetPos.clear();
   }
   function stopNetMatch() {
+    if (gameOverReturnTimer) {
+      clearTimeout(gameOverReturnTimer);
+      gameOverReturnTimer = void 0;
+    }
     setInNetMatch(false);
     setRemotePlayers([]);
     lastBulletPos.clear();
@@ -1801,7 +1868,7 @@
     dayNight.factor = Number.isFinite(rawFactor) ? Math.max(0, Math.min(1, rawFactor)) : 0;
     const wasNight = dayNight.isNight;
     dayNight.isNight = dayNight.factor > 0.5;
-    if (dayNight.isNight !== wasNight) {
+    if (dayNight.isNight !== wasNight && !inNetMatch) {
       if (dayNight.isNight) {
         dayNight.nightCount = (dayNight.nightCount || 0) + 1;
         if (dayNight.nightCount % 3 === 0) {
@@ -1839,7 +1906,7 @@
       label.textContent = `DAY | ${timeLeftSec}s (SAFE - BUILD TIME)`;
       label.className = "pill hud-font day";
     }
-    if (dayNight.isNight && dayNight.factor > 0.55) {
+    if (!inNetMatch && dayNight.isNight && dayNight.factor > 0.55) {
       dayNight.nightSpawnTimer -= dt;
       if (dayNight.nightSpawnTimer <= 0 && zombies.length < 45) {
         spawnZombie(Math.random() < 0.7 ? "normal" : "scout");
@@ -2172,6 +2239,7 @@
     });
     setBullets(bullets.filter((b) => b.life > 0 && b.x > 0 && b.x < WORLD_W && b.y > 0 && b.y < WORLD_H));
     for (const b of bullets) {
+      if (b.visualOnly) continue;
       if (b.owner === "zombie") {
         for (const s of structures) {
           if (dist(b.x, b.y, s.x, s.y) < b.radius + s.radius) {
@@ -7664,6 +7732,8 @@
     setPowerups([]);
     setBloodDecals([]);
     setWave(0);
+    setZombiesToSpawn(0);
+    setSpawnTimer(0);
     setWaveState("idle");
     setIsBossWave(false);
     setActiveBoss(null);

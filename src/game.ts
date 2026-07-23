@@ -8,7 +8,7 @@ import {
   selectedClass, selectedMode, playerName, setPlayerName, dayNight, bloodMoon,
   meta, setBullets, setZombies, setStructures, setCrates, setParticles,
   setBursts, setPowerups, setBloodDecals, setWave, setWaveState, setIsBossWave,
-  setActiveBoss, setShopOpen, setWeaponChoiceOpen, setMutationChoiceOpen,
+  setZombiesToSpawn, setSpawnTimer, setActiveBoss, setShopOpen, setWeaponChoiceOpen, setMutationChoiceOpen,
   setDebugOpen, setSelectedBuild, setManualBuildAngle, lobby, settings,
   setSettingsOpenedMidRun, debugSpeedMultiplier, inNetMatch
 } from './state';
@@ -135,7 +135,7 @@ function resetGame(): void {
   resetZombieId();
   setBullets([]); setZombies([]); setStructures([]); setCrates([]); setParticles([]); setBursts([]);
   setPowerups([]); setBloodDecals([]);
-  setWave(0); setWaveState('idle'); setIsBossWave(false); setActiveBoss(null);
+  setWave(0); setZombiesToSpawn(0); setSpawnTimer(0); setWaveState('idle'); setIsBossWave(false); setActiveBoss(null);
 
   dayNight.time = 0; dayNight.factor = 0; dayNight.isNight = false; dayNight.nightSpawnTimer = 6000; dayNight.nightCount = 0;
   bloodMoon.active = false; bloodMoon.endsAt = 0; bloodMoon.nextAt = 0;

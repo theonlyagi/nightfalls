@@ -267,6 +267,18 @@ export interface NetGameOverEvent {
   type: 'gameOver';
 }
 
+export interface NetTowerShotEvent {
+  type: 'towerShot';
+  towerId: string;
+  towerType: StructureKind;
+  x: number;
+  y: number;
+  angle: number;
+  targetX: number;
+  targetY: number;
+  level: number;
+}
+
 export type RoomPhase = 'waiting' | 'countdown' | 'active';
 
 export interface LobbyPlayerSnapshot {

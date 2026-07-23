@@ -132,6 +132,8 @@ export class Room {
   // Simulation only runs once the match is active — these stay unset until then.
   private zombieSpawnTimer: ReturnType<typeof setInterval> | undefined;
   private tickTimer: ReturnType<typeof setInterval> | undefined;
+  private gameOverResetTimer: ReturnType<typeof setTimeout> | undefined;
+  private teamDefeatPending = false;
   private onEmpty: (room: Room) => void;
 
   private dayNightTime = 0;
@@ -161,6 +163,7 @@ export class Room {
     if (this.countdownTimer) clearTimeout(this.countdownTimer);
     if (this.zombieSpawnTimer) clearInterval(this.zombieSpawnTimer);
     if (this.tickTimer) clearInterval(this.tickTimer);
+    if (this.gameOverResetTimer) clearTimeout(this.gameOverResetTimer);
   }
 
   private broadcast(payload: string): void {
@@ -213,6 +216,20 @@ export class Room {
         id: s.id, type: s.type, x: s.x, y: s.y, angle: s.angle, aimAngle: s.aimAngle,
         tier: s.tier, level: s.level, hp: s.hp, maxHp: s.maxHp,
       })),
+    }));
+  }
+
+  private broadcastTowerShot(s: StructureState, target: ZombieState): void {
+    this.broadcast(JSON.stringify({
+      type: 'towerShot',
+      towerId: s.id,
+      towerType: s.type,
+      x: s.x,
+      y: s.y,
+      angle: s.aimAngle,
+      targetX: target.x,
+      targetY: target.y,
+      level: s.level,
     }));
   }
 
@@ -503,6 +520,7 @@ export class Room {
   }
 
   private activateMatch(): void {
+    this.teamDefeatPending = false;
     this.phase = 'active';
     this.countdownEndsAt = null;
     this.zombieSpawnTimer = setInterval(() => this.maybeSpawnZombie(), ZOMBIE_SPAWN_INTERVAL_MS);
@@ -759,6 +777,7 @@ export class Room {
 
         s.lastShot = now;
         s.aimAngle = Math.atan2(target.y - s.y, target.x - s.x);
+        this.broadcastTowerShot(s, target);
         target.hp -= spec.damage;
         if (target.hp <= 0) this.zombies.delete(target.id);
         // No XP granted for structure kills — structures have no owner in
@@ -837,22 +856,84 @@ export class Room {
     }
   }
 
-  private checkTeamDefeat(): void {
-    if (this.phase !== 'active' || this.players.size === 0) return;
-    const allDead = [...this.players.values()].every(p => !p.alive);
-    if (allDead) {
-      this.broadcast(JSON.stringify({ type: 'gameOver' }));
+  private stopActiveTimers(): void {
+    if (this.zombieSpawnTimer) {
+      clearInterval(this.zombieSpawnTimer);
+      this.zombieSpawnTimer = undefined;
+    }
+    if (this.tickTimer) {
+      clearInterval(this.tickTimer);
+      this.tickTimer = undefined;
     }
   }
 
+  private resetAfterTeamDefeat(): void {
+    this.gameOverResetTimer = undefined;
+    this.teamDefeatPending = false;
+    this.phase = 'waiting';
+    this.countdownEndsAt = null;
+
+    this.zombies.clear();
+    this.bullets.clear();
+    this.structures.clear();
+    this.resources.clear();
+    this.generateWorld();
+
+    this.dayNightTime = 0;
+    this.isNight = false;
+    this.nightCount = 0;
+    this.zombiesLeftToSpawn = 0;
+
+    const now = Date.now();
+    for (const p of this.players.values()) {
+      p.x = WORLD_W / 2;
+      p.y = WORLD_H / 2;
+      p.angle = 0;
+      p.hp = PLAYER_MAX_HP;
+      p.maxHp = PLAYER_MAX_HP;
+      p.alive = true;
+      p.weapon = undefined;
+      p.xp = 0;
+      p.level = 1;
+      p.xpToNext = 50;
+      p.lastMoveAt = now;
+      p.lastMoveX = p.x;
+      p.lastMoveY = p.y;
+      p.lastShotAt = 0;
+      p.ready = false;
+    }
+
+    this.broadcastPlayers();
+    this.broadcastZombies();
+    this.broadcastBullets();
+    this.broadcastStructures();
+    this.broadcastResources();
+    this.broadcast(JSON.stringify({ type: 'dayNight', time: 0, nightCount: 0, bloodMoon: false }));
+    this.broadcastLobby();
+  }
+
+  private checkTeamDefeat(): boolean {
+    if (this.phase !== 'active' || this.players.size === 0 || this.teamDefeatPending) return false;
+    const allDead = [...this.players.values()].every(p => !p.alive);
+    if (!allDead) return false;
+
+    this.teamDefeatPending = true;
+    this.stopActiveTimers();
+    this.broadcastPlayers();
+    this.broadcast(JSON.stringify({ type: 'gameOver' }));
+    this.gameOverResetTimer = setTimeout(() => this.resetAfterTeamDefeat(), 3500);
+    return true;
+  }
+
   private tick(): void {
+    if (this.teamDefeatPending) return;
     this.updateDayNight();
     this.tickPlayerRegen();
     if (this.zombies.size > 0) this.tickZombiesMovement();
     if (this.bullets.size > 0) this.tickBulletsMovement();
     this.resolveCollisions();
     if (this.structures.size > 0) this.tickStructures();
-    this.checkTeamDefeat();
+    if (this.checkTeamDefeat()) return;
 
     if (this.sockets.size === 0) return;
     this.broadcastPlayers();

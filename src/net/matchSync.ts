@@ -17,7 +17,7 @@ import {
 import {
   setInNetMatch, setRemotePlayers, RemotePlayer, remotePlayers,
   setZombies, setBullets, setStructures, setResources, player, zombies, bullets,
-  inspectedStructure, setInspectedStructure, dayNight, bloodMoon,
+  inspectedStructure, setInspectedStructure, dayNight, bloodMoon, setWave, setRunning,
 } from '../state';
 import { Zombie, Bullet, Structure, HairKind, MouthKind, WeaponKind } from '../types';
 import { SKIN_VARIANTS, BUILD_DEFS, WEAPON_DEFS } from '../constants';
@@ -185,6 +185,7 @@ function toClientStructure(snap: NetStructureSnapshot): Structure {
 }
 
 let wired = false;
+let gameOverReturnTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** Registers the server -> game-state callbacks. Safe to call once at startup;
  *  the callbacks themselves check inNetMatch-relevant state as needed. */
@@ -258,7 +259,7 @@ export function initMatchSync(): void {
       if (!activeIds.has(id)) { bulletRenderPos.delete(id); bulletTargetPos.delete(id); }
     }
 
-    const localBullets = bullets.filter(b => (b.owner === 'player' || (b.owner as any) === 'remotePlayer') && b.life > 0 && !b.dead);
+    const localBullets = bullets.filter(b => (b.visualOnly || b.owner === 'player' || (b.owner as any) === 'remotePlayer') && b.life > 0 && !b.dead);
     const remoteServerBullets = msg.bullets.filter(b => b.ownerId !== myId).map(toClientBullet);
     setBullets([...localBullets, ...remoteServerBullets]);
   };
@@ -327,6 +328,58 @@ export function initMatchSync(): void {
     }
   };
 
+  net.onTowerShot = (msg) => {
+    const def = BUILD_DEFS[msg.towerType];
+    if (!def) return;
+
+    let speed = 8.5;
+    let radius = 4;
+    let life = 900;
+    let explosive = false;
+    let explodeRadius: number | undefined;
+
+    if (msg.towerType === 'mortar') {
+      speed = 4.5;
+      radius = 6;
+      life = 1300;
+      explosive = true;
+      explodeRadius = 80;
+    } else if (msg.towerType === 'toxic') {
+      speed = 5.0;
+      radius = 5;
+      life = 1200;
+      explosive = true;
+      explodeRadius = 10;
+    } else if (msg.towerType === 'sniper') {
+      speed = 18;
+      radius = 3;
+      life = 450;
+    } else if (msg.towerType === 'tesla' || msg.towerType === 'frost') {
+      speed = 7;
+      radius = 5;
+      life = 650;
+    }
+
+    const a = msg.angle;
+    const b: Bullet = {
+      id: `tower_${msg.towerId}_${performance.now()}`,
+      x: msg.x + Math.cos(a) * (def.radius + 4),
+      y: msg.y + Math.sin(a) * (def.radius + 4),
+      vx: Math.cos(a) * speed,
+      vy: Math.sin(a) * speed,
+      radius,
+      damage: 0,
+      life,
+      owner: 'turret',
+      visualOnly: true,
+    };
+    if (explosive) {
+      b.explosive = true;
+      b.explodeRadius = explodeRadius;
+    }
+    bullets.push(b);
+  };
+
   net.onDayNight = (msg) => {
     if (Number.isFinite(msg.time)) {
       const diff = Math.abs(dayNight.time - msg.time);
@@ -335,15 +388,21 @@ export function initMatchSync(): void {
       }
     }
     dayNight.nightCount = msg.nightCount || 0;
+    setWave(dayNight.nightCount);
     bloodMoon.active = !!msg.bloodMoon;
   };
 
   net.onGameOver = () => {
+    if (gameOverReturnTimer) return;
     showBanner('TEAM ELIMINATED', 'All survivors have fallen! Returning to lobby...', 'boss');
-    setTimeout(() => {
+    gameOverReturnTimer = setTimeout(() => {
+      gameOverReturnTimer = undefined;
       stopNetMatch();
-      const menu = document.getElementById('mainMenu');
-      if (menu) menu.classList.add('show');
+      setRunning(false);
+      document.getElementById('overlay')?.classList.add('hidden');
+      const startOverlay = document.getElementById('startOverlay') as HTMLElement | null;
+      if (startOverlay) startOverlay.style.display = 'none';
+      document.getElementById('lobbyOverlay')?.classList.remove('hidden');
     }, 3500);
   };
 
@@ -354,6 +413,10 @@ export function initMatchSync(): void {
 
 /** Called once the lobby countdown completes and the match actually starts. */
 export function startNetMatch(): void {
+  if (gameOverReturnTimer) {
+    clearTimeout(gameOverReturnTimer);
+    gameOverReturnTimer = undefined;
+  }
   setInNetMatch(true);
   lastBulletPos.clear();
   zombieRenderPos.clear();
@@ -365,6 +428,10 @@ export function startNetMatch(): void {
 }
 
 export function stopNetMatch(): void {
+  if (gameOverReturnTimer) {
+    clearTimeout(gameOverReturnTimer);
+    gameOverReturnTimer = undefined;
+  }
   setInNetMatch(false);
   setRemotePlayers([]);
   lastBulletPos.clear();

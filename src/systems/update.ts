@@ -310,6 +310,7 @@ export function updateBullets(dt: number): void {
   setBullets(bullets.filter(b => b.life > 0 && b.x > 0 && b.x < WORLD_W && b.y > 0 && b.y < WORLD_H));
 
   for (const b of bullets) {
+    if (b.visualOnly) continue;
     if (b.owner === 'zombie') {
       for (const s of structures) {
         if (dist(b.x, b.y, s.x, s.y) < b.radius + s.radius) { b.dead = true; break; }

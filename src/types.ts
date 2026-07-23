@@ -54,6 +54,7 @@ export interface Zombie {
 export interface Bullet {
   x: number; y: number; vx: number; vy: number; radius: number; damage: number; life: number;
   owner: 'player' | 'turret' | 'zombie'; insta?: boolean; dead?: boolean;
+  visualOnly?: boolean;
   explosive?: boolean; explodeRadius?: number; burn?: boolean;
   slowProj?: boolean;
 

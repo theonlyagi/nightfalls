@@ -199,7 +199,7 @@ export function updateDayNight(dt: number): void {
   const wasNight = dayNight.isNight;
   dayNight.isNight = dayNight.factor > 0.5;
 
-  if (dayNight.isNight !== wasNight) {
+  if (dayNight.isNight !== wasNight && !inNetMatch) {
     if (dayNight.isNight) {
       dayNight.nightCount = (dayNight.nightCount || 0) + 1;
       // Periodic Blood Moon: Triggers every 3rd night (Night 3, Night 6, Night 9...)
@@ -247,7 +247,7 @@ export function updateDayNight(dt: number): void {
   }
 
   // Night random spawns — strictly active ONLY at night
-  if (dayNight.isNight && dayNight.factor > 0.55) {
+  if (!inNetMatch && dayNight.isNight && dayNight.factor > 0.55) {
     dayNight.nightSpawnTimer -= dt;
     if (dayNight.nightSpawnTimer <= 0 && zombies.length < 45) {
       spawnZombie(Math.random() < 0.7 ? 'normal' : 'scout');

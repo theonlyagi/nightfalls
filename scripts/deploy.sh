@@ -13,12 +13,12 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-VPS_HOST="root@74.207.234.155"
-SSH_KEY="$HOME/.ssh/nightfalls_key"
+VPS_HOST="${VPS_HOST:-developer@74.207.234.155}"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
 REMOTE_DIR="/var/www/nightfalls"
 WS_URL="wss://night-falls.xyz/ws"
 
-ssh_vps() { ssh -i "$SSH_KEY" "$VPS_HOST" "$@"; }
+ssh_vps() { ssh -tt -i "$SSH_KEY" "$VPS_HOST" "$@"; }
 scp_vps() { scp -i "$SSH_KEY" "$@"; }
 
 echo "==> Building server (tsc)..."
@@ -41,6 +41,6 @@ echo "==> Installing server dependencies on VPS (native module, must build there
 ssh_vps "cd $REMOTE_DIR && npm install --omit=dev"
 
 echo "==> Fixing ownership and restarting service..."
-ssh_vps "chown -R nightfalls:nightfalls $REMOTE_DIR && systemctl restart nightfalls.service && sleep 1 && systemctl status nightfalls.service --no-pager -l"
+ssh_vps "sudo chown -R developer:developer $REMOTE_DIR && sudo systemctl restart nightfalls.service && sleep 1 && sudo systemctl status nightfalls.service --no-pager -l"
 
 echo "==> Deploy complete: https://night-falls.xyz"
