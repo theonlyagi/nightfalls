@@ -188,35 +188,66 @@ this entire persistence layer needs to be replaced with an actual server
 
 ## Roadmap / where this was headed
 
-Rough priority order discussed during development, highest-impact first:
+**Real multiplayer is done and live** (server-authoritative Node/WebSockets
+on `night-falls.xyz`) — this used to be item #1 here when it was just a
+client-side lobby stub with no server at all; that's no longer accurate, so
+it's dropped from the list below. What's still open on the multiplayer side
+specifically, plus everything else discussed for future work, roughly
+prioritized:
 
-1. **Real multiplayer** — server-authoritative (Node + WebSockets), the
-   single biggest unlock for making this an actual "io game" instead of a
-   single-player prototype with a leaderboard bolted on. Also the only real
-   fix for the persistence caveat above, and for protecting game logic
-   client-side code can always be viewed/copied by definition.
+1. **Shop/resource sync (multiplayer)** — wood/stone/iron/points/powerups
+   aren't server-tracked yet; costs aren't validated server-side either.
+2. **Full zombie-type variety + structure Phase 2 combat (multiplayer)** —
+   server still has one generic zombie archetype and flat per-level
+   structure damage; the 9-type variety system and splash/chain-lightning/
+   slow/crit mechanics from solo aren't ported. See `CLAUDE.md`.
+3. **Downed-not-dead revive (multiplayer)** — a player at 0 HP goes down
+   instead of dying; teammates can revive. Builds on the HP/`alive` sync
+   already in `server/src/Room.ts`.
+4. **Resource sharing/trading (multiplayer)** — teammates hand off wood/
+   stone/points mid-run instead of four solo economies in one room.
+5. **A real backend for accounts/leaderboard**, replacing `window.storage`
+   (see the persistence caveat above).
+6. **Relic/artifact system** — card-choice modal every few waves from a
+   large pool of build-defining passive effects, reusing the existing
+   level-15/25 choice-UI pattern.
+7. **Elite/named zombies** — rare glowing mini-bosses on any wave, not
+   gated to every-10th like the current boss.
+8. **New creature types** — genuinely new enemy shapes/behaviors (zombie
+   dogs, wall-climbing spiders), not just palette swaps.
+9. **Bestiary/codex** — unlockable per-enemy entries that fill in as you
+   encounter each type.
+10. **Melee/secondary weapon slot** — an emergency close-range option
+    alongside the primary gun.
+11. **Base traps + automated resource gatherers** — expands the current 5
+    structure types.
+12. **Base-wide auras** — a structure/campfire upgrade buffing regen/damage
+    in a radius.
+13. **Achievements/challenges** — discrete goals granting meta points.
+14. **Daily login rewards + daily quests** — cheapest-to-build, highest
+    retention-value item on this list; do this early.
+15. **Account level system** — persistent login-and-levels track separate
+    from in-run player level; needs a scoping pass against the existing
+    `metaPoints`/`PERM_DEFS` system first.
+16. **Guild/clan system** — shared identity/leaderboard for a persistent
+    group; real backend work, bigger scope than most items here.
+17. **Battle pass** (free + paid tiers) — flagged as a monetization
+    feature (real payment processing), scope separately from gameplay work.
+18. **Difficulty selector** — pick at run start, both singleplayer and
+    multiplayer, as a run-config input rather than a progression gate.
+19. **Active companion** (wolf/drone that shoots and levels up) — confirmed
+    paid feature, same monetization category as the battle pass.
+20. **Dynamic weather, risk-reward loot crates, telegraphed megawaves,
+    rotating unique bosses, start-of-run blessings, weekly leaderboard
+    rewards** — smaller run-variety additions, each already scoped in
+    `dev-notes/FEATURE_ROADMAP.md`.
+21. Biomes/map variety, curse waves, daily seed challenge, physical "gold"
+    pickup currency, auto-generated share cards — conditional or
+    not-yet-decided; see `dev-notes/FEATURE_ROADMAP.md` for the trigger
+    conditions and open questions on each.
 
-   The **client side of this is scaffolded**: the start screen has a Game
-   Mode picker (Singleplayer / Team Mode), and picking Team Mode leads to a
-   lobby screen (up to 4 players, ready-up, auto-starts once everyone's
-   ready). All of it currently runs against a local-only stub — the `lobby`
-   object in `src/game.ts` (search `Team lobby (local stub`) — that only
-   ever has the local player in it. There is still no server; this game
-   is a static site on GitHub Pages, which can't hold live connections.
-
-   To make Team Mode real, a server needs to expose join/setReady/leave over
-   a WebSocket and push roster + match-start events back down — the lobby UI
-   and ready-up flow are already written against exactly that shape
-   (`lobby.players`, `lobby.onPlayersChanged`, `lobby.onMatchStart`), so
-   wiring in a real client means replacing the stub's internals, not the UI.
-   That server also needs somewhere to actually run, unlike GitHub Pages —
-   e.g. Fly.io or Render's free tier are reasonable starting points for a
-   small Node/WebSocket process. Once players can join a real shared
-   session, the harder remaining piece is everything *inside* a match:
-   syncing zombie waves, structures, and hit detection across clients — the
-   lobby only gets everyone to the same starting line.
-2. **A real backend for accounts/leaderboard** once multiplayer exists.
-3. Biomes, more boss variety, more events — lower priority polish.
-
-See `dev-notes/DESIGN_NOTES.md` for the full history of what's been tried, what
+See `dev-notes/FEATURE_ROADMAP.md` for the full decision record on every
+item above (what's approved, what's conditional, what's explicitly
+rejected, and the open scoping questions on each), and
+`dev-notes/DESIGN_NOTES.md` for the full history of what's been tried, what
 the current visual direction is, and exactly what's in-progress right now.
