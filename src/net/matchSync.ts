@@ -118,16 +118,11 @@ function toClientZombie(snap: NetZombieSnapshot): Zombie {
   zombieRenderPos.set(h, render);
 
   const existing = zombies.find(z => z.id === h);
-  let curHp = snap.hp;
+  // Server's hp is always authoritative - no client-side preference/merge.
+  const curHp = snap.hp;
   let curMaxHp = snap.maxHp;
 
   if (existing) {
-    // Only update HP if damaged (snap.hp < existing.hp) or during flash hit state
-    if (snap.hp < existing.hp || existing.flash > 0) {
-      curHp = snap.hp;
-    } else {
-      curHp = existing.hp;
-    }
     curMaxHp = existing.maxHp || snap.maxHp;
   }
 
