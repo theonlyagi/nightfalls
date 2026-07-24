@@ -25,12 +25,13 @@ export function setRunning(val: boolean): void { running = val; }
 export let inNetMatch = false;
 export function setInNetMatch(val: boolean): void { inNetMatch = val; }
 
-import { WeaponKind } from './types';
+import { WeaponKind, MutationKind } from './types';
 
 export interface RemotePlayer {
   id: string; name: string; x: number; y: number; angle: number;
   hp: number; maxHp: number; alive: boolean;
   weapon?: WeaponKind;
+  mutation?: MutationKind;
   renderX?: number; renderY?: number; renderAngle?: number;
   targetX?: number; targetY?: number; targetAngle?: number;
 }

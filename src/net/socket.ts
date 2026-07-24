@@ -8,7 +8,7 @@
 // `lobby.onMatchStart` hooks in state.ts.
 
 import { WS_URL } from '../constants';
-import { StructureKind, WeaponKind, ZombieKind } from '../types';
+import { StructureKind, WeaponKind, MutationKind, ZombieKind } from '../types';
 
 const SESSION_TOKEN_KEY = 'nightfall_session_token';
 
@@ -29,6 +29,8 @@ export interface NetWelcomeMessage {
 export interface NetPlayerSnapshot {
   id: string; name: string; x: number; y: number; angle: number;
   hp: number; maxHp: number; alive: boolean;
+  weapon?: WeaponKind; weaponChosen: boolean;
+  mutation?: MutationKind; mutationChosen: boolean;
   xp: number; level: number; xpToNext: number;
 }
 export interface NetPlayersMessage { type: 'players'; players: NetPlayerSnapshot[]; }
@@ -173,5 +175,5 @@ export function sendUpgrade(structureId: string): void { send({ type: 'upgrade',
 export function sendRemove(structureId: string): void { send({ type: 'remove', structureId }); }
 export function sendHitResource(id: string, damage: number): void { send({ type: 'hitResource', id, damage }); }
 export function sendRevive(targetId: string): void { send({ type: 'revive', targetId }); }
-export function sendWeaponChoice(weapon: string): void { send({ type: 'weaponChoice', weapon } as any); }
-export function sendMutationChoice(mutation: string): void { send({ type: 'mutationChoice', mutation } as any); }
+export function sendWeaponChoice(weapon: WeaponKind): void { send({ type: 'weaponChoice', weapon }); }
+export function sendMutationChoice(mutation: MutationKind): void { send({ type: 'mutationChoice', mutation }); }

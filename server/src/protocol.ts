@@ -23,6 +23,12 @@ export const ZOMBIE_DAMAGE = 8;
 export const ZOMBIE_HIT_COOLDOWN_MS = 600;
 export const ZOMBIE_KILL_XP = 10;
 
+// Matches src/systems/update.ts's flat per-resource-type XP grants (the
+// player-side resourceMul buff multiplier is not modeled server-side yet).
+export const RESOURCE_KILL_XP: Record<'tree' | 'rock' | 'iron', number> = {
+  tree: 3, iron: 6, rock: 3,
+};
+
 /** World units/sec while chasing the nearest alive player. There's no
  *  existing server-side value to match — the client's per-type speedMul
  *  system isn't ported (server has one generic zombie, see the zombie-model
@@ -122,7 +128,28 @@ export interface RevivePacket {
   targetId: string;
 }
 
-export type ClientPacket = MovePacket | ShootPacket | ReadyPacket | BuildPacket | UpgradePacket | RemovePacket | HitResourcePacket | RevivePacket;
+// Duplicated from src/constants.ts's WEAPON_DEFS keys (same cross-boundary
+// gap as STRUCTURE_KINDS above — server doesn't import client constants).
+export const WEAPON_KINDS = ['pistol', 'dualguns', 'machinegun', 'shotgun', 'grenadelauncher'];
+export const WEAPON_UNLOCK_LEVEL = 15;
+
+export interface WeaponChoicePacket {
+  type: 'weaponChoice';
+  weapon: string;
+}
+
+// Duplicated from src/constants.ts's MUTATION_DEFS keys (same cross-boundary
+// gap as WEAPON_KINDS above). Ownership/validation only — mutation stat
+// effects (radius, maxHp, etc.) are not applied server-side yet.
+export const MUTATION_KINDS = ['vampire', 'overclocked', 'titan', 'pyromaniac'];
+export const MUTATION_UNLOCK_LEVEL = 25;
+
+export interface MutationChoicePacket {
+  type: 'mutationChoice';
+  mutation: string;
+}
+
+export type ClientPacket = MovePacket | ShootPacket | ReadyPacket | BuildPacket | UpgradePacket | RemovePacket | HitResourcePacket | RevivePacket | WeaponChoicePacket | MutationChoicePacket;
 
 // ---------------- Structure stats (Phase 1: flat per-level numbers only) ----------------
 // Deliberately simplified server-side model — see server/src/Room.ts's
@@ -291,6 +318,10 @@ export interface PlayerSnapshot {
   hp: number;
   maxHp: number;
   alive: boolean;
+  weapon?: string;
+  weaponChosen: boolean;
+  mutation?: string;
+  mutationChosen: boolean;
   xp: number;
   level: number;
   xpToNext: number;
@@ -355,6 +386,24 @@ export function isHitResourcePacket(value: any): value is HitResourcePacket {
 
 export function isRevivePacket(value: any): value is RevivePacket {
   return value && value.type === 'revive' && typeof value.targetId === 'string';
+}
+
+export function isWeaponChoicePacket(value: any): value is WeaponChoicePacket {
+  return (
+    value &&
+    value.type === 'weaponChoice' &&
+    typeof value.weapon === 'string' &&
+    WEAPON_KINDS.includes(value.weapon)
+  );
+}
+
+export function isMutationChoicePacket(value: any): value is MutationChoicePacket {
+  return (
+    value &&
+    value.type === 'mutationChoice' &&
+    typeof value.mutation === 'string' &&
+    MUTATION_KINDS.includes(value.mutation)
+  );
 }
 
 export function clamp(v: number, lo: number, hi: number): number {

@@ -1262,6 +1262,19 @@
     }
     xpCallbacks.onUpgradePanel();
   }
+  function applyServerLevelUp(levelsGained) {
+    player.statPoints += levelsGained;
+    for (let i = 0; i < levelsGained; i++) {
+      spawnParticle(player.x, player.y - 40, "LEVEL UP", "#4ecdc4");
+    }
+    if (player.level >= 15 && !player.weaponChosen) {
+      xpCallbacks.onWeaponChoice();
+    }
+    if (player.level >= 25 && !player.mutationChosen) {
+      xpCallbacks.onMutationChoice();
+    }
+    xpCallbacks.onUpgradePanel();
+  }
   function zombieDied(z, isMyKill = true) {
     if (z.dead) return;
     z.dead = true;
@@ -1285,329 +1298,15 @@
       spawnParticle(z.x, z.y - 25, "+" + goldDrop + " gold", "#ffd76a");
     }
     if (z.type === "boss") {
-      gainXp(200 + wave * 10);
+      if (!inNetMatch) gainXp(200 + wave * 10);
       setActiveBoss(null);
       const bossBar = document.getElementById("bossBar");
       if (bossBar) bossBar.classList.remove("show");
       spawnParticle(z.x, z.y - 40, "BOSS DEFEATED", "#c084fc");
       triggerShake(14, 300);
     } else {
-      gainXp(10 + wave * 2);
+      if (!inNetMatch) gainXp(10 + wave * 2);
     }
-  }
-
-  // src/net/matchSync.ts
-  function hashId(id) {
-    let h = 0;
-    for (let i = 0; i < id.length; i++) h = h * 31 + id.charCodeAt(i) >>> 0;
-    return h;
-  }
-  var HAIR_KINDS = ["bald", "hood", "tuft"];
-  var MOUTH_KINDS = ["open", "frown", "grimace"];
-  var zombieRenderPos = /* @__PURE__ */ new Map();
-  var zombieTargetPos = /* @__PURE__ */ new Map();
-  var bulletRenderPos = /* @__PURE__ */ new Map();
-  var bulletTargetPos = /* @__PURE__ */ new Map();
-  var remoteRenderPos = /* @__PURE__ */ new Map();
-  var remoteTargetPos = /* @__PURE__ */ new Map();
-  function lerpAngle(a, b, t) {
-    let diff = (b - a) % (Math.PI * 2);
-    if (diff < -Math.PI) diff += Math.PI * 2;
-    if (diff > Math.PI) diff -= Math.PI * 2;
-    return a + diff * t;
-  }
-  var NET_SMOOTH_TAU_MS = 90;
-  function smoothFactor(dtMs) {
-    return 1 - Math.exp(-dtMs / NET_SMOOTH_TAU_MS);
-  }
-  function updateNetInterpolation(dt) {
-    const t = smoothFactor(dt);
-    for (const z of zombies) {
-      const target = zombieTargetPos.get(z.id);
-      if (!target) continue;
-      z.x += (target.x - z.x) * t;
-      z.y += (target.y - z.y) * t;
-      zombieRenderPos.set(z.id, { x: z.x, y: z.y });
-    }
-    for (const b of bullets) {
-      if (!b.id) continue;
-      const target = bulletTargetPos.get(b.id);
-      if (!target) continue;
-      b.x += (target.x - b.x) * t;
-      b.y += (target.y - b.y) * t;
-      bulletRenderPos.set(b.id, { x: b.x, y: b.y });
-    }
-    for (const rp of remotePlayers) {
-      const target = remoteTargetPos.get(rp.id);
-      if (!target) continue;
-      const rx = (rp.renderX ?? rp.x) + (target.x - (rp.renderX ?? rp.x)) * t;
-      const ry = (rp.renderY ?? rp.y) + (target.y - (rp.renderY ?? rp.y)) * t;
-      const rAngle = lerpAngle(rp.renderAngle ?? rp.angle, target.angle, t);
-      rp.renderX = rx;
-      rp.renderY = ry;
-      rp.renderAngle = rAngle;
-      rp.angle = rAngle;
-      remoteRenderPos.set(rp.id, { x: rx, y: ry, angle: rAngle, weapon: target.weapon });
-    }
-  }
-  function toClientZombie(snap) {
-    const h = hashId(snap.id);
-    const variant = SKIN_VARIANTS[h % SKIN_VARIANTS.length];
-    zombieTargetPos.set(h, { x: snap.x, y: snap.y });
-    const render2 = zombieRenderPos.get(h) ?? { x: snap.x, y: snap.y };
-    zombieRenderPos.set(h, render2);
-    const existing = zombies.find((z) => z.id === h);
-    let curHp = snap.hp;
-    let curMaxHp = snap.maxHp;
-    if (existing) {
-      if (snap.hp < existing.hp || existing.flash > 0) {
-        curHp = snap.hp;
-      } else {
-        curHp = existing.hp;
-      }
-      curMaxHp = existing.maxHp || snap.maxHp;
-    }
-    return {
-      id: h,
-      type: snap.zombieType || existing?.type || "normal",
-      x: render2.x,
-      y: render2.y,
-      radius: existing?.radius || 20,
-      hp: curHp,
-      maxHp: curMaxHp,
-      speed: 0,
-      damage: 0,
-      armor: 0,
-      hitCooldown: existing?.hitCooldown || 0,
-      wobble: existing?.wobble ?? h % 628 / 100,
-      flash: existing?.flash || 0,
-      lastShot: existing?.lastShot || 0,
-      fuseStart: existing?.fuseStart || null,
-      hairKind: existing?.hairKind || HAIR_KINDS[h % HAIR_KINDS.length],
-      mouthKind: existing?.mouthKind || MOUTH_KINDS[(h >> 3) % MOUTH_KINDS.length],
-      squishX: existing?.squishX || 1,
-      squishY: existing?.squishY || 1,
-      skinColor: variant[0],
-      skinColor2: variant[1],
-      skinDark: variant[2],
-      clothColor: null
-    };
-  }
-  var lastBulletPos = /* @__PURE__ */ new Map();
-  function toClientBullet(snap) {
-    const prev = lastBulletPos.get(snap.id);
-    const vx = prev ? snap.x - prev.x : 0;
-    const vy = prev ? snap.y - prev.y : 0;
-    lastBulletPos.set(snap.id, { x: snap.x, y: snap.y });
-    bulletTargetPos.set(snap.id, { x: snap.x, y: snap.y });
-    const render2 = bulletRenderPos.get(snap.id) ?? { x: snap.x, y: snap.y };
-    bulletRenderPos.set(snap.id, render2);
-    return {
-      id: snap.id,
-      x: render2.x,
-      y: render2.y,
-      vx,
-      vy,
-      radius: 5,
-      damage: 0,
-      life: 1,
-      owner: "player"
-    };
-  }
-  function toClientStructure(snap) {
-    return {
-      id: snap.id,
-      type: snap.type,
-      x: snap.x,
-      y: snap.y,
-      angle: snap.angle,
-      aimAngle: snap.aimAngle,
-      radius: BUILD_DEFS[snap.type].radius,
-      hp: snap.hp,
-      maxHp: snap.maxHp,
-      tier: snap.tier,
-      level: snap.level
-    };
-  }
-  var wired = false;
-  function initMatchSync() {
-    if (wired) return;
-    wired = true;
-    net.onPlayers = (msg) => {
-      const myId2 = getMyId();
-      const activeIds = new Set(msg.players.map((p) => p.id));
-      for (const id of remoteRenderPos.keys()) {
-        if (!activeIds.has(id)) {
-          remoteRenderPos.delete(id);
-          remoteTargetPos.delete(id);
-        }
-      }
-      const others = msg.players.filter((p) => p.id !== myId2).map((p) => {
-        const weapon = p.weapon || "pistol";
-        remoteTargetPos.set(p.id, { x: p.x, y: p.y, angle: p.angle, weapon });
-        const render2 = remoteRenderPos.get(p.id) ?? { x: p.x, y: p.y, angle: p.angle, weapon };
-        remoteRenderPos.set(p.id, render2);
-        return {
-          id: p.id,
-          name: p.name,
-          x: p.x,
-          y: p.y,
-          angle: p.angle,
-          hp: p.hp,
-          maxHp: p.maxHp,
-          alive: p.alive,
-          weapon,
-          renderX: render2.x,
-          renderY: render2.y,
-          renderAngle: render2.angle,
-          targetX: p.x,
-          targetY: p.y,
-          targetAngle: p.angle
-        };
-      });
-      setRemotePlayers(others);
-      const mine = msg.players.find((p) => p.id === myId2);
-      if (mine) {
-        player.maxHp = mine.maxHp;
-        player.alive = mine.alive;
-        player.hp = mine.hp;
-      }
-    };
-    net.onZombies = (msg) => {
-      const activeIds = new Set(msg.zombies.map((z) => hashId(z.id)));
-      for (const id of zombieRenderPos.keys()) {
-        if (!activeIds.has(id)) {
-          zombieRenderPos.delete(id);
-          zombieTargetPos.delete(id);
-        }
-      }
-      setZombies(msg.zombies.map(toClientZombie));
-    };
-    net.onBullets = (msg) => {
-      const myId2 = getMyId();
-      const activeIds = new Set(msg.bullets.map((b) => b.id));
-      for (const id of lastBulletPos.keys()) {
-        if (!activeIds.has(id)) lastBulletPos.delete(id);
-      }
-      for (const id of bulletRenderPos.keys()) {
-        if (!activeIds.has(id)) {
-          bulletRenderPos.delete(id);
-          bulletTargetPos.delete(id);
-        }
-      }
-      const localBullets = bullets.filter((b) => (b.owner === "player" || b.owner === "remotePlayer") && b.life > 0 && !b.dead);
-      const remoteServerBullets = msg.bullets.filter((b) => b.ownerId !== myId2).map(toClientBullet);
-      setBullets([...localBullets, ...remoteServerBullets]);
-    };
-    net.onStructures = (msg) => {
-      const next = msg.structures.map(toClientStructure);
-      setStructures(next);
-      if (inspectedStructure) {
-        setInspectedStructure(next.find((s) => s.id === inspectedStructure.id) ?? null);
-      }
-    };
-    net.onResources = (msg) => {
-      setResources(msg.resources.map((r) => ({
-        id: r.id,
-        type: r.type,
-        x: r.x,
-        y: r.y,
-        radius: r.radius,
-        hp: r.hp,
-        maxHp: r.maxHp
-      })));
-    };
-    net.onShoot = (msg) => {
-      const myId2 = getMyId();
-      if (msg.shooterId === myId2) return;
-      const shooter = remotePlayers.find((p) => p.id === msg.shooterId);
-      const shooterX = msg.x ?? (shooter?.renderX ?? shooter?.x ?? 0);
-      const shooterY = msg.y ?? (shooter?.renderY ?? shooter?.y ?? 0);
-      const weapon = msg.weapon || shooter?.weapon || "pistol";
-      const angle = msg.angle;
-      const wdef = WEAPON_DEFS[weapon] || WEAPON_DEFS.pistol;
-      const dmg = 12 * wdef.damageMul;
-      const speed = 9.5 * (wdef.bulletSpeedMul || 1);
-      const life = 4e3 * (wdef.bulletLifeMul || 1);
-      function spawnBullet(a, originOffset) {
-        const perpX = Math.cos(a + Math.PI / 2), perpY = Math.sin(a + Math.PI / 2);
-        const b = {
-          x: shooterX + Math.cos(a) * 54 + perpX * originOffset,
-          y: shooterY + Math.sin(a) * 54 + perpY * originOffset,
-          vx: Math.cos(a) * speed,
-          vy: Math.sin(a) * speed,
-          radius: 5,
-          damage: dmg,
-          life,
-          owner: "remotePlayer"
-        };
-        if (wdef.explosive) {
-          b.explosive = true;
-          b.explodeRadius = wdef.explodeRadius;
-        }
-        bullets.push(b);
-      }
-      if (weapon === "dualguns") {
-        spawnBullet(angle, -9);
-        spawnBullet(angle, 9);
-      } else if (weapon === "shotgun") {
-        const spread = wdef.spreadRad || 0.22;
-        spawnBullet(angle - spread, 0);
-        spawnBullet(angle, 0);
-        spawnBullet(angle + spread, 0);
-      } else {
-        spawnBullet(angle, 0);
-      }
-    };
-    net.onDayNight = (msg) => {
-      if (Number.isFinite(msg.time)) {
-        const diff = Math.abs(dayNight.time - msg.time);
-        if (diff > 400 && diff < 1e5) {
-          dayNight.time = msg.time;
-        }
-      }
-      dayNight.nightCount = msg.nightCount || 0;
-      bloodMoon.active = !!msg.bloodMoon;
-    };
-    net.onGameOver = () => {
-      showBanner("TEAM ELIMINATED", "All survivors have fallen! Returning to lobby...", "boss");
-      setTimeout(() => {
-        stopNetMatch();
-        const menu = document.getElementById("mainMenu");
-        if (menu) menu.classList.add("show");
-      }, 3500);
-    };
-    net.onDisconnected = () => {
-      setInNetMatch(false);
-    };
-  }
-  function startNetMatch() {
-    setInNetMatch(true);
-    lastBulletPos.clear();
-    zombieRenderPos.clear();
-    zombieTargetPos.clear();
-    bulletRenderPos.clear();
-    bulletTargetPos.clear();
-    remoteRenderPos.clear();
-    remoteTargetPos.clear();
-  }
-  function stopNetMatch() {
-    setInNetMatch(false);
-    setRemotePlayers([]);
-    lastBulletPos.clear();
-    zombieRenderPos.clear();
-    zombieTargetPos.clear();
-    bulletRenderPos.clear();
-    bulletTargetPos.clear();
-    remoteRenderPos.clear();
-    remoteTargetPos.clear();
-  }
-  var lastSentMoveAt = 0;
-  var MOVE_SEND_INTERVAL_MS = 80;
-  function maybeSendMove(now) {
-    if (now - lastSentMoveAt < MOVE_SEND_INTERVAL_MS) return;
-    lastSentMoveAt = now;
-    sendMove(player.x, player.y, player.angle);
   }
 
   // src/systems/wave.ts
@@ -1792,32 +1491,19 @@
   }
   function updateBloodMoon() {
   }
-  function updateDayNight(dt) {
-    if (!dayNight.total || dayNight.total <= 0) dayNight.total = 11e4;
-    if (!Number.isFinite(dayNight.time)) dayNight.time = 0;
-    dayNight.time = (dayNight.time + dt) % dayNight.total;
-    const frac = dayNight.time % dayNight.total / dayNight.total;
-    const rawFactor = (1 - Math.cos(frac * Math.PI * 2)) / 2;
-    dayNight.factor = Number.isFinite(rawFactor) ? Math.max(0, Math.min(1, rawFactor)) : 0;
-    const wasNight = dayNight.isNight;
-    dayNight.isNight = dayNight.factor > 0.5;
-    if (dayNight.isNight !== wasNight) {
-      if (dayNight.isNight) {
-        dayNight.nightCount = (dayNight.nightCount || 0) + 1;
-        if (dayNight.nightCount % 3 === 0) {
-          bloodMoon.active = true;
-          showBanner("BLOOD MOON RISING", "A cursed red night begins! Fast & vicious zombies inbound!", "blood");
-        } else {
-          bloodMoon.active = false;
-          showBanner("NIGHTFALL", "Zombies emerge from the dark! Defend your base!", "night");
-        }
+  function fireDayNightTransitionBanner(wasNight) {
+    if (dayNight.isNight === wasNight) return;
+    if (dayNight.isNight) {
+      if (bloodMoon.active) {
+        showBanner("BLOOD MOON RISING", "A cursed red night begins! Fast & vicious zombies inbound!", "blood");
       } else {
-        if (bloodMoon.active) {
-          bloodMoon.active = false;
-        }
-        showBanner("DAYBREAK", "Safe daylight! Prepare & build your base.", "night");
+        showBanner("NIGHTFALL", "Zombies emerge from the dark! Defend your base!", "night");
       }
+    } else {
+      showBanner("DAYBREAK", "Safe daylight! Prepare & build your base.", "night");
     }
+  }
+  function applyPhaseLabel() {
     let timeLeftSec = 0;
     if (dayNight.isNight) {
       timeLeftSec = Math.max(0, Math.ceil((82500 - dayNight.time) / 1e3));
@@ -1839,6 +1525,26 @@
       label.textContent = `DAY | ${timeLeftSec}s (SAFE - BUILD TIME)`;
       label.className = "pill hud-font day";
     }
+  }
+  function updateDayNight(dt) {
+    if (!dayNight.total || dayNight.total <= 0) dayNight.total = 11e4;
+    if (!Number.isFinite(dayNight.time)) dayNight.time = 0;
+    dayNight.time = (dayNight.time + dt) % dayNight.total;
+    const frac = dayNight.time % dayNight.total / dayNight.total;
+    const rawFactor = (1 - Math.cos(frac * Math.PI * 2)) / 2;
+    dayNight.factor = Number.isFinite(rawFactor) ? Math.max(0, Math.min(1, rawFactor)) : 0;
+    const wasNight = dayNight.isNight;
+    dayNight.isNight = dayNight.factor > 0.5;
+    if (dayNight.isNight !== wasNight) {
+      if (dayNight.isNight) {
+        dayNight.nightCount = (dayNight.nightCount || 0) + 1;
+        bloodMoon.active = dayNight.nightCount % 3 === 0;
+      } else {
+        bloodMoon.active = false;
+      }
+    }
+    fireDayNightTransitionBanner(wasNight);
+    applyPhaseLabel();
     if (dayNight.isNight && dayNight.factor > 0.55) {
       dayNight.nightSpawnTimer -= dt;
       if (dayNight.nightSpawnTimer <= 0 && zombies.length < 45) {
@@ -1886,6 +1592,338 @@
         startWave(wave + 1);
       }
     }
+  }
+
+  // src/net/matchSync.ts
+  function hashId(id) {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = h * 31 + id.charCodeAt(i) >>> 0;
+    return h;
+  }
+  var HAIR_KINDS = ["bald", "hood", "tuft"];
+  var MOUTH_KINDS = ["open", "frown", "grimace"];
+  var zombieRenderPos = /* @__PURE__ */ new Map();
+  var zombieTargetPos = /* @__PURE__ */ new Map();
+  var bulletRenderPos = /* @__PURE__ */ new Map();
+  var bulletTargetPos = /* @__PURE__ */ new Map();
+  var remoteRenderPos = /* @__PURE__ */ new Map();
+  var remoteTargetPos = /* @__PURE__ */ new Map();
+  function lerpAngle(a, b, t) {
+    let diff = (b - a) % (Math.PI * 2);
+    if (diff < -Math.PI) diff += Math.PI * 2;
+    if (diff > Math.PI) diff -= Math.PI * 2;
+    return a + diff * t;
+  }
+  var NET_SMOOTH_TAU_MS = 90;
+  function smoothFactor(dtMs) {
+    return 1 - Math.exp(-dtMs / NET_SMOOTH_TAU_MS);
+  }
+  function updateNetInterpolation(dt) {
+    const t = smoothFactor(dt);
+    for (const z of zombies) {
+      const target = zombieTargetPos.get(z.id);
+      if (!target) continue;
+      z.x += (target.x - z.x) * t;
+      z.y += (target.y - z.y) * t;
+      zombieRenderPos.set(z.id, { x: z.x, y: z.y });
+    }
+    for (const b of bullets) {
+      if (!b.id) continue;
+      const target = bulletTargetPos.get(b.id);
+      if (!target) continue;
+      b.x += (target.x - b.x) * t;
+      b.y += (target.y - b.y) * t;
+      bulletRenderPos.set(b.id, { x: b.x, y: b.y });
+    }
+    for (const rp of remotePlayers) {
+      const target = remoteTargetPos.get(rp.id);
+      if (!target) continue;
+      const rx = (rp.renderX ?? rp.x) + (target.x - (rp.renderX ?? rp.x)) * t;
+      const ry = (rp.renderY ?? rp.y) + (target.y - (rp.renderY ?? rp.y)) * t;
+      const rAngle = lerpAngle(rp.renderAngle ?? rp.angle, target.angle, t);
+      rp.renderX = rx;
+      rp.renderY = ry;
+      rp.renderAngle = rAngle;
+      rp.angle = rAngle;
+      remoteRenderPos.set(rp.id, { x: rx, y: ry, angle: rAngle, weapon: target.weapon });
+    }
+  }
+  function toClientZombie(snap) {
+    const h = hashId(snap.id);
+    const variant = SKIN_VARIANTS[h % SKIN_VARIANTS.length];
+    zombieTargetPos.set(h, { x: snap.x, y: snap.y });
+    const render2 = zombieRenderPos.get(h) ?? { x: snap.x, y: snap.y };
+    zombieRenderPos.set(h, render2);
+    const existing = zombies.find((z) => z.id === h);
+    const curHp = snap.hp;
+    let curMaxHp = snap.maxHp;
+    if (existing) {
+      curMaxHp = existing.maxHp || snap.maxHp;
+    }
+    return {
+      id: h,
+      type: snap.zombieType || existing?.type || "normal",
+      x: render2.x,
+      y: render2.y,
+      radius: existing?.radius || 20,
+      hp: curHp,
+      maxHp: curMaxHp,
+      speed: 0,
+      damage: 0,
+      armor: 0,
+      hitCooldown: existing?.hitCooldown || 0,
+      wobble: existing?.wobble ?? h % 628 / 100,
+      flash: existing?.flash || 0,
+      lastShot: existing?.lastShot || 0,
+      fuseStart: existing?.fuseStart || null,
+      hairKind: existing?.hairKind || HAIR_KINDS[h % HAIR_KINDS.length],
+      mouthKind: existing?.mouthKind || MOUTH_KINDS[(h >> 3) % MOUTH_KINDS.length],
+      squishX: existing?.squishX || 1,
+      squishY: existing?.squishY || 1,
+      skinColor: variant[0],
+      skinColor2: variant[1],
+      skinDark: variant[2],
+      clothColor: null
+    };
+  }
+  var lastBulletPos = /* @__PURE__ */ new Map();
+  var lastAppliedLevel = null;
+  function toClientBullet(snap) {
+    const prev = lastBulletPos.get(snap.id);
+    const vx = prev ? snap.x - prev.x : 0;
+    const vy = prev ? snap.y - prev.y : 0;
+    lastBulletPos.set(snap.id, { x: snap.x, y: snap.y });
+    bulletTargetPos.set(snap.id, { x: snap.x, y: snap.y });
+    const render2 = bulletRenderPos.get(snap.id) ?? { x: snap.x, y: snap.y };
+    bulletRenderPos.set(snap.id, render2);
+    return {
+      id: snap.id,
+      x: render2.x,
+      y: render2.y,
+      vx,
+      vy,
+      radius: 5,
+      damage: 0,
+      life: 1,
+      owner: "remotePlayer"
+    };
+  }
+  function toClientStructure(snap) {
+    return {
+      id: snap.id,
+      type: snap.type,
+      x: snap.x,
+      y: snap.y,
+      angle: snap.angle,
+      aimAngle: snap.aimAngle,
+      radius: BUILD_DEFS[snap.type].radius,
+      hp: snap.hp,
+      maxHp: snap.maxHp,
+      tier: snap.tier,
+      level: snap.level
+    };
+  }
+  var wired = false;
+  function initMatchSync() {
+    if (wired) return;
+    wired = true;
+    net.onPlayers = (msg) => {
+      const myId2 = getMyId();
+      const activeIds = new Set(msg.players.map((p) => p.id));
+      for (const id of remoteRenderPos.keys()) {
+        if (!activeIds.has(id)) {
+          remoteRenderPos.delete(id);
+          remoteTargetPos.delete(id);
+        }
+      }
+      const others = msg.players.filter((p) => p.id !== myId2).map((p) => {
+        const weapon = p.weapon || "pistol";
+        remoteTargetPos.set(p.id, { x: p.x, y: p.y, angle: p.angle, weapon });
+        const render2 = remoteRenderPos.get(p.id) ?? { x: p.x, y: p.y, angle: p.angle, weapon };
+        remoteRenderPos.set(p.id, render2);
+        return {
+          id: p.id,
+          name: p.name,
+          x: p.x,
+          y: p.y,
+          angle: p.angle,
+          hp: p.hp,
+          maxHp: p.maxHp,
+          alive: p.alive,
+          weapon,
+          mutation: p.mutation,
+          renderX: render2.x,
+          renderY: render2.y,
+          renderAngle: render2.angle,
+          targetX: p.x,
+          targetY: p.y,
+          targetAngle: p.angle
+        };
+      });
+      setRemotePlayers(others);
+      const mine = msg.players.find((p) => p.id === myId2);
+      if (mine) {
+        player.maxHp = mine.maxHp;
+        player.alive = mine.alive;
+        player.hp = mine.hp;
+        if (mine.weapon) player.weapon = mine.weapon;
+        player.weaponChosen = mine.weaponChosen;
+        if (mine.mutation) player.mutation = mine.mutation;
+        player.mutationChosen = mine.mutationChosen;
+        player.xp = mine.xp;
+        player.level = mine.level;
+        player.xpToNext = mine.xpToNext;
+        if (lastAppliedLevel === null) {
+          lastAppliedLevel = mine.level;
+        } else if (mine.level > lastAppliedLevel) {
+          applyServerLevelUp(mine.level - lastAppliedLevel);
+          lastAppliedLevel = mine.level;
+        }
+      }
+    };
+    net.onZombies = (msg) => {
+      const activeIds = new Set(msg.zombies.map((z) => hashId(z.id)));
+      for (const id of zombieRenderPos.keys()) {
+        if (!activeIds.has(id)) {
+          zombieRenderPos.delete(id);
+          zombieTargetPos.delete(id);
+        }
+      }
+      setZombies(msg.zombies.map(toClientZombie));
+    };
+    net.onBullets = (msg) => {
+      const myId2 = getMyId();
+      const activeIds = new Set(msg.bullets.map((b) => b.id));
+      for (const id of lastBulletPos.keys()) {
+        if (!activeIds.has(id)) lastBulletPos.delete(id);
+      }
+      for (const id of bulletRenderPos.keys()) {
+        if (!activeIds.has(id)) {
+          bulletRenderPos.delete(id);
+          bulletTargetPos.delete(id);
+        }
+      }
+      const localBullets = bullets.filter((b) => (b.owner === "player" || b.owner === "remotePlayer") && b.life > 0 && !b.dead);
+      const remoteServerBullets = msg.bullets.filter((b) => b.ownerId !== myId2).map(toClientBullet);
+      setBullets([...localBullets, ...remoteServerBullets]);
+    };
+    net.onStructures = (msg) => {
+      const next = msg.structures.map(toClientStructure);
+      setStructures(next);
+      if (inspectedStructure) {
+        setInspectedStructure(next.find((s) => s.id === inspectedStructure.id) ?? null);
+      }
+    };
+    net.onResources = (msg) => {
+      setResources(msg.resources.map((r) => ({
+        id: r.id,
+        type: r.type,
+        x: r.x,
+        y: r.y,
+        radius: r.radius,
+        hp: r.hp,
+        maxHp: r.maxHp
+      })));
+    };
+    net.onShoot = (msg) => {
+      const myId2 = getMyId();
+      if (msg.shooterId === myId2) return;
+      const shooter = remotePlayers.find((p) => p.id === msg.shooterId);
+      const shooterX = msg.x ?? (shooter?.renderX ?? shooter?.x ?? 0);
+      const shooterY = msg.y ?? (shooter?.renderY ?? shooter?.y ?? 0);
+      const weapon = msg.weapon || shooter?.weapon || "pistol";
+      const angle = msg.angle;
+      const wdef = WEAPON_DEFS[weapon] || WEAPON_DEFS.pistol;
+      const dmg = 12 * wdef.damageMul;
+      const speed = 9.5 * (wdef.bulletSpeedMul || 1);
+      const life = 4e3 * (wdef.bulletLifeMul || 1);
+      function spawnBullet(a, originOffset) {
+        const perpX = Math.cos(a + Math.PI / 2), perpY = Math.sin(a + Math.PI / 2);
+        const b = {
+          x: shooterX + Math.cos(a) * 54 + perpX * originOffset,
+          y: shooterY + Math.sin(a) * 54 + perpY * originOffset,
+          vx: Math.cos(a) * speed,
+          vy: Math.sin(a) * speed,
+          radius: 5,
+          damage: dmg,
+          life,
+          owner: "remotePlayer"
+        };
+        if (wdef.explosive) {
+          b.explosive = true;
+          b.explodeRadius = wdef.explodeRadius;
+        }
+        bullets.push(b);
+      }
+      if (weapon === "dualguns") {
+        spawnBullet(angle, -9);
+        spawnBullet(angle, 9);
+      } else if (weapon === "shotgun") {
+        const spread = wdef.spreadRad || 0.22;
+        spawnBullet(angle - spread, 0);
+        spawnBullet(angle, 0);
+        spawnBullet(angle + spread, 0);
+      } else {
+        spawnBullet(angle, 0);
+      }
+    };
+    net.onDayNight = (msg) => {
+      if (Number.isFinite(msg.time)) {
+        const diff = Math.abs(dayNight.time - msg.time);
+        if (diff > 400 && diff < 1e5) {
+          dayNight.time = msg.time;
+        }
+      }
+      dayNight.nightCount = msg.nightCount || 0;
+      bloodMoon.active = !!msg.bloodMoon;
+      const frac = dayNight.time % dayNight.total / dayNight.total;
+      dayNight.factor = (1 - Math.cos(frac * Math.PI * 2)) / 2;
+      const wasNight = dayNight.isNight;
+      dayNight.isNight = !!msg.isNight;
+      fireDayNightTransitionBanner(wasNight);
+      applyPhaseLabel();
+    };
+    net.onGameOver = () => {
+      showBanner("TEAM ELIMINATED", "All survivors have fallen! Returning to lobby...", "boss");
+      setTimeout(() => {
+        stopNetMatch();
+        const menu = document.getElementById("mainMenu");
+        if (menu) menu.classList.add("show");
+      }, 3500);
+    };
+    net.onDisconnected = () => {
+      setInNetMatch(false);
+      lastAppliedLevel = null;
+    };
+  }
+  function startNetMatch() {
+    setInNetMatch(true);
+    lastAppliedLevel = null;
+    lastBulletPos.clear();
+    zombieRenderPos.clear();
+    zombieTargetPos.clear();
+    bulletRenderPos.clear();
+    bulletTargetPos.clear();
+    remoteRenderPos.clear();
+    remoteTargetPos.clear();
+  }
+  function stopNetMatch() {
+    setInNetMatch(false);
+    setRemotePlayers([]);
+    lastBulletPos.clear();
+    zombieRenderPos.clear();
+    zombieTargetPos.clear();
+    bulletRenderPos.clear();
+    bulletTargetPos.clear();
+    remoteRenderPos.clear();
+    remoteTargetPos.clear();
+  }
+  var lastSentMoveAt = 0;
+  var MOVE_SEND_INTERVAL_MS = 80;
+  function maybeSendMove(now) {
+    if (now - lastSentMoveAt < MOVE_SEND_INTERVAL_MS) return;
+    lastSentMoveAt = now;
+    sendMove(player.x, player.y, player.angle);
   }
 
   // src/systems/update.ts
@@ -2137,7 +2175,7 @@
         if (b.owner === "player" && player.mutation === "vampire") {
           player.hp = Math.min(player.maxHp, player.hp + finalDmg * 0.02);
         }
-        if (z.hp <= 0) zombieDied(z);
+        if (z.hp <= 0) zombieDied(z, b.owner === "player");
         else spawnBlood(z.x, z.y, z.radius * 0.4);
       }
     }
@@ -2248,7 +2286,7 @@
                 const amt = Math.round((8 + Math.random() * 6) * (player.resourceMul || 1));
                 player.wood += amt;
                 spawnParticle(r.x, r.y, "+" + amt + " wood", "#c98b4a");
-                gainXp(Math.round(3 * (player.resourceMul || 1)));
+                if (!inNetMatch) gainXp(Math.round(3 * (player.resourceMul || 1)));
               } else if (r.type === "iron") {
                 const ironAmt = Math.round((4 + Math.random() * 4) * (player.resourceMul || 1));
                 player.iron += ironAmt;
@@ -2261,7 +2299,7 @@
                   player.gold += goldAmt;
                   setTimeout(() => spawnParticle(r.x, r.y - 30, "+" + goldAmt + " gold", "#ffd76a"), 300);
                 }
-                gainXp(Math.round(6 * (player.resourceMul || 1)));
+                if (!inNetMatch) gainXp(Math.round(6 * (player.resourceMul || 1)));
               } else {
                 const amt = Math.round((6 + Math.random() * 4) * (player.resourceMul || 1));
                 player.stone += amt;
@@ -2276,7 +2314,7 @@
                   player.gold += goldAmt;
                   setTimeout(() => spawnParticle(r.x, r.y - 30, "+" + goldAmt + " gold", "#ffd76a"), 300);
                 }
-                gainXp(Math.round(3 * (player.resourceMul || 1)));
+                if (!inNetMatch) gainXp(Math.round(3 * (player.resourceMul || 1)));
               }
             }
             break;
@@ -7585,8 +7623,10 @@
         updateNetInterpolation(dt);
       }
       updateParticles(dt);
-      updateBloodMoon();
-      updateDayNight(dt);
+      if (!inNetMatch) {
+        updateBloodMoon();
+        updateDayNight(dt);
+      }
       if (!inNetMatch) updateWaves(dt);
       updateHud();
       render(ctx, canvas);

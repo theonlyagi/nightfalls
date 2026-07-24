@@ -225,6 +225,27 @@ export function gainXp(amount: number): void {
   xpCallbacks.onUpgradePanel();
 }
 
+/** Net-mode counterpart to gainXp()'s level-up effects. The server is
+ *  authoritative for xp/level/xpToNext/maxHp/hp in a net match (already
+ *  applied to `player` from the snapshot by the time this runs) — this only
+ *  reproduces the client-owned side effects gainXp() would otherwise have
+ *  triggered, once per level actually gained, without touching any of the
+ *  server-owned counters itself. Called from matchSync.ts's onPlayers
+ *  handler, never from solo play. */
+export function applyServerLevelUp(levelsGained: number): void {
+  player.statPoints += levelsGained;
+  for (let i = 0; i < levelsGained; i++) {
+    spawnParticle(player.x, player.y - 40, 'LEVEL UP', '#4ecdc4');
+  }
+  if (player.level >= 15 && !player.weaponChosen) {
+    xpCallbacks.onWeaponChoice();
+  }
+  if (player.level >= 25 && !player.mutationChosen) {
+    xpCallbacks.onMutationChoice();
+  }
+  xpCallbacks.onUpgradePanel();
+}
+
 export function zombieDied(z: Zombie, isMyKill = true): void {
   if (z.dead) return;
   z.dead = true;
@@ -253,13 +274,13 @@ export function zombieDied(z: Zombie, isMyKill = true): void {
   }
 
   if (z.type === 'boss') {
-    gainXp(200 + wave * 10);
+    if (!inNetMatch) gainXp(200 + wave * 10);
     setActiveBoss(null);
     const bossBar = document.getElementById('bossBar');
     if (bossBar) bossBar.classList.remove('show');
     spawnParticle(z.x, z.y - 40, 'BOSS DEFEATED', '#c084fc');
     triggerShake(14, 300);
   } else {
-    gainXp(10 + wave * 2);
+    if (!inNetMatch) gainXp(10 + wave * 2);
   }
 }

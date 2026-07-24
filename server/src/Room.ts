@@ -2,6 +2,7 @@ import uWS from 'uWebSockets.js';
 import {
   WORLD_W, WORLD_H, ROOM_MAX_PLAYERS, ROOM_MIN_PLAYERS, MATCH_START_COUNTDOWN_MS, TICK_MS,
   ZOMBIE_MAX, ZOMBIE_SPAWN_INTERVAL_MS, ZOMBIE_RADIUS, ZOMBIE_DAMAGE, ZOMBIE_HIT_COOLDOWN_MS, ZOMBIE_KILL_XP,
+  RESOURCE_KILL_XP,
   ZOMBIE_CHASE_SPEED,
   BULLET_SPEED_PER_SEC, BULLET_LIFE_TICKS, BULLET_RADIUS, BULLET_DAMAGE,
   PLAYER_RADIUS, PLAYER_MAX_HP, MAX_PLAYER_SPEED_PER_MS, MIN_SHOT_INTERVAL_MS,
@@ -9,6 +10,7 @@ import {
   WALL_HP_BY_TIER, SPIKE_HP_BY_TIER, SPIKE_DAMAGE_BY_TIER, SPIKE_HIT_COOLDOWN_MS,
   CAMPFIRE_HEAL_RADIUS, CAMPFIRE_HEAL_RATE,
   RoomPhase, StructureKind, TowerKind,
+  WEAPON_KINDS, WEAPON_UNLOCK_LEVEL, MUTATION_KINDS, MUTATION_UNLOCK_LEVEL,
   clamp, dist,
 } from './protocol.js';
 
@@ -33,6 +35,9 @@ export interface PlayerState {
   maxHp: number;
   alive: boolean;
   weapon?: string;
+  weaponChosen: boolean;
+  mutation?: string;
+  mutationChosen: boolean;
   xp: number;
   level: number;
   xpToNext: number;
@@ -80,6 +85,9 @@ export interface StructureState {
   hp: number;
   maxHp: number;
   lastShot: number;
+  ownerId: string; // builder's player id — reward attribution only, not an
+                    // access-control check (any player can still upgrade/
+                    // remove any structure, matching the existing Phase 1 model)
 }
 
 let nextZombieId = 1;
@@ -183,7 +191,9 @@ export class Room {
       type: 'players',
       players: Array.from(this.players.values()).map(p => ({
         id: p.id, name: p.name, x: p.x, y: p.y, angle: p.angle, hp: p.hp, maxHp: p.maxHp, alive: p.alive,
-        weapon: p.weapon, xp: p.xp, level: p.level, xpToNext: p.xpToNext,
+        weapon: p.weapon, weaponChosen: p.weaponChosen,
+        mutation: p.mutation, mutationChosen: p.mutationChosen,
+        xp: p.xp, level: p.level, xpToNext: p.xpToNext,
       })),
     }));
   }
@@ -258,6 +268,8 @@ export class Room {
     this.players.set(id, restored ?? {
       id, name, x: WORLD_W / 2, y: WORLD_H / 2, angle: 0,
       hp: PLAYER_MAX_HP, maxHp: PLAYER_MAX_HP, alive: true,
+      weaponChosen: false,
+      mutationChosen: false,
       xp: 0, level: 1, xpToNext: 50,
       lastMoveAt: now, lastMoveX: WORLD_W / 2, lastMoveY: WORLD_H / 2,
       lastShotAt: 0, ready: false,
@@ -381,7 +393,7 @@ export class Room {
       id: sid, type: kind,
       x: clamp(x, 0, WORLD_W), y: clamp(y, 0, WORLD_H), angle, aimAngle: angle,
       tier: 0, level: isTowerKind(kind) ? 1 : 0,
-      hp, maxHp: hp, lastShot: 0,
+      hp, maxHp: hp, lastShot: 0, ownerId: id,
     });
     this.broadcastStructures();
   }
@@ -433,15 +445,59 @@ export class Room {
     this.broadcastStructures();
   }
 
-  handleHitResource(id: string, damage: number): void {
+  handleHitResource(playerId: string, id: string, damage: number): void {
     if (this.phase !== 'active') return;
     const r = this.resources.get(id);
     if (!r) return;
     r.hp -= damage;
     if (r.hp <= 0) {
       this.resources.delete(id);
+      this.grantXp(playerId, RESOURCE_KILL_XP[r.type]);
     }
     this.broadcastResources();
+  }
+
+  /** Validated weapon-choice unlock: level gate + one-time-only, matching
+   *  the client's own gate check (src/systems/combat.ts's gainXp()/
+   *  applyServerLevelUp()) so the server never trusts a client that skips
+   *  or replays the choice. */
+  handleWeaponChoice(playerId: string, weapon: string): void {
+    const p = this.players.get(playerId);
+    if (!p || !p.alive) return;
+    if (p.level < WEAPON_UNLOCK_LEVEL) return;
+    if (p.weaponChosen) return;
+    if (!WEAPON_KINDS.includes(weapon)) return;
+
+    p.weapon = weapon;
+    p.weaponChosen = true;
+    this.broadcastPlayers();
+  }
+
+  /** Validated mutation-choice unlock: level gate + one-time-only, same
+   *  shape as handleWeaponChoice. Ownership/persistence only — does NOT
+   *  apply any stat effect (radius/etc.); those remain entirely client-side
+   *  for now (see MUTATION_KINDS's doc comment in protocol.ts).
+   *
+   *  Titan is the one exception: its client-side def.apply() bumps
+   *  maxHp/hp, but the server overwrites both fields on every snapshot
+   *  (see onPlayers in matchSync.ts), so a client-only bump would just get
+   *  clobbered by the next snapshot. The +400/+400 is mirrored here,
+   *  gated by the same mutationChosen one-time check above, so it can
+   *  never double-apply from a repeated/replayed packet. */
+  handleMutationChoice(playerId: string, mutation: string): void {
+    const p = this.players.get(playerId);
+    if (!p || !p.alive) return;
+    if (p.level < MUTATION_UNLOCK_LEVEL) return;
+    if (p.mutationChosen) return;
+    if (!MUTATION_KINDS.includes(mutation)) return;
+
+    p.mutation = mutation;
+    p.mutationChosen = true;
+    if (mutation === 'titan') {
+      p.maxHp += 400;
+      p.hp += 400;
+    }
+    this.broadcastPlayers();
   }
 
   handleRevive(reviverId: string, targetId: string): void {
@@ -703,7 +759,7 @@ export class Room {
     while (p.xp >= p.xpToNext) {
       p.xp -= p.xpToNext;
       p.level += 1;
-      p.xpToNext = Math.floor(p.xpToNext * 1.3);
+      p.xpToNext = Math.floor(p.xpToNext * 1.32);
       p.maxHp += 8;
       p.hp = Math.min(p.maxHp, p.hp + 8);
     }
@@ -739,7 +795,10 @@ export class Room {
           if (now - z.lastSpikeHitAt < SPIKE_HIT_COOLDOWN_MS) continue;
           z.hp -= dmg;
           z.lastSpikeHitAt = now;
-          if (z.hp <= 0) this.zombies.delete(z.id);
+          if (z.hp <= 0) {
+            this.zombies.delete(z.id);
+            this.grantXp(s.ownerId, ZOMBIE_KILL_XP);
+          }
         }
         continue;
       }
@@ -760,9 +819,10 @@ export class Room {
         s.lastShot = now;
         s.aimAngle = Math.atan2(target.y - s.y, target.x - s.x);
         target.hp -= spec.damage;
-        if (target.hp <= 0) this.zombies.delete(target.id);
-        // No XP granted for structure kills — structures have no owner in
-        // Phase 1 (see StructureState's doc comment).
+        if (target.hp <= 0) {
+          this.zombies.delete(target.id);
+          this.grantXp(s.ownerId, ZOMBIE_KILL_XP);
+        }
       }
     }
 

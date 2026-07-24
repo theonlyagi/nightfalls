@@ -283,7 +283,7 @@ export function explodeBullet(b: Bullet): void {
       if (b.owner === 'player' && player.mutation === 'vampire') {
         player.hp = Math.min(player.maxHp, player.hp + finalDmg * 0.02);
       }
-      if (z.hp <= 0) zombieDied(z); else spawnBlood(z.x, z.y, z.radius * 0.4);
+      if (z.hp <= 0) zombieDied(z, b.owner === 'player'); else spawnBlood(z.x, z.y, z.radius * 0.4);
     }
   }
 
@@ -386,7 +386,7 @@ export function updateBullets(dt: number): void {
               const amt = Math.round((8 + Math.random() * 6) * (player.resourceMul || 1));
               player.wood += amt;
               spawnParticle(r.x, r.y, '+' + amt + ' wood', '#c98b4a');
-              gainXp(Math.round(3 * (player.resourceMul || 1)));
+              if (!inNetMatch) gainXp(Math.round(3 * (player.resourceMul || 1)));
             } else if (r.type === 'iron') {
               const ironAmt = Math.round((4 + Math.random() * 4) * (player.resourceMul || 1));
               player.iron += ironAmt;
@@ -403,7 +403,7 @@ export function updateBullets(dt: number): void {
                 setTimeout(() => spawnParticle(r.x, r.y - 30, '+' + goldAmt + ' gold', '#ffd76a'), 300);
               }
 
-              gainXp(Math.round(6 * (player.resourceMul || 1)));
+              if (!inNetMatch) gainXp(Math.round(6 * (player.resourceMul || 1)));
             } else {
               const amt = Math.round((6 + Math.random() * 4) * (player.resourceMul || 1));
               player.stone += amt;
@@ -422,7 +422,7 @@ export function updateBullets(dt: number): void {
                 setTimeout(() => spawnParticle(r.x, r.y - 30, '+' + goldAmt + ' gold', '#ffd76a'), 300);
               }
 
-              gainXp(Math.round(3 * (player.resourceMul || 1)));
+              if (!inNetMatch) gainXp(Math.round(3 * (player.resourceMul || 1)));
             }
           }
           break;

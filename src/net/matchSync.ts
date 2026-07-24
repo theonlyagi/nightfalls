@@ -21,7 +21,7 @@ import {
 } from '../state';
 import { Zombie, Bullet, Structure, HairKind, MouthKind, WeaponKind } from '../types';
 import { SKIN_VARIANTS, BUILD_DEFS, WEAPON_DEFS } from '../constants';
-import { showBanner } from '../systems/combat';
+import { showBanner, applyServerLevelUp } from '../systems/combat';
 import { applyPhaseLabel, fireDayNightTransitionBanner } from '../systems/wave';
 
 /** Small deterministic hash so a given entity id always gets the same
@@ -149,6 +149,15 @@ function toClientZombie(snap: NetZombieSnapshot): Zombie {
  *  render/target position maps above, which drive actual displayed motion. */
 const lastBulletPos = new Map<string, { x: number; y: number }>();
 
+/** The last server `level` we've applied side-effects for, or null if we
+ *  haven't seen a snapshot yet since the current connection started. The
+ *  first snapshot after (re)connecting is treated as a baseline — its level
+ *  is adopted silently, with no level-up effects fired for it, so a
+ *  reconnect that jumps e.g. level 1 -> 14 doesn't replay 13 fake level-ups.
+ *  Reset on every fresh match start and on disconnect so the next snapshot
+ *  received is always treated as a fresh baseline. */
+let lastAppliedLevel: number | null = null;
+
 function toClientBullet(snap: NetBulletSnapshot): Bullet {
   const prev = lastBulletPos.get(snap.id);
   const vx = prev ? snap.x - prev.x : 0;
@@ -201,7 +210,7 @@ export function initMatchSync(): void {
     const others: RemotePlayer[] = msg.players
       .filter(p => p.id !== myId)
       .map(p => {
-        const weapon = ((p as any).weapon as WeaponKind) || 'pistol';
+        const weapon = p.weapon || 'pistol';
         remoteTargetPos.set(p.id, { x: p.x, y: p.y, angle: p.angle, weapon });
         const render = remoteRenderPos.get(p.id) ?? { x: p.x, y: p.y, angle: p.angle, weapon };
         remoteRenderPos.set(p.id, render);
@@ -216,6 +225,7 @@ export function initMatchSync(): void {
           maxHp: p.maxHp,
           alive: p.alive,
           weapon,
+          mutation: p.mutation,
           renderX: render.x,
           renderY: render.y,
           renderAngle: render.angle,
@@ -233,6 +243,39 @@ export function initMatchSync(): void {
       player.maxHp = mine.maxHp;
       player.alive = mine.alive;
       player.hp = mine.hp;
+
+      // Server is now authoritative for weapon choice too (Phase 2d-1).
+      // Applied unconditionally, including the first (baseline) snapshot —
+      // this is what makes the choice survive a reload/reconnect, since the
+      // client's own `weaponChosen` re-inits to false on load but the
+      // server's PlayerState persists it across the session-grace window.
+      if (mine.weapon) player.weapon = mine.weapon;
+      player.weaponChosen = mine.weaponChosen;
+
+      // Server is now authoritative for mutation choice too (Phase 2d-2a) —
+      // same ownership/persistence shape as weapon above. Deliberately
+      // does NOT apply any mutation stat effect (radius/maxHp/etc.); that
+      // stays entirely client-side via shopUI.ts's def.apply(), unchanged.
+      if (mine.mutation) player.mutation = mine.mutation;
+      player.mutationChosen = mine.mutationChosen;
+
+      // Server is now authoritative for XP/level too (Phase 2c-2). Counters
+      // are always applied directly from the snapshot; level-up side
+      // effects (statPoints, particle, upgrade panel) are reproduced via
+      // applyServerLevelUp, but only for a genuine in-match level increase
+      // — never for the first snapshot after (re)connecting (see
+      // lastAppliedLevel's doc comment) and never on a same/lower level
+      // (e.g. a server correction on reconnect).
+      player.xp = mine.xp;
+      player.level = mine.level;
+      player.xpToNext = mine.xpToNext;
+
+      if (lastAppliedLevel === null) {
+        lastAppliedLevel = mine.level;
+      } else if (mine.level > lastAppliedLevel) {
+        applyServerLevelUp(mine.level - lastAppliedLevel);
+        lastAppliedLevel = mine.level;
+      }
     }
   };
 
@@ -361,12 +404,14 @@ export function initMatchSync(): void {
 
   net.onDisconnected = () => {
     setInNetMatch(false);
+    lastAppliedLevel = null;
   };
 }
 
 /** Called once the lobby countdown completes and the match actually starts. */
 export function startNetMatch(): void {
   setInNetMatch(true);
+  lastAppliedLevel = null;
   lastBulletPos.clear();
   zombieRenderPos.clear();
   zombieTargetPos.clear();
